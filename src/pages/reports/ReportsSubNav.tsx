@@ -1,0 +1,33 @@
+import { NavLink } from "react-router";
+
+const SUB_LINKS = [
+  { to: "/reports", label: "Overview", end: true },
+  { to: "/reports/sales", label: "Sales" },
+  { to: "/reports/profitability", label: "Profitability" },
+  { to: "/reports/stock-performance", label: "Stock Performance" },
+  { to: "/reports/margins", label: "Margin Config" },
+  { to: "/reports/audit-trail", label: "Audit Trail" },
+];
+
+export default function ReportsSubNav() {
+  return (
+    <nav className="bg-white border-b border-[#DBEFF3] px-4 sm:px-6 flex items-center gap-1 overflow-x-auto" aria-label="Reports sub-navigation">
+      {SUB_LINKS.map(({ to, label, end }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) =>
+            `px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+              isActive
+                ? "border-[#49B0C1] text-[#49B0C1]"
+                : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#ABDBE3]"
+            }`
+          }
+        >
+          {label}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}

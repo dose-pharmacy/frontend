@@ -1,0 +1,1908 @@
+# FIGMA PROMPT: PURCHASING & SUPPLIER MANAGEMENT MODULE
+
+```
+Design a comprehensive Purchasing & Supplier Management interface for a Pharmacy Management System with the following specifications:
+
+## DESIGN SYSTEM
+
+### Color Palette
+- Primary Color: #49B0C1 (darkest blue) - Headers, primary buttons, navigation, important UI elements
+- Secondary/Mid-tone Blue: #ABDBE3 - Accents, hover states, secondary buttons, transition elements
+- Light Blue: #DBEFF3 - Cards, containers, section backgrounds, subtle highlights
+- Background: White (#FFFFFF) - Main background color
+- Text Colors: #333333 (primary text), #666666 (secondary text), White (on primary backgrounds)
+- Status Colors: Green (#28A745), Yellow (#FFC107), Red (#DC3545), Orange (#FD7E14), Gray (#6C757D), Purple (#6F42C1)
+
+### Iconography
+- Use FontAwesome or similar icon library
+- Icons should be consistent in style and size (16-24px)
+- All icons should have proper accessibility labels
+- Icon colors should match text color or use status colors
+
+### Typography
+- Headings: Bold, 24-32px
+- Subheadings: Semi-bold, 18-20px
+- Body Text: Regular, 14-16px
+- Small Text: Regular, 12px
+- Large Numbers: Bold, 28-36px (for totals)
+
+### Component Styles
+- Buttons: Primary (#49B0C1) with white text, Secondary (#ABDBE3) with dark text
+- Cards: Light blue (#DBEFF3) background, 8px border radius, box shadow
+- Inputs: White background, #ABDBE3 borders, 8px border radius
+- Tables: Alternating rows (white and #DBEFF3)
+- All components: Rounded edges (4-12px border radius)
+
+---
+
+## PAGE 1: PURCHASE REQUIREMENT LIST PAGE
+
+### Purpose
+View and manage purchase requirements - lists of products that need to be ordered. This is the starting point of the purchasing workflow.
+
+### Header Section
+```
+Position: Fixed top, full width
+Background: #49B0C1
+Height: 64px
+Padding: 0 24px
+Elements:
+  - Left: System Logo + "Pharmacy Management System"
+  - Center: Navigation tabs: Dashboard, Inventory, POS, Purchasing, Reports, Settings
+    * "Purchasing" should be highlighted as active
+  - Right: User profile with user icon, Notifications bell icon, Logout sign-out icon
+```
+
+### Page Header
+```
+Position: Below navigation
+Background: White
+Padding: 16px 24px
+Border-bottom: 1px solid #ABDBE3
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Purchase Requirements" (24px, bold, #333333)
+    * Breadcrumb: "Purchasing" → "Requirements" (14px, #666666)
+    * Total count: "12 requirements found" (14px, #666666)
+  
+  - Right:
+    * Filter buttons group
+    * "Create New" button (primary #49B0C1) with plus icon
+```
+
+### Filter Section
+```
+Background: #DBEFF3
+Padding: 12px 24px
+Layout: Flex, align-center, gap 16px
+Border-bottom: 1px solid #ABDBE3
+```
+
+#### Filter Components
+```
+1. Status Filter:
+   - Label: "Status" (12px, #666666)
+   - Dropdown with chevron-down icon
+   - Options: All, Pending, Draft, Ordered, Received
+   - Background: White
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 6px 12px
+
+2. Priority Filter:
+   - Label: "Priority" (12px, #666666)
+   - Dropdown with chevron-down icon
+   - Options: All, High, Medium, Low
+   - Background: White
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 6px 12px
+
+3. Date Range:
+   - Label: "Date Range" (12px, #666666)
+   - Date picker with calendar icon
+   - From: [____] To: [____]
+   - Background: White
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 6px 12px
+
+4. Search Input:
+   - Magnifying glass icon
+   - Placeholder: "Search requirements..."
+   - Background: White
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 6px 12px
+   - Width: 250px
+
+5. Clear Filters:
+   - Secondary button (#ABDBE3)
+   - Text: "Clear Filters", 12px
+   - xmark icon
+```
+
+### Statistics Cards
+```
+Layout: Horizontal row, 4 cards, gap 16px
+Padding: 16px 24px
+Background: White
+```
+
+#### Card Designs
+```
+Each Card:
+  Background: White (or #DBEFF3)
+  Border: 1px solid #DBEFF3
+  Border-radius: 8px
+  Padding: 16px 20px
+  Flex: 1
+  Box-shadow: 0 2px 4px rgba(0,0,0,0.05)
+
+  Contents:
+    - Icon in circle (primary color background)
+    - Label: "Total Requirements" (12px, #666666)
+    - Value: "12" (24px, bold, #333333)
+
+Cards:
+  1. Total Requirements: 📋 (clipboard-list icon), "12"
+  2. Pending: ⏳ (hourglass-half icon), "5" (orange)
+  3. Completed: ✅ (check-circle icon), "4" (green)
+  4. Action Required: ⚠️ (exclamation-triangle icon), "3" (red)
+```
+
+### Requirements Table
+```
+Background: White
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+Overflow: hidden
+Border: 1px solid #DBEFF3
+```
+
+#### Table Design
+```
+Table Header:
+  Background: #ABDBE3
+  Padding: 12px 16px
+  
+  Columns (left to right):
+    1. Reference # (14px, bold, #333333)
+    2. Date (14px, bold, #333333)
+    3. Items (14px, bold, #333333)
+    4. Priority (14px, bold, #333333)
+    5. Status (14px, bold, #333333)
+    6. Total Cost (14px, bold, #333333)
+    7. Actions (14px, bold, #333333)
+
+Table Rows:
+  Background: White (alternating #DBEFF3)
+  Padding: 12px 16px
+  Border-bottom: 1px solid #DBEFF3
+  Hover: Background #DBEFF3
+
+  Row Contents:
+    1. Reference #: "PR-2026-001" (14px, #49B0C1, clickable link)
+    2. Date: "02/15/2026" (14px, #333333)
+    3. Items: "12 items" (14px, #333333)
+    4. Priority Badge:
+       - High: Red background, white text, "High"
+       - Medium: Yellow background, dark text, "Medium"
+       - Low: Green background, white text, "Low"
+    5. Status Badge:
+       - Pending: Orange background, white text
+       - Draft: Gray background, white text
+       - Ordered: Blue (#49B0C1) background, white text
+       - Received: Green background, white text
+    6. Total Cost: "1,450.00 ETB" (14px, #333333)
+    7. Actions:
+       - View icon (eye icon) - #49B0C1
+       - Edit icon (pencil icon) - #ABDBE3
+       - Delete icon (trash icon) - #DC3545
+```
+
+### Products Needing Purchase Section
+```
+Background: #DBEFF3
+Margin: 0 24px 24px 24px
+Padding: 16px 20px
+Border-radius: 8px
+```
+
+#### Section Header
+```
+Layout: Flex, justify-between, align-center
+Border-bottom: 1px solid #ABDBE3
+Padding-bottom: 12px
+
+Contents:
+  - Left:
+    * "Products Needing Purchase" (16px, bold, #333333)
+    * "Based on reorder alerts" (12px, #666666)
+  - Right:
+    * "3 products below threshold" (14px, #DC3545)
+```
+
+#### Products Table
+```
+Table:
+  Columns:
+    1. Product (14px, bold, #333333)
+    2. Current Stock (14px, #333333)
+    3. Threshold (14px, #333333)
+    4. Suggested Qty (14px, #333333)
+    5. Required Qty (14px, #333333)
+    6. Status (14px, #333333)
+    7. Action (14px)
+
+  Row Example 1 - Critical:
+    - Product: "Panadol 500mg"
+    - Current Stock: "15" (red text)
+    - Threshold: "30"
+    - Suggested Qty: "50" (based on sales velocity)
+    - Required Qty: "50" (input field, 50px width)
+    - Status: "⚠️ Critical" (red, exclamation-triangle icon)
+    - Action: "Add" button (primary #49B0C1, 10px, white)
+
+  Row Example 2 - Warning:
+    - Product: "Amoxicillin 500mg"
+    - Current Stock: "25" (yellow text)
+    - Threshold: "25"
+    - Suggested Qty: "40"
+    - Required Qty: "40" (input field)
+    - Status: "⚠️ Low" (yellow, exclamation-triangle icon)
+    - Action: "Add" button
+
+  Row Example 3 - Normal:
+    - Product: "Vitamin C 1000mg"
+    - Current Stock: "8" (red text)
+    - Threshold: "20"
+    - Suggested Qty: "60"
+    - Required Qty: "60" (input field)
+    - Status: "⚠️ Critical" (red)
+    - Action: "Add" button
+```
+
+### Pagination
+```
+Position: Bottom of table
+Background: White
+Padding: 12px 24px
+Border-top: 1px solid #DBEFF3
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left: "Showing 1-10 of 12 requirements" (14px, #666666)
+  - Right:
+    * Previous button (chevron-left icon, disabled if first page)
+    * Page numbers: 1 (active, #49B0C1), 2, 3
+    * Next button (chevron-right icon)
+```
+
+---
+
+## PAGE 2: CREATE PURCHASE REQUIREMENT PAGE
+
+### Purpose
+Create new purchase requirement lists by adding products that need to be ordered. This is a form-based page for building purchase requirements.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Create Purchase Requirement" (20px, bold, white)
+    * Breadcrumb: "Purchasing" → "Requirements" → "New" (14px, #ABDBE3)
+  
+  - Right:
+    * "Draft" status badge (gray background, white text)
+    * "Save & Continue" button (primary #49B0C1 with white border, white text)
+```
+
+### Requirement Details Form
+```
+Background: White
+Padding: 24px
+Margin: 16px 24px
+Border-radius: 8px
+Border: 1px solid #DBEFF3
+```
+
+#### Form Fields Layout
+```
+Layout: Grid (2 columns) or stacked
+
+1. Title/Reference (Full width):
+   - Label: "Reference" (14px, #666666)
+   - Input: "PR-2026-001" (auto-generated, read-only)
+   - Background: #DBEFF3
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 8px 12px
+
+2. Date (Left column):
+   - Label: "Date" (14px, #666666)
+   - Input: Date picker with calendar icon
+   - Default: Today's date
+   - White background
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 8px 12px
+
+3. Priority (Right column):
+   - Label: "Priority" (14px, #666666)
+   - Dropdown with chevron-down icon
+   - Options: High, Medium, Low
+   - White background
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 8px 12px
+
+4. Notes (Full width):
+   - Label: "Notes" (14px, #666666)
+   - Textarea: "Monthly restock order" (placeholder)
+   - White background
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 8px 12px
+   - Height: 60px
+   - Resize: vertical
+```
+
+### Product Addition Section
+```
+Background: #DBEFF3
+Padding: 16px 24px
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+```
+
+#### Section Header
+```
+Layout: Flex, justify-between, align-center
+Border-bottom: 1px solid #ABDBE3
+Padding-bottom: 12px
+
+Contents:
+  - Left:
+    * "Products" (16px, bold, #333333)
+    * "Add products to this requirement" (12px, #666666)
+  - Right:
+    * "5 products added" (14px, #49B0C1)
+```
+
+#### Add Product Row
+```
+Layout: Horizontal flex, gap 12px, align-center
+Padding: 12px 0
+
+Components:
+  1. Product Search:
+     - Typeahead input with magnifying glass icon
+     - Placeholder: "Search for a product..."
+     - White background
+     - Border: 1px solid #ABDBE3
+     - Border-radius: 6px
+     - Padding: 8px 12px
+     - Flex: 1
+     - Suggestions dropdown appears below
+
+  2. Quantity Input:
+     - Label: "Qty" (12px, #666666)
+     - Input: "50" with up/down arrows
+     - Width: 80px
+     - White background
+     - Border: 1px solid #ABDBE3
+     - Border-radius: 6px
+     - Padding: 6px 8px
+
+  3. Unit Dropdown:
+     - Label: "Unit" (12px, #666666)
+     - Dropdown with chevron-down icon
+     - Options: Box, Strip, Tablet, Bottle, Tube
+     - White background
+     - Border: 1px solid #ABDBE3
+     - Border-radius: 6px
+     - Padding: 6px 8px
+     - Width: 100px
+
+  4. Add Button:
+     - Primary #49B0C1
+     - Plus icon
+     - Text: "Add"
+     - White text
+     - Border-radius: 6px
+     - Padding: 6px 16px
+```
+
+#### Selected Products Table
+```
+Table:
+  Header:
+    Background: #ABDBE3
+    Columns:
+      1. # (14px, bold, #333333)
+      2. Product (14px, bold, #333333)
+      3. Qty (14px, bold, #333333)
+      4. Unit (14px, bold, #333333)
+      5. Suggested Price (14px, bold, #333333)
+      6. Total (14px, bold, #333333)
+      7. Actions (14px, bold, #333333)
+
+  Rows:
+    Background: White (alternating #DBEFF3)
+    Border-bottom: 1px solid #DBEFF3
+
+    Example Row:
+      1. #: "1" (14px, #666666)
+      2. Product: "Panadol 500mg" (14px, #333333)
+      3. Qty: "50" (14px, #333333)
+      4. Unit: "Box" (14px, #333333)
+      5. Suggested Price: "250.00 ETB" (14px, #333333)
+      6. Total: "12,500.00 ETB" (14px, #333333)
+      7. Actions: Remove icon (trash icon, #DC3545, 16px)
+```
+
+### Summary Section
+```
+Background: White
+Padding: 16px 24px
+Margin: 0 24px 24px 24px
+Border-radius: 8px
+Border: 1px solid #DBEFF3
+```
+
+#### Summary Display
+```
+Layout: Flex, justify-between
+
+Left Side:
+  - "Total Items" (14px, #666666): "5 products"
+  - "Total Quantity" (14px, #666666): "180 units"
+  - "Estimated Cost" (14px, #666666): "45,500.00 ETB"
+
+Right Side:
+  - "Requirement Summary" (14px, bold, #333333)
+  - "5 products from 3 categories" (12px, #666666)
+  - "View by Category" link (14px, #49B0C1)
+```
+
+### Action Buttons Footer
+```
+Background: White
+Padding: 16px 24px
+Border-top: 1px solid #DBEFF3
+Position: Sticky bottom
+Layout: Flex, justify-end, gap 12px
+
+Buttons:
+  1. "Save as Draft":
+     - Background: #ABDBE3
+     - Text: "Save as Draft", 14px, #333333
+     - Border-radius: 6px
+     - Padding: 10px 24px
+     - Icon: floppy-disk
+
+  2. "Cancel":
+     - Background: #DC3545 (red)
+     - Text: "Cancel", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 24px
+     - Icon: xmark
+
+  3. "Save & Continue":
+     - Background: #49B0C1 (primary)
+     - Text: "Save & Continue", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 32px
+     - Font-weight: bold
+     - Icon: arrow-right
+     - Disabled if no products added
+```
+
+---
+
+## PAGE 3: SUPPLIER ASSIGNMENT PAGE
+
+### Purpose
+Assign suppliers to products in purchase requirements. This page bridges the requirement and purchase order stages.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Supplier Selection" (20px, bold, white)
+    * "PR-2026-001" (16px, white)
+    * Breadcrumb: "Purchasing" → "Requirements" → "Assign Suppliers" (14px, #ABDBE3)
+  
+  - Right:
+    * Status: "3 products assigned" (14px, white)
+    * "Generate Purchase Orders" button (primary with white border, white text)
+```
+
+### Requirement Information Card
+```
+Background: #DBEFF3
+Padding: 16px 24px
+Margin: 16px 24px 0 24px
+Border-radius: 8px
+Layout: Flex, justify-between, align-center
+```
+
+#### Card Contents
+```
+Left Side:
+  - "Requirement: PR-2026-001" (16px, bold, #333333)
+  - "Date: 02/15/2026" (14px, #666666)
+  - "Total Items: 5 products" (14px, #666666)
+  - "Created By: John (Pharmacist)" (14px, #666666)
+
+Right Side:
+  - Progress Indicator:
+    * "3 of 5 products assigned" (14px, #333333)
+    * Progress bar: 60% filled (green)
+    * Width: 150px
+    * Height: 6px
+    * Border-radius: 3px
+```
+
+### Products List - Supplier Assignment
+```
+Background: White
+Margin: 16px 24px
+Border-radius: 8px
+Border: 1px solid #DBEFF3
+Padding: 16px
+```
+
+#### Product Cards
+```
+Each product card:
+  Background: White
+  Border: 1px solid #DBEFF3
+  Border-radius: 8px
+  Padding: 16px
+  Margin-bottom: 12px
+  Layout: Flex, justify-between, align-center
+
+  Example Card:
+    Left Section:
+      - Product Name: "Panadol 500mg" (16px, bold, #333333)
+      - Brand: "Panadol" (14px, #666666)
+      - Required Qty: "50 Boxes" (14px, #333333)
+      - Category: "Painkillers" (12px, #666666)
+
+    Middle Section:
+      - Status Badge:
+        * Not Assigned: Gray background, "Not Assigned"
+        * Pending: Yellow background, "Pending"
+        * Confirmed: Green background, "Confirmed"
+      
+      - Assigned Supplier (if selected):
+        "PharmaCo Ltd" (14px, #333333)
+        "Contact: Ahmed" (12px, #666666)
+
+    Right Section:
+      - Supplier Dropdown:
+        * Label: "Select Supplier" (12px, #666666)
+        * Dropdown with chevron-down icon
+        * Options: All Suppliers, PharmaCo Ltd, MediPharma, etc.
+        * White background
+        * Border: 1px solid #ABDBE3
+        * Border-radius: 6px
+        * Padding: 6px 12px
+        * Width: 200px
+      
+      - Contact Info (when supplier selected):
+        * Phone icon and number: "+251 911 123 456"
+        * Email icon and email: "info@pharmaco.com"
+        * 12px, #666666
+        * Previous orders count: "3 previous orders"
+```
+
+### Supplier Information Panel (Optional - slides in)
+```
+Position: Right slide-in panel
+Background: White
+Width: 350px
+Box-shadow: -4px 0 20px rgba(0,0,0,0.1)
+
+Panel Header:
+  Background: #49B0C1
+  Padding: 16px 20px
+  Text: "Supplier Details" (18px, bold, white)
+  Close: xmark icon, white
+
+Panel Contents:
+  - Supplier Name: "PharmaCo Ltd" (20px, bold)
+  - Contact Person: "Ahmed Mohammed" (14px, #333333)
+  - Phone: "+251 911 123 456" (14px, #666666) with phone icon
+  - Email: "info@pharmaco.com" (14px, #666666) with envelope icon
+  - Address: "Addis Ababa, Ethiopia" (14px, #666666) with location-dot icon
+
+  - Order History:
+    * "Previous Orders" (16px, bold)
+    * 3 orders in last 6 months
+    * Table: PO #, Date, Amount, Status
+      - PO-2026-001, 01/15/2026, 12,500 ETB, Delivered
+      - PO-2025-015, 12/10/2025, 8,200 ETB, Delivered
+      - PO-2025-003, 11/05/2025, 6,800 ETB, Delivered
+
+  - Rating: ⭐⭐⭐⭐ (4.2/5) with star icon
+```
+
+### Action Buttons
+```
+Background: White
+Padding: 16px 24px
+Border-top: 1px solid #DBEFF3
+Position: Sticky bottom
+Layout: Flex, justify-between
+
+Left:
+  - "Back to Requirements" (secondary button, #ABDBE3)
+  - Arrow-left icon
+
+Right:
+  1. "Save Assignments":
+     - Background: #ABDBE3
+     - Text: "Save", 14px, #333333
+     - Border-radius: 6px
+     - Padding: 10px 24px
+     - Floppy-disk icon
+
+  2. "Generate Purchase Orders":
+     - Background: #49B0C1 (primary)
+     - Text: "Generate Purchase Orders", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 32px
+     - Font-weight: bold
+     - File-invoice icon
+     - Disabled if not all products assigned
+```
+
+---
+
+## PAGE 4: PURCHASE ORDER LIST PAGE
+
+### Purpose
+View and manage all purchase orders. Track orders from creation through delivery.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Purchase Orders" (24px, bold, white)
+    * Breadcrumb: "Purchasing" → "Orders" (14px, #ABDBE3)
+    * "Total: 8 orders" (14px, white)
+  
+  - Right:
+    * "Create New Order" button (primary #49B0C1 with white border, white text, plus icon)
+```
+
+### Filter Section
+```
+Background: #DBEFF3
+Padding: 12px 24px
+Layout: Flex, align-center, gap 16px
+Border-bottom: 1px solid #ABDBE3
+```
+
+#### Filter Components
+```
+1. Supplier Filter:
+   - Label: "Supplier" (12px, #666666)
+   - Dropdown with chevron-down icon
+   - Options: All Suppliers, PharmaCo Ltd, MediPharma, GlobalMed
+   - White background, #ABDBE3 border
+
+2. Status Filter:
+   - Label: "Status" (12px, #666666)
+   - Dropdown with chevron-down icon
+   - Options: All, Draft, Sent, Delivered, Received, Completed
+   - White background, #ABDBE3 border
+
+3. Date Range:
+   - Label: "Date Range" (12px, #666666)
+   - Date picker with calendar icon
+   - From: [____] To: [____]
+
+4. Search Input:
+   - Magnifying glass icon
+   - Placeholder: "Search by PO # or supplier..."
+   - White background
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 6px 12px
+   - Width: 250px
+
+5. "Refresh" button:
+   - Secondary (#ABDBE3)
+   - Rotate icon
+   - 12px text
+```
+
+### Statistics Cards
+```
+Layout: Horizontal row, 4 cards, gap 16px
+Padding: 16px 24px
+Background: White
+```
+
+#### Card Designs
+```
+Cards:
+  1. Total Orders: "8" with clipboard-list icon (24px, bold)
+  2. Pending: "3" with clock icon (orange)
+  3. In Progress: "2" with loading icon (yellow)
+  4. Completed: "3" with check-circle icon (green)
+```
+
+### Purchase Orders Table
+```
+Background: White
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+Overflow: hidden
+Border: 1px solid #DBEFF3
+```
+
+#### Table Design
+```
+Table Header:
+  Background: #ABDBE3
+  Padding: 12px 16px
+  
+  Columns:
+    1. PO Number (14px, bold, #333333)
+    2. Supplier (14px, bold, #333333)
+    3. Date (14px, bold, #333333)
+    4. Items (14px, bold, #333333)
+    5. Total Amount (14px, bold, #333333)
+    6. Status (14px, bold, #333333)
+    7. Actions (14px, bold, #333333)
+
+Table Rows:
+  Background: White (alternating #DBEFF3)
+  Padding: 12px 16px
+  Border-bottom: 1px solid #DBEFF3
+
+  Row Contents:
+    1. PO Number: "PO-2026-001" (14px, #49B0C1, clickable link)
+    2. Supplier: "PharmaCo Ltd" (14px, #333333)
+    3. Date: "02/15/2026" (14px, #333333)
+    4. Items: "5 items" (14px, #333333)
+    5. Total Amount: "45,500.00 ETB" (14px, bold, #333333)
+    6. Status Badges:
+       - Draft: Gray background, "Draft"
+       - Sent: Blue (#49B0C1) background, "Sent"
+       - Delivered: Purple background, "Delivered"
+       - Received: Yellow background, "Received"
+       - Completed: Green background, "Completed"
+    7. Actions:
+       - View icon (eye icon) - #49B0C1
+       - Edit icon (pencil icon) - #ABDBE3 (if status allows)
+       - Delete icon (trash icon) - #DC3545 (if draft)
+```
+
+### Pagination
+```
+Position: Bottom of table
+Background: White
+Padding: 12px 24px
+Border-top: 1px solid #DBEFF3
+
+Contents:
+  - Left: "Showing 1-8 of 8 orders" (14px, #666666)
+  - Right: Previous/Next buttons with page numbers
+```
+
+---
+
+## PAGE 5: CREATE/EDIT PURCHASE ORDER PAGE
+
+### Purpose
+Create new purchase orders or edit existing ones. This is the detailed form for order creation.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Purchase Order: PO-2026-001" (20px, bold, white)
+    * Breadcrumb: "Purchasing" → "Orders" → "New" (14px, #ABDBE3)
+  
+  - Right:
+    * Status badge (Draft, Sent, etc.)
+    * "Send Order" button (primary with white border, white text, paper-plane icon)
+```
+
+### Order Information Form
+```
+Background: White
+Padding: 24px
+Margin: 16px 24px
+Border-radius: 8px
+Border: 1px solid #DBEFF3
+```
+
+#### Form Layout (2 columns)
+```
+1. PO Number (Left):
+   - Label: "PO Number" (14px, #666666)
+   - Input: "PO-2026-001" (read-only, auto-generated)
+   - Background: #DBEFF3
+
+2. Supplier (Right):
+   - Label: "Supplier" (14px, #666666) with asterisk (required)
+   - Dropdown with chevron-down icon
+   - Options: PharmaCo Ltd, MediPharma, GlobalMed
+   - White background, #ABDBE3 border
+   - Border-radius: 6px
+   - Padding: 8px 12px
+
+3. Order Date (Left):
+   - Label: "Order Date" (14px, #666666)
+   - Date picker with calendar icon
+   - Default: Today's date
+   - White background, #ABDBE3 border
+
+4. Expected Delivery (Right):
+   - Label: "Expected Delivery" (14px, #666666)
+   - Date picker with calendar icon
+   - White background, #ABDBE3 border
+
+5. Supplier Contact (Full width):
+   - Label: "Supplier Contact" (14px, #666666)
+   - Input: "Ahmed - 0911 123 456" (auto-filled from supplier selection)
+   - Background: #DBEFF3
+   - Border: 1px solid #ABDBE3
+
+6. Shipping Address (Full width):
+   - Label: "Shipping Address" (14px, #666666)
+   - Textarea: "Pharmacy Main Store, Addis Ababa" (placeholder)
+   - White background, #ABDBE3 border
+   - Border-radius: 6px
+   - Padding: 8px 12px
+   - Height: 60px
+```
+
+### Products Table - Order Items
+```
+Background: #DBEFF3
+Margin: 0 24px 16px 24px
+Padding: 16px 20px
+Border-radius: 8px
+```
+
+#### Section Header
+```
+Layout: Flex, justify-between, align-center
+Border-bottom: 1px solid #ABDBE3
+Padding-bottom: 12px
+
+Contents:
+  - Left:
+    * "Order Items" (16px, bold, #333333)
+    * "Products to be ordered" (12px, #666666)
+  - Right:
+    * "5 items" (14px, #49B0C1)
+    * "Add Product" button (secondary #ABDBE3, plus icon)
+```
+
+#### Add Product Row
+```
+Layout: Horizontal flex, gap 12px, align-center
+Padding: 12px 0
+
+Components:
+  1. Product Search:
+     - Typeahead input with magnifying glass
+     - Placeholder: "Add product..."
+     - White background, #ABDBE3 border
+     - Border-radius: 6px
+     - Padding: 6px 12px
+     - Flex: 1
+
+  2. Quantity Input:
+     - Label: "Qty" (12px, #666666)
+     - Input: "50" with up/down arrows
+     - Width: 80px
+     - White background, #ABDBE3 border
+
+  3. Unit Dropdown:
+     - Label: "Unit" (12px, #666666)
+     - Dropdown: Box, Strip, Tablet
+     - White background, #ABDBE3 border
+     - Width: 100px
+
+  4. Price Per Unit:
+     - Label: "Price" (12px, #666666)
+     - Input: "250.00" with ETB suffix
+     - White background, #ABDBE3 border
+     - Width: 120px
+
+  5. Add Button:
+     - Primary #49B0C1
+     - Plus icon
+     - White text
+```
+
+#### Order Items Table
+```
+Table:
+  Header:
+    Background: #ABDBE3
+    Columns:
+      1. # (14px, bold)
+      2. Product (14px, bold)
+      3. Qty (14px, bold)
+      4. Unit (14px, bold)
+      5. Price (14px, bold)
+      6. Total (14px, bold)
+      7. Actions (14px, bold)
+
+  Rows:
+    Background: White (alternating #DBEFF3)
+    Border-bottom: 1px solid #DBEFF3
+
+    Example Row:
+      1. #: "1"
+      2. Product: "Panadol 500mg" with brand "Panadol"
+      3. Qty: "50" (with edit icons)
+      4. Unit: "Box"
+      5. Price: "250.00 ETB"
+      6. Total: "12,500.00 ETB"
+      7. Remove: trash icon (#DC3545)
+```
+
+### Order Summary Section
+```
+Background: White
+Padding: 16px 24px
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+Border: 1px solid #DBEFF3
+```
+
+#### Summary Layout
+```
+Layout: Grid (2 columns)
+
+Left Side:
+  - "Order Summary" (16px, bold, #333333)
+  - Subtotal: "45,500.00 ETB" (14px, #666666)
+  - Tax: "6,825.00 ETB" (15%, 14px, #666666)
+  - Shipping: "0.00 ETB" (14px, #666666)
+
+Right Side:
+  - Total Amount:
+    * "Total" (14px, #666666)
+    * "52,325.00 ETB" (28px, bold, #49B0C1)
+  
+  - Terms:
+    * "Payment Terms" (12px, #666666)
+    * Dropdown: Net 30, Net 60, Cash on Delivery
+    * White background, #ABDBE3 border
+    * Border-radius: 6px
+    * Padding: 6px 12px
+
+  - Notes:
+    * "Special Instructions" (12px, #666666)
+    * Textarea: "Please ensure all items have valid expiry dates" (placeholder)
+    * White background, #ABDBE3 border
+    * Border-radius: 6px
+    * Padding: 6px 12px
+    * Height: 50px
+```
+
+### Action Buttons Footer
+```
+Background: White
+Padding: 16px 24px
+Border-top: 1px solid #DBEFF3
+Position: Sticky bottom
+Layout: Flex, justify-end, gap 12px
+
+Buttons:
+  1. "Cancel":
+     - Background: #DC3545 (red)
+     - Text: "Cancel", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 24px
+     - xmark icon
+
+  2. "Save as Draft":
+     - Background: #ABDBE3
+     - Text: "Save as Draft", 14px, #333333
+     - Border-radius: 6px
+     - Padding: 10px 24px
+     - Floppy-disk icon
+
+  3. "Send Order":
+     - Background: #49B0C1 (primary)
+     - Text: "Send Order", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 32px
+     - Font-weight: bold
+     - Paper-plane icon
+     - Disabled if no items added or supplier not selected
+```
+
+### Status Change Section (for existing orders)
+```
+Background: #DBEFF3
+Padding: 12px 24px
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+Layout: Flex, align-center, gap 16px
+
+Contents:
+  - Label: "Update Status" (14px, #666666)
+  - Dropdown: Draft, Sent, Delivered, Received, Completed
+  - "Update" button (primary #49B0C1)
+  - Status history: "Last updated: 02/15/2026" (12px, #666666)
+```
+
+---
+
+## PAGE 6: DELIVERY REGISTRATION PAGE
+
+### Purpose
+Register and process incoming deliveries from suppliers. Records delivery details and received products.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Delivery Registration" (20px, bold, white)
+    * Breadcrumb: "Purchasing" → "Deliveries" → "New" (14px, #ABDBE3)
+  
+  - Right:
+    * "Process for Reconciliation" button (primary with white border, white text)
+    * "Generate Receiving Report" button (secondary)
+```
+
+### Delivery Information Card
+```
+Background: #DBEFF3
+Padding: 16px 24px
+Margin: 16px 24px 0 24px
+Border-radius: 8px
+```
+
+#### Delivery Details
+```
+Layout: Grid (2 columns)
+
+1. Purchase Order (Left):
+   - Label: "Purchase Order" (14px, #666666)
+   - Dropdown with chevron-down icon
+   - Options: PO-2026-001, PO-2026-002, etc.
+   - White background, #ABDBE3 border
+   - Border-radius: 6px
+   - Padding: 8px 12px
+
+2. Supplier (Right):
+   - Label: "Supplier" (14px, #666666)
+   - Input: "PharmaCo Ltd" (auto-filled from PO)
+   - Background: #DBEFF3
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 8px 12px
+
+3. Delivery Note (Left):
+   - Label: "Delivery Note #" (14px, #666666)
+   - Input: "DN-2026-015" (placeholder)
+   - White background, #ABDBE3 border
+   - Border-radius: 6px
+   - Padding: 8px 12px
+
+4. Delivery Date (Right):
+   - Label: "Delivery Date" (14px, #666666)
+   - Date picker with calendar icon
+   - Default: Today's date
+   - White background, #ABDBE3 border
+
+5. Expected vs Actual (Full width):
+   - Label: "Expected vs Actual" (14px, #666666)
+   - Layout: Flex, gap 16px
+   - Expected: "5 items, 45,500.00 ETB" (14px, #333333)
+   - Actual: "5 items, 45,500.00 ETB" (14px, #333333, green if matching)
+   - Status indicator: "✅ Match" (green) or "⚠️ Discrepancy" (yellow)
+```
+
+### Received Products Table
+```
+Background: White
+Margin: 16px 24px
+Border-radius: 8px
+Overflow: hidden
+Border: 1px solid #DBEFF3
+```
+
+#### Table Design
+```
+Table Header:
+  Background: #ABDBE3
+  Padding: 12px 16px
+  
+  Columns:
+    1. # (14px, bold)
+    2. Product (14px, bold)
+    3. Ordered Qty (14px, bold)
+    4. Delivered Qty (14px, bold)
+    5. Batch (14px, bold)
+    6. Expiry (14px, bold)
+    7. Status (14px, bold)
+
+Table Rows:
+  Background: White (alternating #DBEFF3)
+  Padding: 12px 16px
+  Border-bottom: 1px solid #DBEFF3
+
+  Row Contents:
+    1. #: "1" (14px, #666666)
+    2. Product: "Panadol 500mg" (14px, #333333)
+    3. Ordered Qty: "50 Boxes" (14px, #333333)
+    4. Delivered Qty: "50" with up/down arrows input (60px width)
+    5. Batch Input: "PAN-2026-001" (80px width, white background, #ABDBE3 border)
+    6. Expiry Input: Date picker, "12/2026" (80px width)
+    7. Status:
+       - ✅ Received: Green with check icon
+       - ⚠️ Partial: Yellow with warning icon
+       - ❌ Missing: Red with xmark icon
+```
+
+### Delivery Notes Section
+```
+Background: #DBEFF3
+Padding: 16px 24px
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+```
+
+#### Notes Content
+```
+Layout: Vertical
+
+1. "Delivery Notes" (16px, bold, #333333)
+2. Textarea: "All products received in good condition" (placeholder)
+   - White background
+   - Border: 1px solid #ABDBE3
+   - Border-radius: 6px
+   - Padding: 8px 12px
+   - Height: 60px
+
+3. Attachments:
+   - "Attach Delivery Note" button (secondary #ABDBE3)
+   - Paperclip icon
+   - "DN-2026-015.pdf uploaded" (14px, #666666)
+   - Download icon and xmark icon
+```
+
+### Action Buttons
+```
+Background: White
+Padding: 16px 24px
+Border-top: 1px solid #DBEFF3
+Position: Sticky bottom
+Layout: Flex, justify-end, gap 12px
+
+Buttons:
+  1. "Cancel":
+     - Background: #DC3545 (red)
+     - Text: "Cancel", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 24px
+
+  2. "Save as Draft":
+     - Background: #ABDBE3
+     - Text: "Save", 14px, #333333
+     - Border-radius: 6px
+     - Padding: 10px 24px
+
+  3. "Process for Reconciliation":
+     - Background: #49B0C1 (primary)
+     - Text: "Process for Reconciliation", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 32px
+     - Font-weight: bold
+     - Arrow-right icon
+```
+
+---
+
+## PAGE 7: STOCK INTAKE RECONCILIATION PAGE
+
+### Purpose
+Compare purchase order, supplier delivery note, and physical stock count to ensure accurate inventory updates.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Stock Intake Reconciliation" (20px, bold, white)
+    * "PO-2026-001" (16px, white)
+    * Breadcrumb: "Purchasing" → "Deliveries" → "Reconcile" (14px, #ABDBE3)
+  
+  - Right:
+    * Progress: "3 of 5 items reconciled" (14px, white)
+    * "Confirm Receiving" button (primary with white border, white text)
+```
+
+### Reconciliation Summary Cards
+```
+Layout: Horizontal row, 3 cards, gap 16px
+Padding: 16px 24px
+Background: #DBEFF3
+```
+
+#### Card Designs
+```
+1. PO Total Card:
+   - "Purchase Order" (12px, #666666)
+   - "50 Boxes" (20px, bold, #333333)
+   - "PO-2026-001" (12px, #666666)
+
+2. Delivery Total Card:
+   - "Delivery Note" (12px, #666666)
+   - "48 Boxes" (20px, bold, #FFC107)
+   - "DN-2026-015" (12px, #666666)
+
+3. Physical Count Card:
+   - "Physical Count" (12px, #666666)
+   - "48 Boxes" (20px, bold, #28A745)
+   - "Counted by: John" (12px, #666666)
+```
+
+### Three-Way Comparison Table
+```
+Background: White
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+Overflow: hidden
+Border: 1px solid #DBEFF3
+```
+
+#### Table Design
+```
+Table Header:
+  Background: #ABDBE3
+  Padding: 12px 16px
+  
+  Columns:
+    1. # (14px, bold)
+    2. Product (14px, bold)
+    3. PO Qty (14px, bold)
+    4. Delivery Note Qty (14px, bold)
+    5. Physical Count (14px, bold)
+    6. Variance (14px, bold)
+    7. Status (14px, bold)
+
+Table Rows:
+  Background: White (alternating #DBEFF3)
+  Padding: 12px 16px
+  Border-bottom: 1px solid #DBEFF3
+
+  Row Example - Match:
+    1. #: "1"
+    2. Product: "Panadol 500mg" (14px, #333333)
+       Brand: "Panadol" (12px, #666666)
+    3. PO Qty: "50 Boxes" (14px, #333333)
+    4. Delivery Note Qty: "48 Boxes" (14px, #FFC107)
+    5. Physical Count: "48" (input field, 60px width, #ABDBE3 border)
+    6. Variance: "-2 Boxes" (14px, #DC3545, xmark icon)
+    7. Status: "⚠️ Discrepancy" (yellow badge)
+
+  Row Example - Match (green):
+    1. #: "2"
+    2. Product: "Amoxicillin 500mg"
+    3. PO Qty: "40 Boxes"
+    4. Delivery Note Qty: "40 Boxes"
+    5. Physical Count: "40" (input field)
+    6. Variance: "0" (14px, #28A745, check icon)
+    7. Status: "✅ Match" (green badge)
+```
+
+### Discrepancy Resolution Section
+```
+Background: #DBEFF3
+Margin: 0 24px 16px 24px
+Padding: 16px 20px
+Border-radius: 8px
+```
+
+#### Resolution Content
+```
+Header: "Discrepancy Resolution" (16px, bold, #333333)
+
+For Each Discrepancy:
+  Layout: Flex, gap 16px, align-center
+  Background: White
+  Border-radius: 6px
+  Padding: 12px 16px
+  Margin-bottom: 8px
+
+  Contents:
+    1. Product: "Panadol 500mg" (14px, bold, #333333)
+    2. Discrepancy: "-2 Boxes" (14px, #DC3545)
+    3. Reason Dropdown:
+       - Label: "Reason" (12px, #666666)
+       - Options: Damaged, Shortage, Incorrect Item, Quality Issue
+       - White background, #ABDBE3 border
+    4. Resolution:
+       - Options: Accept Discrepancy, Return to Supplier, Adjust PO
+       - Radio buttons or dropdown
+    5. Notes Input:
+       - Placeholder: "Add notes..."
+       - White background, #ABDBE3 border
+       - Width: 150px
+```
+
+### Summary Section
+```
+Background: White
+Padding: 16px 24px
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+Border: 1px solid #DBEFF3
+```
+
+#### Summary Layout
+```
+Layout: Grid (3 columns)
+
+1. Total Ordered:
+   - "Total Ordered" (12px, #666666)
+   - "5 items" (16px, bold, #333333)
+   - "45,500.00 ETB" (14px, #333333)
+
+2. Total Received:
+   - "Total Received" (12px, #666666)
+   - "5 items" (16px, bold, #333333)
+   - "45,500.00 ETB" (14px, #333333)
+
+3. Acceptance Status:
+   - "Acceptance" (12px, #666666)
+   - "Full Acceptance" (16px, bold, #28A745)
+   - "All items match" (12px, #666666)
+```
+
+### Action Buttons
+```
+Background: White
+Padding: 16px 24px
+Border-top: 1px solid #DBEFF3
+Position: Sticky bottom
+Layout: Flex, justify-end, gap 12px
+
+Buttons:
+  1. "Cancel":
+     - Background: #DC3545 (red)
+     - Text: "Cancel", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 24px
+
+  2. "Save for Later":
+     - Background: #ABDBE3
+     - Text: "Save for Later", 14px, #333333
+     - Border-radius: 6px
+     - Padding: 10px 24px
+
+  3. "Confirm Receiving":
+     - Background: #28A745 (green)
+     - Text: "Confirm Receiving", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 32px
+     - Font-weight: bold
+     - Check-circle icon
+     - Disabled if discrepancies not resolved
+```
+
+---
+
+## PAGE 8: SUPPLIER PAYABLE DASHBOARD
+
+### Purpose
+Manage supplier invoices, track outstanding balances, and record payments. Supplier accounts payable management.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Supplier Accounts Payable" (24px, bold, white)
+    * Breadcrumb: "Purchasing" → "Accounts Payable" (14px, #ABDBE3)
+    * "Total Payables: 125,750.00 ETB" (14px, white)
+  
+  - Right:
+    * "Generate Report" button (secondary #ABDBE3 with white border, white text)
+    * "Record Payment" button (primary with white border, white text)
+```
+
+### Supplier Summary Cards
+```
+Layout: Horizontal row, 4 cards, gap 16px
+Padding: 16px 24px
+Background: White
+```
+
+#### Card Designs
+```
+1. Total Payables Card:
+   - Label: "Total Outstanding" (12px, #666666)
+   - Value: "125,750.00 ETB" (24px, bold, #DC3545)
+   - Icon: wallet or money-bill
+
+2. Total Invoices Card:
+   - Label: "Total Invoices" (12px, #666666)
+   - Value: "23" (24px, bold, #333333)
+   - Icon: file-invoice
+
+3. Overdue Card:
+   - Label: "Overdue" (12px, #666666)
+   - Value: "32,450.00 ETB" (24px, bold, #DC3545)
+   - Icon: clock or hourglass
+
+4. Paid This Month:
+   - Label: "Paid This Month" (12px, #666666)
+   - Value: "45,000.00 ETB" (24px, bold, #28A745)
+   - Icon: check-circle
+```
+
+### Filter Section
+```
+Background: #DBEFF3
+Padding: 12px 24px
+Layout: Flex, align-center, gap 16px
+Border-bottom: 1px solid #ABDBE3
+```
+
+#### Filter Components
+```
+1. Supplier Filter:
+   - Dropdown: All Suppliers, PharmaCo Ltd, MediPharma, GlobalMed
+   - White background, #ABDBE3 border
+
+2. Status Filter:
+   - Dropdown: All, Pending, Partial, Paid, Overdue
+   - White background, #ABDBE3 border
+
+3. Date Range:
+   - Date picker with calendar icon
+   - From: [____] To: [____]
+
+4. Search Input:
+   - Magnifying glass icon
+   - Placeholder: "Search invoices..."
+```
+
+### Invoices Table
+```
+Background: White
+Margin: 0 24px 16px 24px
+Border-radius: 8px
+Overflow: hidden
+Border: 1px solid #DBEFF3
+```
+
+#### Table Design
+```
+Table Header:
+  Background: #ABDBE3
+  Padding: 12px 16px
+  
+  Columns:
+    1. Invoice # (14px, bold)
+    2. Supplier (14px, bold)
+    3. Date (14px, bold)
+    4. Amount (14px, bold)
+    5. Due Date (14px, bold)
+    6. Status (14px, bold)
+    7. Actions (14px, bold)
+
+Table Rows:
+  Background: White (alternating #DBEFF3)
+  Padding: 12px 16px
+  Border-bottom: 1px solid #DBEFF3
+
+  Row Example 1 - Overdue:
+    1. Invoice #: "INV-2026-015" (14px, #49B0C1, clickable)
+    2. Supplier: "PharmaCo Ltd" (14px, #333333)
+    3. Date: "01/15/2026" (14px, #333333)
+    4. Amount: "45,500.00 ETB" (14px, bold, #333333)
+    5. Due Date: "02/14/2026" (14px, #DC3545, xmark icon)
+    6. Status: "Overdue" (red badge, exclamation-triangle icon)
+    7. Actions: "View" (eye icon) & "Pay" (credit-card icon) buttons
+
+  Row Example 2 - Pending:
+    1. Invoice #: "INV-2026-018"
+    2. Supplier: "MediPharma"
+    3. Date: "02/01/2026"
+    4. Amount: "32,450.00 ETB"
+    5. Due Date: "03/01/2026" (14px, #FFC107, clock icon)
+    6. Status: "Pending" (yellow badge)
+    7. Actions: "View" & "Pay" buttons
+```
+
+### Payment Section
+```
+Background: #DBEFF3
+Margin: 0 24px 16px 24px
+Padding: 16px 20px
+Border-radius: 8px
+```
+
+#### Payment Form
+```
+Header: "Record Payment" (16px, bold, #333333)
+
+Layout: Flex, align-end, gap 16px
+
+Components:
+  1. Invoice Select:
+     - Label: "Select Invoice" (12px, #666666)
+     - Dropdown with chevron-down icon
+     - Options: INV-2026-015, INV-2026-018, etc.
+     - White background, #ABDBE3 border
+     - Border-radius: 6px
+     - Padding: 6px 12px
+
+  2. Amount:
+     - Label: "Payment Amount" (12px, #666666)
+     - Input: "0.00" (number)
+     - White background, #ABDBE3 border
+     - Border-radius: 6px
+     - Padding: 6px 12px
+     - Width: 150px
+
+  3. Payment Method:
+     - Label: "Method" (12px, #666666)
+     - Dropdown: Cash, Bank Transfer, Check
+     - White background, #ABDBE3 border
+     - Border-radius: 6px
+     - Padding: 6px 12px
+
+  4. Payment Date:
+     - Label: "Date" (12px, #666666)
+     - Date picker with calendar icon
+     - White background, #ABDBE3 border
+     - Border-radius: 6px
+     - Padding: 6px 12px
+
+  5. Reference:
+     - Label: "Reference" (12px, #666666)
+     - Input: "Payment ref..." (placeholder)
+     - White background, #ABDBE3 border
+     - Border-radius: 6px
+     - Padding: 6px 12px
+     - Width: 150px
+
+  6. "Record Payment" Button:
+     - Background: #49B0C1 (primary)
+     - Text: "Record Payment", 14px, white
+     - Border-radius: 6px
+     - Padding: 8px 20px
+     - Font-weight: bold
+     - Check-circle icon
+```
+
+### Pagination
+```
+Position: Bottom of table
+Background: White
+Padding: 12px 24px
+Border-top: 1px solid #DBEFF3
+
+Contents:
+  - Left: "Showing 1-10 of 23 invoices" (14px, #666666)
+  - Right: Previous/Next buttons with page numbers
+```
+
+---
+
+## PAGE 9: PURCHASE RETURN PAGE
+
+### Purpose
+Process returns to suppliers for expired, damaged, or incorrectly delivered products.
+
+### Page Header
+```
+Background: #49B0C1
+Padding: 16px 24px
+Layout: Flex, justify-between, align-center
+
+Contents:
+  - Left:
+    * "Purchase Return" (20px, bold, white)
+    * Breadcrumb: "Purchasing" → "Returns" → "New" (14px, #ABDBE3)
+  
+  - Right:
+    * "Return Reference: RET-2026-001" (14px, white)
+    * "Process Return" button (primary with white border, white text)
+```
+
+### Return Information Card
+```
+Background: #DBEFF3
+Padding: 16px 24px
+Margin: 16px 24px 0 24px
+Border-radius: 8px
+```
+
+#### Return Details
+```
+Layout: Grid (2 columns)
+
+1. Return Date (Left):
+   - Label: "Return Date" (14px, #666666)
+   - Date picker with calendar icon
+   - Default: Today's date
+   - White background, #ABDBE3 border
+
+2. Return Reference (Right):
+   - Label: "Return Reference" (14px, #666666)
+   - Input: "RET-2026-001" (auto-generated, read-only)
+   - Background: #DBEFF3
+   - Border: 1px solid #ABDBE3
+
+3. Purchase Order (Left):
+   - Label: "Purchase Order" (14px, #666666)
+   - Dropdown: PO-2026-001, PO-2026-002, etc.
+   - White background, #ABDBE3 border
+
+4. Supplier (Right):
+   - Label: "Supplier" (14px, #666666)
+   - Input: "PharmaCo Ltd" (auto-filled)
+   - Background: #DBEFF3
+
+5. Return Reason (Full width):
+   - Label: "Reason for Return" (14px, #666666)
+   - Dropdown with chevron-down icon
+   - Options: Expired, Damaged, Incorrect Delivery, Quality Issue
+   - White background, #ABDBE3 border
+
+6. Return Type (Full width):
+   - Label: "Return Type" (14px, #666666)
+   - Radio buttons (horizontal):
+     * Expired (with calendar-x icon)
+     * Damaged (with triangle-exclamation icon)
+     * Incorrect (with xmark-circle icon)
+     * Quality Issue (with flask icon)
+```
+
+### Return Products Table
+```
+Background: White
+Margin: 16px 24px
+Border-radius: 8px
+Overflow: hidden
+Border: 1px solid #DBEFF3
+```
+
+#### Table Design
+```
+Table Header:
+  Background: #ABDBE3
+  Padding: 12px 16px
+  
+  Columns:
+    1. # (14px, bold)
+    2. Product (14px, bold)
+    3. Original Qty (14px, bold)
+    4. Return Qty (14px, bold)
+    5. Batch (14px, bold)
+    6. Reason (14px, bold)
+    7. Status (14px, bold)
+
+Table Rows:
+  Background: White (alternating #DBEFF3)
+  Padding: 12px 16px
+  Border-bottom: 1px solid #DBEFF3
+
+  Row Example:
+    1. #: "1"
+    2. Product: "Panadol 500mg" (14px, #333333)
+       Brand: "Panadol" (12px, #666666)
+    3. Original Qty: "50 Boxes" (14px, #333333)
+    4. Return Qty: "10" (input field, 60px width, #ABDBE3 border)
+    5. Batch: "PAN-2026-001" (14px, #333333)
+    6. Reason Dropdown:
+       - Options: Expired, Damaged, Incorrect Delivery
+       - White background, #ABDBE3 border
+       - Selected: "Expired" (14px, #333333)
+    7. Status: "🔄 Pending" (yellow badge)
+```
+
+### Debit Note Section
+```
+Background: #DBEFF3
+Margin: 0 24px 16px 24px
+Padding: 16px 20px
+Border-radius: 8px
+```
+
+#### Debit Note Content
+```
+Layout: Flex, justify-between, align-center
+
+Left Side:
+  - "Debit Note" (16px, bold, #333333)
+  - Toggle: "Generate Debit Note" (switch toggle, #49B0C1 when active)
+  - "A debit note will be created for this return" (12px, #666666)
+
+Right Side:
+  - "Total Return Value" (14px, #666666)
+  - "2,500.00 ETB" (24px, bold, #49B0C1)
+  - "10 items returned" (12px, #666666)
+
+Debit Note Details (expanded when toggle is on):
+  - "Debit Note Number" (14px, #666666): "DN-2026-001" (auto-generated)
+  - "Amount" (14px, #666666): "2,500.00 ETB"
+  - "Notes" (14px, #666666): Textarea: "Return due to expiry"
+  - "Generate" button (primary #49B0C1)
+```
+
+### Action Buttons Footer
+```
+Background: White
+Padding: 16px 24px
+Border-top: 1px solid #DBEFF3
+Position: Sticky bottom
+Layout: Flex, justify-end, gap 12px
+
+Buttons:
+  1. "Cancel":
+     - Background: #DC3545 (red)
+     - Text: "Cancel", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 24px
+
+  2. "Save as Draft":
+     - Background: #ABDBE3
+     - Text: "Save", 14px, #333333
+     - Border-radius: 6px
+     - Padding: 10px 24px
+
+  3. "Process Return":
+     - Background: #49B0C1 (primary)
+     - Text: "Process Return", 14px, white
+     - Border-radius: 6px
+     - Padding: 10px 32px
+     - Font-weight: bold
+     - Arrow-right icon
+     - Disabled if no items selected for return
+```
+
+---
+
+## COMPONENT LIBRARY (PURCHASING-SPECIFIC)
+
+### Navigation Bar
+- Fixed top position
+- Primary color (#49B0C1) background
+- White text
+- Logo with pharmacy icon on left
+- Navigation links: Dashboard, Inventory, POS, Purchasing, Reports, Settings
+- User profile with user icon on right
+
+### Status Badges
+- Draft: Gray background, "Draft" text
+- Pending: Orange background, "Pending" text
+- Sent: Blue (#49B0C1) background, "Sent" text
+- Delivered: Purple background, "Delivered" text
+- Received: Yellow background, "Received" text
+- Completed: Green background, "Completed" text
+- Overdue: Red background, "Overdue" text
+- High Priority: Red background, "High" text
+- Medium Priority: Yellow background, "Medium" text
+- Low Priority: Green background, "Low" text
+
+### Priority Indicators
+- High: Red with up-arrow icon
+- Medium: Yellow with right-arrow icon
+- Low: Green with down-arrow icon
+
+### Cards
+- White background
+- Optional light blue (#DBEFF3) background
+- Box shadow for depth
+- Border radius: 8px
+- Padding: 20px
+
+### Tables
+- Full-width
+- Alternating white and #DBEFF3 rows
+- Header background: #ABDBE3
+- Hover state: #DBEFF3
+- Responsive scrolling
+
+### Buttons
+- Primary: #49B0C1 background, white text
+- Secondary: #ABDBE3 background, dark text
+- Danger: #DC3545 background, white text
+- Success: #28A745 background, white text
+- Border radius: 6px
+- Padding: 10px 20px
+
+### Forms
+- Input fields: White background, #ABDBE3 border
+- Labels: Dark text, 14px
+- Focus state: #49B0C1 border
+- Select dropdowns: Same styling as inputs
+- Checkboxes/Radio buttons: #49B0C1 when selected
+- Border radius: 6px
+
+### Icons Reference
+- Navigation: house (Dashboard), pills (Inventory), cart-shopping (POS), truck (Purchasing), chart-simple (Reports), gear (Settings)
+- Actions: plus, minus, pencil, trash, xmark, check, copy, arrow-right, arrow-left
+- Status: check-circle, xmark-circle, exclamation-triangle, clock, hourglass
+- Payment: money-bill, credit-card, bank, wallet
+- Documents: file-invoice, clipboard-list, paper-plane, envelope
+- Products: pills, capsule, box, box-open, layer-group, tablet
+- Search: magnifying-glass
+- Security: lock, user, user-check, shield-check
+- Communication: phone, envelope, location-dot
+- Time: calendar, clock
+
+### Modals/Dialogs
+- Centered overlay
+- White background
+- Primary color (#49B0C1) header
+- Border radius: 12px
+- Box shadow for depth
+- Close (xmark) button in header
+
+### Pagination
+- Centered at bottom
+- Current page highlighted with #49B0C1
+- Previous/Next buttons with chevron icons
+- Page numbers in circles
+
+### Toast Notifications
+- Position: Top-right
+- Background: White with color border
+- Border-radius: 8px
+- Box shadow
+- Icon on left
+- Text message
+- Auto-dismiss after 3-5 seconds
+
+### Progress Indicators
+- Progress bars: Horizontal, 6px height, border-radius: 3px
+- Colors: Green (completed), Yellow (in progress), Red (critical)
+- Percentage text: 14px, #666666
+
+### Loading States
+- Skeleton loaders for tables
+- Spinner animation for buttons
+- Gray shimmer effect for content placeholders
+```

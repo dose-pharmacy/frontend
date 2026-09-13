@@ -1,0 +1,10 @@
+{
+  "description": "Streamline document management by allowing users to create, edit, and implement documents based on existing templates for enhanced efficiency.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

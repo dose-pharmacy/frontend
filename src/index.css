@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Subtle scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ABDBE3 transparent;
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #ABDBE3;
+  border-radius: 99px;
+}
+
+@theme {
+  --color-primary: #49B0C1;
+  --color-primary-mid: #ABDBE3;
+  --color-primary-light: #DBEFF3;
+  --color-text-primary: #333333;
+  --color-text-secondary: #666666;
+}
