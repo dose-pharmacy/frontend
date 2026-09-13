@@ -404,9 +404,10 @@ function TopBar({
   const [searchFocused, setSearchFocused] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
     navigate("/login", { replace: true });
+    // Clears the Better Auth session server-side + local state.
+    await logout();
   }
 
   return (

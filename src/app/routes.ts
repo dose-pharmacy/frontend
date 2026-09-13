@@ -3,6 +3,7 @@ import AuthLayout from "../layouts/AuthLayout";
 import ProtectedLayout from "../layouts/ProtectedLayout";
 import AppLayout from "../layouts/AppLayout";
 import LoginPage from "../pages/LoginPage";
+import SignupPage from "../pages/SignupPage";
 import DashboardPage from "../pages/DashboardPage";
 import InventoryDashboardPage from "../pages/inventory/InventoryDashboardPage";
 import ProductsPage from "../pages/inventory/ProductsPage";
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
     Component: AuthLayout,
     children: [
       { path: "/login", Component: LoginPage },
+      { path: "/signup", Component: SignupPage },
     ],
   },
   {

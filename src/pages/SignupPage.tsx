@@ -1,18 +1,23 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
+import { signUpEmail, startGoogleSignIn } from "../features/auth/authApi";
 import { useAuth } from "../features/auth/AuthContext";
-import { startGoogleSignIn } from "../features/auth/authApi";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import FormError from "../components/ui/FormError";
 
 interface FormErrors {
+  name?: string;
   email?: string;
   password?: string;
+  confirm?: string;
 }
 
-function validate(email: string, password: string): FormErrors {
+function validate(name: string, email: string, password: string, confirm: string): FormErrors {
   const errors: FormErrors = {};
+  if (!name.trim()) {
+    errors.name = "Full name is required.";
+  }
   if (!email.trim()) {
     errors.email = "Email is required.";
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -20,35 +25,42 @@ function validate(email: string, password: string): FormErrors {
   }
   if (!password) {
     errors.password = "Password is required.";
+  } else if (password.length < 8) {
+    errors.password = "Password must be at least 8 characters.";
+  }
+  if (!confirm) {
+    errors.confirm = "Please confirm your password.";
+  } else if (password !== confirm) {
+    errors.confirm = "Passwords do not match.";
   }
   return errors;
 }
 
-export default function LoginPage() {
- // const { status } = useAuth();
-  const { status, login } = useAuth();
+export default function SignupPage() {
+  const { status } = useAuth();
   const navigate = useNavigate();
-  const [formBusy, setFormBusy] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
-  // Already signed in (e.g. returning from the Google OAuth redirect,
-  // which sets the session cookie before the app boots) — go to the app.
+  // Already signed in (e.g. returning from the Google OAuth redirect) —
+  // skip straight to the app.
   useEffect(() => {
     if (status === "authenticated") navigate("/dashboard", { replace: true });
   }, [status, navigate]);
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
+  const [formBusy, setFormBusy] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
 
   const isLoading = formBusy;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const errors = validate(email, password);
+    const errors = validate(name, email, password, confirm);
     if (Object.keys(errors).length) {
       setFieldErrors(errors);
       return;
@@ -57,11 +69,11 @@ export default function LoginPage() {
     setFormBusy(true);
     setFormError(null);
     try {
-      await login({ email, password, rememberMe });
-      //await signInEmail({ email, password, rememberMe });
+      // Better Auth signs the user in as part of sign-up (sets the cookie).
+      await signUpEmail({ name, email, password });
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Sign in failed");
+      setFormError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setFormBusy(false);
     }
@@ -71,8 +83,6 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setFormError(null);
     try {
-      // Redirects the whole page to Google; the backend callback returns
-      // the browser to this origin with the session cookie set.
       const url = await startGoogleSignIn(window.location.origin);
       window.location.assign(url);
     } catch (err) {
@@ -84,12 +94,27 @@ export default function LoginPage() {
   return (
     <div>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-[#333333]">Welcome back</h2>
-        <p className="mt-1 text-sm text-[#666666]">Sign in to your pharmacy account</p>
+        <h2 className="text-2xl font-bold text-[#333333]">Create your account</h2>
+        <p className="mt-1 text-sm text-[#666666]">Register to start using PharmaCare</p>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
         <FormError message={formError} />
+
+        <Input
+          label="Full name"
+          id="name"
+          type="text"
+          autoComplete="name"
+          placeholder="Ada Lovelace"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (fieldErrors.name) setFieldErrors((fe) => ({ ...fe, name: undefined }));
+          }}
+          error={fieldErrors.name}
+          disabled={isLoading}
+        />
 
         <Input
           label="Email address"
@@ -110,8 +135,8 @@ export default function LoginPage() {
           label="Password"
           id="password"
           type={showPassword ? "text" : "password"}
-          autoComplete="current-password"
-          placeholder="Enter your password"
+          autoComplete="new-password"
+          placeholder="At least 8 characters"
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
@@ -141,32 +166,24 @@ export default function LoginPage() {
           }
         />
 
-        {/* Remember me + Forgot password */}
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer select-none group">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={isLoading}
-              className="h-4 w-4 rounded border-[#ABDBE3] text-[#49B0C1] accent-[#49B0C1] focus:ring-[#49B0C1] cursor-pointer"
-            />
-            <span className="text-sm text-[#666666] group-hover:text-[#333333] transition-colors">
-              Remember me
-            </span>
-          </label>
-          <button
-            type="button"
-            onClick={() => alert("Password recovery will be available once the backend is configured.")}
-            className="text-sm font-medium text-[#49B0C1] hover:text-[#3a9aaa] transition-colors focus:outline-none focus-visible:underline"
-          >
-            Forgot password?
-          </button>
-        </div>
+        <Input
+          label="Confirm password"
+          id="confirm"
+          type={showPassword ? "text" : "password"}
+          autoComplete="new-password"
+          placeholder="Re-enter your password"
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            if (fieldErrors.confirm) setFieldErrors((fe) => ({ ...fe, confirm: undefined }));
+          }}
+          error={fieldErrors.confirm}
+          disabled={isLoading}
+        />
 
         <div className="pt-1">
           <Button type="submit" fullWidth loading={isLoading} disabled={isLoading || googleLoading}>
-            {isLoading ? "Signing in…" : "Sign in"}
+            {isLoading ? "Creating account…" : "Create account"}
           </Button>
         </div>
       </form>
@@ -181,7 +198,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Google Sign In */}
+      {/* Google Sign Up */}
       <button
         type="button"
         onClick={handleGoogleSignIn}
@@ -199,18 +216,16 @@ export default function LoginPage() {
         <span>{googleLoading ? "Connecting…" : "Continue with Google"}</span>
       </button>
 
-      {/* Sign up */}
+      {/* Sign in */}
       <p className="mt-6 text-center text-sm text-[#666666]">
-        Don&apos;t have an account?{" "}
+        Already have an account?{" "}
         <Link
-          to="/signup"
+          to="/login"
           className="font-semibold text-[#49B0C1] hover:text-[#3a9aaa] transition-colors focus:outline-none focus-visible:underline"
         >
-          Sign up
+          Sign in
         </Link>
       </p>
-
-      {/* Demo credentials removed — real Better Auth backend is now wired up */}
     </div>
   );
 }

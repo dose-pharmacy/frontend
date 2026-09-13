@@ -163,7 +163,9 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
 
 function useCurrentUser() {
   try {
-    const stored = sessionStorage.getItem("pharmacy_user");
+    // Session lives in an HTTP-only cookie now; read the cached user
+    // snapshot that AuthContext persists alongside it.
+    const stored = sessionStorage.getItem("pharmacy_user_cache");
     if (stored) { const u = JSON.parse(stored); return `${u.name} (${u.role})`; }
   } catch {}
   return "Admin (Pharmacist)";

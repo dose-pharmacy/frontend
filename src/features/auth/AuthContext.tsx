@@ -1,58 +1,112 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { loginRequest, type AuthUser, type LoginCredentials } from "./authApi";
+import {
+  getSession,
+  signInEmail,
+  signOut,
+  signUpEmail,
+  startGoogleSignIn,
+  type AuthUser,
+  type SessionPayload,
+  type SignInInput,
+  type SignUpInput,
+} from "./authApi";
+
+type AuthStatus = "initializing" | "authenticated" | "unauthenticated";
 
 interface AuthState {
   user: AuthUser | null;
-  token: string | null;
-  status: "idle" | "loading" | "authenticated" | "error";
-  error: string | null;
+  status: AuthStatus;
 }
 
 interface AuthContextValue extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
+  login: (credentials: SignInInput) => Promise<void>;
+  signup: (input: SignUpInput) => Promise<void>;
+  loginWithGoogle: (callbackURL?: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const TOKEN_KEY = "pharmacy_token";
-const USER_KEY = "pharmacy_user";
+function applySession(
+  payload: SessionPayload | null,
+  setState: React.Dispatch<React.SetStateAction<AuthState>>,
+) {
+  if (payload?.user) {
+    setState({
+      user: payload.user,
+      status: "authenticated",
+    });
+  } else {
+    setState({
+      user: null,
+      status: "unauthenticated",
+    });
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>(() => {
-    const token = sessionStorage.getItem(TOKEN_KEY);
-    const user = sessionStorage.getItem(USER_KEY);
-    return {
-      user: user ? JSON.parse(user) : null,
-      token,
-      status: token ? "authenticated" : "idle",
-      error: null,
-    };
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    status: "initializing",
   });
 
-  async function login(credentials: LoginCredentials) {
-    setState((s) => ({ ...s, status: "loading", error: null }));
+  async function refresh() {
     try {
-      const { user, token } = await loginRequest(credentials);
-      sessionStorage.setItem(TOKEN_KEY, token);
-      sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-      setState({ user, token, status: "authenticated", error: null });
-      // resolved means success — caller can navigate
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Authentication failed";
-      setState((s) => ({ ...s, status: "error", error: message }));
-      throw err; // re-throw so callers can react
+      const session = await getSession();
+      applySession(session, setState);
+    } catch {
+      setState({
+        user: null,
+        status: "unauthenticated",
+      });
     }
   }
 
-  function logout() {
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
-    setState({ user: null, token: null, status: "idle", error: null });
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  async function login(credentials: SignInInput) {
+    const payload = await signInEmail(credentials);
+    applySession(payload, setState);
+  }
+
+  async function signup(input: SignUpInput) {
+    const payload = await signUpEmail(input);
+    applySession(payload, setState);
+  }
+
+  async function loginWithGoogle(callbackURL?: string) {
+    const url = await startGoogleSignIn(
+      callbackURL ?? window.location.origin,
+    );
+
+    window.location.assign(url);
+  }
+
+  async function logout() {
+    try {
+      await signOut();
+    } finally {
+      setState({
+        user: null,
+        status: "unauthenticated",
+      });
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        login,
+        signup,
+        loginWithGoogle,
+        logout,
+        refresh,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -60,6 +114,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+
+  if (!ctx) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+
   return ctx;
 }
