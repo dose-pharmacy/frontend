@@ -38,8 +38,11 @@ export interface MasterUnit {
   id: string;
   name: string;
   symbol: string;
+  description?: string; // Added description property
   productsUsing: number;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Unit {
