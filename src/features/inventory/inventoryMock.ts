@@ -30,8 +30,10 @@ export interface Batch {
   receivedDate: string;
   supplier: string;
   location: string;
-  purchasePrice?: number;
+  //purchasePrice?: number;
   status: BatchStatus;
+ purchaseCost?: number;
+  supplierReference?: string;
 }
 
 export interface MasterUnit {
@@ -115,16 +117,16 @@ export const MOCK_PRODUCTS: Product[] = [
 ];
 
 export const MOCK_BATCHES: Batch[] = [
-  { id: "b1", productId: "p1", batchNumber: "AMX-2024-001", quantity: 200, expiryDate: "2025-08-15", receivedDate: "2024-02-10", supplier: "PharmaCo Ltd", location: "Main Store", purchasePrice: 85.00, status: "available" },
-  { id: "b2", productId: "p1", batchNumber: "AMX-2024-002", quantity: 120, expiryDate: "2026-01-20", receivedDate: "2024-06-01", supplier: "PharmaCo Ltd", location: "Main Store", purchasePrice: 87.50, status: "available" },
-  { id: "b3", productId: "p2", batchNumber: "PCT-2024-001", quantity: 45, expiryDate: "2025-06-20", receivedDate: "2024-01-15", supplier: "MediSupply", location: "Dispensing Area", purchasePrice: 20.00, status: "low_stock" },
-  { id: "b4", productId: "p3", batchNumber: "MET-2023-003", quantity: 0, expiryDate: "2024-11-30", receivedDate: "2023-11-01", supplier: "GlucoMed Inc", location: "Main Store", purchasePrice: 35.00, status: "depleted" },
-  { id: "b5", productId: "p4", batchNumber: "ATV-2024-001", quantity: 210, expiryDate: "2026-03-10", receivedDate: "2024-03-05", supplier: "CardioLife", location: "Main Store", purchasePrice: 110.00, status: "available" },
-  { id: "b6", productId: "p5", batchNumber: "OMP-2024-001", quantity: 18, expiryDate: "2025-04-05", receivedDate: "2024-01-20", supplier: "GastroSupply", location: "Dispensing Area", purchasePrice: 45.00, status: "low_stock" },
-  { id: "b7", productId: "p5", batchNumber: "OMP-2023-002", quantity: 0, expiryDate: "2024-03-01", receivedDate: "2023-03-01", supplier: "GastroSupply", location: "Main Store", purchasePrice: 42.00, status: "expired" },
-  { id: "b8", productId: "p8", batchNumber: "LOS-2024-001", quantity: 12, expiryDate: "2025-05-18", receivedDate: "2024-01-08", supplier: "PressureX Ltd", location: "Dispensing Area", purchasePrice: 60.00, status: "low_stock" },
-  { id: "b9", productId: "p6", batchNumber: "CTZ-2024-001", quantity: 500, expiryDate: "2026-07-22", receivedDate: "2024-04-10", supplier: "AllerMed Co", location: "Main Store", purchasePrice: 15.00, status: "available" },
-  { id: "b10", productId: "p7", batchNumber: "IBU-2024-001", quantity: 180, expiryDate: "2025-09-30", receivedDate: "2024-02-20", supplier: "PainAway Pharma", location: "Main Store", purchasePrice: 28.00, status: "available" },
+  { id: "b1", productId: "p1", batchNumber: "AMX-2024-001", quantity: 200, expiryDate: "2025-08-15", receivedDate: "2024-02-10", supplier: "PharmaCo Ltd", location: "Main Store", purchaseCost: 85.00, status: "available" },
+  { id: "b2", productId: "p1", batchNumber: "AMX-2024-002", quantity: 120, expiryDate: "2026-01-20", receivedDate: "2024-06-01", supplier: "PharmaCo Ltd", location: "Main Store", purchaseCost: 87.50, status: "available" },
+  { id: "b3", productId: "p2", batchNumber: "PCT-2024-001", quantity: 45, expiryDate: "2025-06-20", receivedDate: "2024-01-15", supplier: "MediSupply", location: "Dispensing Area", purchaseCost: 20.00, status: "low_stock" },
+  { id: "b4", productId: "p3", batchNumber: "MET-2023-003", quantity: 0, expiryDate: "2024-11-30", receivedDate: "2023-11-01", supplier: "GlucoMed Inc", location: "Main Store", purchaseCost: 35.00, status: "depleted" },
+  { id: "b5", productId: "p4", batchNumber: "ATV-2024-001", quantity: 210, expiryDate: "2026-03-10", receivedDate: "2024-03-05", supplier: "CardioLife", location: "Main Store", purchaseCost: 110.00, status: "available" },
+  { id: "b6", productId: "p5", batchNumber: "OMP-2024-001", quantity: 18, expiryDate: "2025-04-05", receivedDate: "2024-01-20", supplier: "GastroSupply", location: "Dispensing Area", purchaseCost: 45.00, status: "low_stock" },
+  { id: "b7", productId: "p5", batchNumber: "OMP-2023-002", quantity: 0, expiryDate: "2024-03-01", receivedDate: "2023-03-01", supplier: "GastroSupply", location: "Main Store", purchaseCost: 42.00, status: "expired" },
+  { id: "b8", productId: "p8", batchNumber: "LOS-2024-001", quantity: 12, expiryDate: "2025-05-18", receivedDate: "2024-01-08", supplier: "PressureX Ltd", location: "Dispensing Area", purchaseCost: 60.00, status: "low_stock" },
+  { id: "b9", productId: "p6", batchNumber: "CTZ-2024-001", quantity: 500, expiryDate: "2026-07-22", receivedDate: "2024-04-10", supplier: "AllerMed Co", location: "Main Store", purchaseCost: 15.00, status: "available" },
+  { id: "b10", productId: "p7", batchNumber: "IBU-2024-001", quantity: 180, expiryDate: "2025-09-30", receivedDate: "2024-02-20", supplier: "PainAway Pharma", location: "Main Store", purchaseCost: 28.00, status: "available" },
 ];
 
 export const MASTER_UNITS: MasterUnit[] = [

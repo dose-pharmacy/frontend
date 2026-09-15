@@ -1,7 +1,14 @@
 import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router"
-import { getBatches, getProducts, daysUntilExpiry } from "../../features/inventory/inventoryService"
-import type { Batch, Product } from "../../features/inventory/inventoryMock"
+import {
+  fetchBatches,
+  fetchProductOptions,
+  daysUntilExpiry,
+  createBatch,
+  type ProductOption,
+} from "../../features/inventory/inventoryService"
+import type { Batch } from "../../features/inventory/inventoryMock"
+import { listLocations, type LocationDto } from "../../features/inventory/locationsApi"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
 import SearchInput from "../../components/ui/SearchInput"
@@ -11,18 +18,55 @@ import Modal from "../../components/ui/Modal"
 import Input from "../../components/ui/Input"
 import FormError from "../../components/ui/FormError"
 import Pagination from "../../components/ui/Pagination"
+import StatusBadge from "../../components/ui/StatusBadge"
 
 type Tab = "batches" | "expiring" | "expired"
 type ExpiryAction = "return" | "clearance" | "dispose"
 
 const PAGE_SIZE = 10
 
+interface AddBatchForm {
+  productId: string
+  batchNumber: string
+  receivedDate: string
+  expiryDate: string
+  purchaseCost: string
+  supplierReference: string
+}
+
+function emptyBatchForm(): AddBatchForm {
+  const today = new Date().toISOString().slice(0, 10)
+  return {
+    productId: "",
+    batchNumber: "",
+    receivedDate: today,
+    expiryDate: "",
+    purchaseCost: "",
+    supplierReference: "",
+  }
+}
+
+function addBatchErrors(f: AddBatchForm) {
+  const e: Partial<Record<keyof AddBatchForm, string>> = {}
+  if (!f.productId) e.productId = "Product is required."
+  if (!f.batchNumber.trim()) e.batchNumber = "Batch number is required."
+  if (!f.receivedDate) e.receivedDate = "Received date is required."
+  if (!f.expiryDate) e.expiryDate = "Expiry date is required."
+  else if (f.expiryDate < f.receivedDate)
+    e.expiryDate = "Expiry must be after received date."
+  if (f.purchaseCost.trim() === "") e.purchaseCost = "Purchase cost is required."
+  else if (Number.isNaN(Number(f.purchaseCost)) || Number(f.purchaseCost) < 0)
+    e.purchaseCost = "Purchase cost must be a non-negative number."
+  return e
+}
+
 export default function BatchesExpiryPage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>("batches")
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductOption[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Batches tab filters
   const [batchSearch, setBatchSearch] = useState("")
@@ -37,23 +81,67 @@ export default function BatchesExpiryPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // Add Batch modal
+  const [addOpen, setAddOpen] = useState(false)
+  const [addForm, setAddForm] = useState<AddBatchForm>(emptyBatchForm())
+  const [addErrors, setAddErrors] = useState<Partial<Record<keyof AddBatchForm, string>>>({})
+  const [addError, setAddError] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+
   useEffect(() => {
-    Promise.all([getBatches(), getProducts()]).then(([b, p]) => {
-      setBatches(b)
-      setProducts(p)
-      setLoading(false)
-    })
+    listLocations({ limit: 100 })
+      .then((res) => setLocations(res.data.filter((l) => l.isActive)))
+      .catch(() => setLocations([]))
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetchBatches(locationFilter || undefined)
+      .then((b) => {
+        if (cancelled) return
+        setBatches(b)
+        setLoadError(null)
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setLoadError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load batches. Please try again.",
+        )
+        setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [locationFilter])
+
+  function reloadBatches() {
+    return fetchBatches(locationFilter || undefined)
+      .then((b) => setBatches(b))
+      .catch((err) =>
+        setLoadError(
+          err instanceof Error
+            ? err.message
+            : "Failed to refresh batches. Please try again.",
+        ),
+      )
+  }
 
   function productName(productId: string) {
     return products.find((p) => p.id === productId)?.name ?? productId
   }
 
   function productUnit(productId: string) {
-    return products.find((p) => p.id === productId)?.baseUnit ?? ""
+    const unit = products.find((p) => p.id === productId)?.baseUnit ?? ""
+    return unit
   }
 
-  const locations = useMemo(() => [...new Set(batches.map((b) => b.location))], [batches])
+  // Backend list rows carry no location info, so the location filter narrows
+  // server-side (each choice refetches) instead of filtering client-side.
+  const [locations, setLocations] = useState<LocationDto[]>([])
 
   // Batches tab
   const filteredBatches = useMemo(() => {
@@ -66,10 +154,9 @@ export default function BatchesExpiryPage() {
           b.batchNumber.toLowerCase().includes(q)
       )
     }
-    if (locationFilter) rows = rows.filter((b) => b.location === locationFilter)
     if (statusFilter) rows = rows.filter((b) => b.status === statusFilter)
     return rows
-  }, [batches, batchSearch, locationFilter, statusFilter, products])
+  }, [batches, batchSearch, statusFilter, products])
 
   const batchTotalPages = Math.max(1, Math.ceil(filteredBatches.length / PAGE_SIZE))
   const batchPaginated = filteredBatches.slice((batchPage - 1) * PAGE_SIZE, batchPage * PAGE_SIZE)
@@ -122,19 +209,43 @@ export default function BatchesExpiryPage() {
     alert(`Action confirmed (mock): ${actionType} for ${actionBatch?.batchNumber}`)
   }
 
-  function formatDate(d: string) {
-    return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+  // ── Add Batch ──
+  function openAdd() {
+    setAddForm(emptyBatchForm())
+    setAddErrors({})
+    setAddError(null)
+    setAddOpen(true)
   }
 
-  function batchStatusBadge(status: string) {
-    const cfg: Record<string, { label: string; cls: string }> = {
-      available: { label: "Available", cls: "bg-green-100 text-green-700" },
-      low_stock: { label: "Low Stock", cls: "bg-yellow-100 text-yellow-700" },
-      depleted: { label: "Depleted", cls: "bg-gray-100 text-gray-500" },
-      expired: { label: "Expired", cls: "bg-red-100 text-red-700" },
+  async function handleAddBatch() {
+    const e = addBatchErrors(addForm)
+    if (Object.keys(e).length) {
+      setAddErrors(e)
+      return
     }
-    const c = cfg[status] ?? { label: status, cls: "bg-gray-100 text-gray-600" }
-    return <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${c.cls}`}>{c.label}</span>
+    setAdding(true)
+    setAddError(null)
+    try {
+      await createBatch({
+        productId: addForm.productId,
+        batchNumber: addForm.batchNumber.trim(),
+        receivedDate: addForm.receivedDate,
+        expiryDate: addForm.expiryDate,
+        purchaseCost: Number(addForm.purchaseCost),
+        supplierReference: addForm.supplierReference.trim(),
+      })
+      setAddOpen(false)
+      await reloadBatches()
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to create batch.")
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  function formatDate(d: string) {
+    if (!d) return "—"
+    return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
   }
 
   const TAB_LABELS: { key: Tab; label: string }[] = [
@@ -149,11 +260,7 @@ export default function BatchesExpiryPage() {
         breadcrumb="Inventory / Batches & Expiry"
         title="Batches & Expiry"
         subtitle="Monitor product batches, expiration dates, and stock."
-        actions={
-          <Button onClick={() => alert("Add Batch — backend integration pending")}>
-            + Add Batch
-          </Button>
-        }
+        actions={<Button onClick={openAdd}>+ Add Batch</Button>}
       />
 
       {/* Tab bar */}
@@ -174,6 +281,12 @@ export default function BatchesExpiryPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+        {loadError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {loadError}
+          </div>
+        )}
+
         {/* ── ALL BATCHES TAB ── */}
         {tab === "batches" && (
           <>
@@ -188,7 +301,7 @@ export default function BatchesExpiryPage() {
                 </div>
                 <Select value={locationFilter} onChange={(e) => { setLocationFilter(e.target.value); setBatchPage(1) }} className="sm:w-44">
                   <option value="">All Locations</option>
-                  {locations.map((l) => <option key={l} value={l}>{l}</option>)}
+                  {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </Select>
                 <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setBatchPage(1) }} className="sm:w-44">
                   <option value="">All Statuses</option>
@@ -242,7 +355,7 @@ export default function BatchesExpiryPage() {
                                 {b.quantity.toLocaleString()} {productUnit(b.productId)}s
                               </td>
                               <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{b.location}</td>
-                              <td className="px-4 py-3">{batchStatusBadge(b.status)}</td>
+                              <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
                               <td className="px-4 py-3">
                                 <button
                                   onClick={() => navigate(`/inventory/batches/${b.id}`)}
@@ -267,7 +380,6 @@ export default function BatchesExpiryPage() {
         {/* ── EXPIRING SOON TAB ── */}
         {tab === "expiring" && (
           <>
-            {/* Summary counters */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: "Critical (≤ 30 days)", count: expiring.filter((b) => daysUntilExpiry(b.expiryDate) <= 30).length, cls: "border-red-200 bg-red-50", textCls: "text-red-600" },
@@ -288,7 +400,6 @@ export default function BatchesExpiryPage() {
               <EmptyState title="No expiring batches" description="No batches expiring within the next 90 days." />
             ) : (
               <>
-                {/* Critical — ≤ 30 days */}
                 <ExpiryGroup
                   title="Critical — Expiring within 30 days"
                   urgency="critical"
@@ -297,7 +408,6 @@ export default function BatchesExpiryPage() {
                   productUnit={productUnit}
                   onAction={openAction}
                 />
-                {/* Warning — 31–60 days */}
                 <ExpiryGroup
                   title="Expiring within 60 days"
                   urgency="warning"
@@ -306,7 +416,6 @@ export default function BatchesExpiryPage() {
                   productUnit={productUnit}
                   onAction={openAction}
                 />
-                {/* Notice — 61–90 days */}
                 <ExpiryGroup
                   title="Expiring within 90 days"
                   urgency="notice"
@@ -366,7 +475,110 @@ export default function BatchesExpiryPage() {
         )}
       </div>
 
-      {/* Expiry Action Modal */}
+      {/* ─────────── Add Batch Modal ─────────── */}
+      <Modal
+        open={addOpen}
+        title="Add Batch"
+        onClose={() => !adding && setAddOpen(false)}
+        size="md"
+      >
+        <div className="flex flex-col gap-4">
+          <FormError message={addError} />
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">Product</label>
+            <Select
+              value={addForm.productId}
+              onChange={(e) => {
+                setAddForm((f) => ({ ...f, productId: e.target.value }))
+                setAddErrors((er) => ({ ...er, productId: undefined }))
+              }}
+            >
+              <option value="">Select a product…</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+            {addErrors.productId && (
+              <p className="text-xs text-red-500">{addErrors.productId}</p>
+            )}
+          </div>
+
+          <Input
+            label="Batch Number"
+            value={addForm.batchNumber}
+            onChange={(e) => {
+              setAddForm((f) => ({ ...f, batchNumber: e.target.value }))
+              setAddErrors((er) => ({ ...er, batchNumber: undefined }))
+            }}
+            error={addErrors.batchNumber}
+            placeholder="e.g. PCM001"
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Received Date"
+              type="date"
+              value={addForm.receivedDate}
+              onChange={(e) => {
+                setAddForm((f) => ({ ...f, receivedDate: e.target.value }))
+                setAddErrors((er) => ({ ...er, receivedDate: undefined }))
+              }}
+              error={addErrors.receivedDate}
+            />
+            <Input
+              label="Expiry Date"
+              type="date"
+              value={addForm.expiryDate}
+              onChange={(e) => {
+                setAddForm((f) => ({ ...f, expiryDate: e.target.value }))
+                setAddErrors((er) => ({ ...er, expiryDate: undefined }))
+              }}
+              error={addErrors.expiryDate}
+            />
+          </div>
+
+          <Input
+            label="Purchase Cost"
+            type="number"
+            min={0}
+            step="0.01"
+            value={addForm.purchaseCost}
+            onChange={(e) => {
+              setAddForm((f) => ({ ...f, purchaseCost: e.target.value }))
+              setAddErrors((er) => ({ ...er, purchaseCost: undefined }))
+            }}
+            error={addErrors.purchaseCost}
+            placeholder="e.g. 110"
+          />
+
+          <Input
+            label="Supplier Reference"
+            value={addForm.supplierReference}
+            onChange={(e) =>
+              setAddForm((f) => ({ ...f, supplierReference: e.target.value }))
+            }
+            placeholder="e.g. ABC Pharma invoice 1042"
+          />
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => setAddOpen(false)}
+              disabled={adding}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void handleAddBatch()} loading={adding}>
+              Create Batch
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ─────────── Expiry Action Modal (unchanged) ─────────── */}
       <Modal open={!!actionBatch} title="Expiry Action" onClose={() => setActionBatch(null)} size="md">
         {actionBatch && (
           <div className="flex flex-col gap-5">

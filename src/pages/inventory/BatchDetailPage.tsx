@@ -1,65 +1,215 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import { getBatch, getProduct, getTransactions, daysUntilExpiry } from "../../features/inventory/inventoryService";
-import type { Batch, Product, Transaction } from "../../features/inventory/inventoryMock";
+import {
+  fetchBatchById,
+  getTransactions,
+  daysUntilExpiry,
+  updateBatch,
+  deleteBatch,
+  type BatchDetail,
+} from "../../features/inventory/inventoryService";
+import type { Transaction } from "../../features/inventory/inventoryMock";
 import Breadcrumb from "../../components/ui/Breadcrumb";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Button from "../../components/ui/Button";
 import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
+import Modal from "../../components/ui/Modal";
+import Input from "../../components/ui/Input";
+import FormError from "../../components/ui/FormError";
+
+interface EditBatchForm {
+  batchNumber: string;
+  expiryDate: string;
+  purchaseCost: string;
+  supplierReference: string;
+}
 
 export default function BatchDetailPage() {
   const { batchId } = useParams<{ batchId: string }>();
   const navigate = useNavigate();
-  const [batch, setBatch] = useState<Batch | null>(null);
-  const [product, setProduct] = useState<Product | null>(null);
+  const [batch, setBatch] = useState<BatchDetail | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [recallOpen, setRecallOpen] = useState(false);
-  const [recalling, setRecalling] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Deactivate (was Recall)
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Edit (was Adjust)
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<EditBatchForm>({
+    batchNumber: "",
+    expiryDate: "",
+    purchaseCost: "",
+    supplierReference: "",
+  });
+  const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditBatchForm, string>>>({});
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (!batchId) return;
-    getBatch(batchId).then(async (b) => {
-      if (!b) { navigate("/inventory/batches"); return; }
-      setBatch(b);
-      const [p, t] = await Promise.all([getProduct(b.productId), getTransactions(b.productId)]);
-      setProduct(p);
-      setTransactions(t.filter((tx) => tx.batchId === batchId));
-      setLoading(false);
-    });
+    let cancelled = false;
+    fetchBatchById(batchId)
+      .then(async (b) => {
+        if (cancelled) return;
+        if (!b) {
+          navigate("/inventory/batches");
+          return;
+        }
+        setBatch(b);
+        // Transactions aren't exposed by the batches endpoints yet — mock
+        // data until that endpoint ships.
+        const t = await getTransactions(b.productId);
+        if (cancelled) return;
+        setTransactions(t.filter((tx) => tx.batchId === batchId));
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load batch. Please try again.",
+        );
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [batchId, navigate]);
 
-  async function handleRecall() {
-    setRecalling(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setRecalling(false);
-    setRecallOpen(false);
-    alert("Batch recalled (mock). Real implementation requires backend.");
+  // ── Deactivate (DELETE) ──
+  async function handleDelete() {
+    if (!batch) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteBatch(batch.id);
+      setDeleteOpen(false);
+      navigate("/inventory/batches");
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to deactivate batch.",
+      );
+    } finally {
+      setDeleting(false);
+    }
   }
 
-  if (loading) return (
-    <div className="flex flex-col">
-      <div className="p-6 animate-pulse space-y-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 rounded-xl bg-[#DBEFF3]" />)}</div>
-    </div>
-  );
+  // ── Edit (PATCH) ──
+  function openEdit() {
+    if (!batch) return;
+    setEditForm({
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate,
+      purchaseCost: String(batch.purchaseCost ?? ""),
+      supplierReference: batch.supplierReference ?? "",
+    });
+    setEditErrors({});
+    setEditError(null);
+    setEditOpen(true);
+  }
 
-  if (!batch || !product) return null;
+  function validateEdit(f: EditBatchForm) {
+    const e: Partial<Record<keyof EditBatchForm, string>> = {};
+    if (!f.batchNumber.trim()) e.batchNumber = "Batch number is required.";
+    if (!f.expiryDate) e.expiryDate = "Expiry date is required.";
+    else if (f.expiryDate < batch!.receivedDate)
+      e.expiryDate = "Expiry must be after received date.";
+    if (f.purchaseCost.trim() !== "" && Number.isNaN(Number(f.purchaseCost)))
+      e.purchaseCost = "Purchase cost must be a number.";
+    return e;
+  }
+
+  async function handleEdit() {
+    if (!batch) return;
+    const e = validateEdit(editForm);
+    if (Object.keys(e).length) {
+      setEditErrors(e);
+      return;
+    }
+    setEditing(true);
+    setEditError(null);
+    try {
+      const updated = await updateBatch(
+        batch.id,
+        {
+          batchNumber: editForm.batchNumber.trim(),
+          expiryDate: editForm.expiryDate,
+          purchaseCost:
+            editForm.purchaseCost.trim() === ""
+              ? undefined
+              : Number(editForm.purchaseCost),
+          supplierReference: editForm.supplierReference.trim() || undefined,
+        },
+        batch.productName,
+      );
+      setBatch(updated);
+      setEditOpen(false);
+    } catch (err) {
+      setEditError(
+        err instanceof Error ? err.message : "Failed to update batch.",
+      );
+    } finally {
+      setEditing(false);
+    }
+  }
+
+  if (loading)
+    return (
+      <div className="flex flex-col">
+        <div className="p-6 animate-pulse space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-24 rounded-xl bg-[#DBEFF3]" />
+          ))}
+        </div>
+      </div>
+    );
+
+  if (loadError)
+    return (
+      <div className="flex-1 flex flex-col">
+        <div className="p-6">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {loadError}
+          </div>
+        </div>
+      </div>
+    );
+
+  if (!batch) return null;
 
   const days = daysUntilExpiry(batch.expiryDate);
-  const daysColor = days < 0 ? "text-red-600" : days <= 30 ? "text-orange-600" : days <= 60 ? "text-yellow-600" : "text-green-600";
+  const daysColor =
+    days < 0
+      ? "text-red-600"
+      : days <= 30
+        ? "text-orange-600"
+        : days <= 60
+          ? "text-yellow-600"
+          : "text-green-600";
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <Breadcrumb items={[{ label: "Inventory", to: "/inventory" }, { label: "Batches", to: "/inventory/batches" }, { label: batch.batchNumber }]} />
+      <Breadcrumb
+        items={[
+          { label: "Inventory", to: "/inventory" },
+          { label: "Batches", to: "/inventory/batches" },
+          { label: batch.batchNumber },
+        ]}
+      />
 
       <div className="p-6 flex flex-col gap-6">
         {/* Batch info */}
         <div className="bg-[#DBEFF3] rounded-xl p-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <InfoItem label="Batch Number" value={batch.batchNumber} mono />
-            <InfoItem label="Product" value={product.name} />
+            <InfoItem label="Product" value={batch.productName} />
             <InfoItem label="Quantity" value={String(batch.quantity)} />
-            <InfoItem label="Received Date" value={batch.receivedDate} />
+            <InfoItem label="Received Date" value={batch.receivedDate || "—"} />
             <InfoItem label="Expiry Date" value={batch.expiryDate} />
             <InfoItem label="Supplier" value={batch.supplier} />
             <InfoItem label="Location" value={batch.location} />
@@ -111,26 +261,145 @@ export default function BatchDetailPage() {
         {/* Actions */}
         <div className="flex flex-wrap gap-3">
           <button
-            onClick={() => setRecallOpen(true)}
+            onClick={() => {
+              setDeleteError(null);
+              setDeleteOpen(true);
+            }}
             className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
           >
-            Recall This Batch
+            Deactivate Batch
           </button>
           <Button onClick={() => alert("Transfer — backend integration pending")}>Transfer</Button>
-          <Button variant="secondary" onClick={() => alert("Adjust — backend integration pending")}>Adjust</Button>
+          <Button variant="secondary" onClick={openEdit}>Edit</Button>
         </div>
       </div>
 
+      {/* ─────────── Deactivate confirm dialog ─────────── */}
       <ConfirmationDialog
-        open={recallOpen}
-        title="Recall This Batch?"
-        message={`This will recall batch ${batch.batchNumber}. This action cannot be undone. Proceed?`}
-        confirmLabel="Recall Batch"
-        onConfirm={handleRecall}
-        onCancel={() => setRecallOpen(false)}
-        loading={recalling}
+        open={deleteOpen}
+        title="Deactivate This Batch?"
+        message={
+          deleteError
+            ? deleteError
+            : `This will deactivate batch ${batch.batchNumber}. This action cannot be undone. Proceed?`
+        }
+        confirmLabel="Deactivate Batch"
+        onConfirm={handleDelete}
+        onCancel={() => {
+          if (deleting) return;
+          setDeleteOpen(false);
+        }}
+        loading={deleting}
         danger
       />
+
+      {/* ─────────── Edit Batch Modal ─────────── */}
+      <Modal
+        open={editOpen}
+        title="Edit Batch"
+        onClose={() => !editing && setEditOpen(false)}
+        size="md"
+      >
+        <div className="flex flex-col gap-4">
+          <FormError message={editError} />
+
+          {/* Product — locked */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">Product</label>
+            <div className="flex items-center justify-between rounded-lg border border-[#DBEFF3] bg-[#F5FAFB] px-3.5 py-2.5 text-sm text-[#666666]">
+              <span>{batch.productName}</span>
+              <svg
+                className="h-4 w-4 text-[#666666]"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+          </div>
+
+          <Input
+            label="Batch Number *"
+            value={editForm.batchNumber}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, batchNumber: e.target.value }));
+              setEditErrors((er) => ({ ...er, batchNumber: undefined }));
+            }}
+            error={editErrors.batchNumber}
+          />
+
+          {/* Received Date — locked */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">Received Date</label>
+            <div className="flex items-center justify-between rounded-lg border border-[#DBEFF3] bg-[#F5FAFB] px-3.5 py-2.5 text-sm text-[#666666]">
+              <span>{batch.receivedDate || "—"}</span>
+              <svg
+                className="h-4 w-4 text-[#666666]"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+          </div>
+
+          <Input
+            label="Expiry Date *"
+            type="date"
+            value={editForm.expiryDate}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, expiryDate: e.target.value }));
+              setEditErrors((er) => ({ ...er, expiryDate: undefined }));
+            }}
+            error={editErrors.expiryDate}
+          />
+
+          <Input
+            label="Purchase Cost"
+            type="number"
+            min={0}
+            step="0.01"
+            value={editForm.purchaseCost}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, purchaseCost: e.target.value }));
+              setEditErrors((er) => ({ ...er, purchaseCost: undefined }));
+            }}
+            error={editErrors.purchaseCost}
+          />
+
+          <Input
+            label="Supplier Reference"
+            value={editForm.supplierReference}
+            onChange={(e) =>
+              setEditForm((f) => ({ ...f, supplierReference: e.target.value }))
+            }
+            placeholder="e.g. ABC Pharma invoice 1042"
+          />
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => setEditOpen(false)}
+              disabled={editing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void handleEdit()} loading={editing}>
+              Save Changes
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

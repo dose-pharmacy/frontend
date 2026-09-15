@@ -5,9 +5,21 @@ import {
   MOCK_PRODUCTS, MOCK_BATCHES, MOCK_UNITS, MOCK_GROUPS,
   MOCK_TRANSACTIONS, MOCK_BIN_CARD, LOCATION_STOCK, REORDER_DATA,
   MASTER_UNITS, MOCK_LOCATIONS,
-  type Product, type Batch, type Unit, type ProductGroup,
+  type Product, type Batch, type BatchStatus, type Unit, type ProductGroup,
   type Transaction, type BinCardEntry, type MasterUnit, type Location,
 } from "./inventoryMock";
+import {
+  listBatches as listBatchesApi,
+  getBatch as getBatchApi,
+  createBatch as createBatchApi,
+  updateBatch as updateBatchApi,
+  deactivateBatch as deactivateBatchApi,
+  BatchesApiError,
+  type BatchDto,
+  type BatchStatusDto,
+  type BatchDetailDto,
+} from "./batchesApi";
+import { listInventoryProducts } from "./productsApi";
 
 const delay = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,6 +35,12 @@ export async function getProduct(id: string): Promise<Product | null> {
 }
 
 // ─── Batches ───────────────────────────────────────────────────────────────
+// NOTE: getBatches() below still serves MOCK_BATCHES for the pages whose
+// endpoints are not wired up yet (Stock, Bin Card, dashboards, transfers…).
+// The three batch pages (BatchManagementPage, BatchesExpiryPage,
+// BatchDetailPage) use the real backend through fetchBatches/fetchBatchById
+// + createBatch/updateBatch/deleteBatch (see ./batchesApi).
+
 export async function getBatches(productId?: string): Promise<Batch[]> {
   await delay();
   return productId
@@ -30,9 +48,148 @@ export async function getBatches(productId?: string): Promise<Batch[]> {
     : [...MOCK_BATCHES];
 }
 
-export async function getBatch(id: string): Promise<Batch | null> {
-  await delay(400);
-  return MOCK_BATCHES.find((b) => b.id === id) ?? null;
+function toUiStatus(status: BatchStatusDto | undefined): BatchStatus {
+  return (status ?? "AVAILABLE").toLowerCase() as BatchStatus;
+}
+
+function isoDate(value: string | null | undefined): string {
+  return value ? value.slice(0, 10) : "";
+}
+
+function primaryLocation(dto: BatchDto): string {
+  // Only the get-one response embeds locationStock; list rows don't.
+  const stock = (dto as BatchDetailDto).locationStock;
+  if (Array.isArray(stock) && stock.length > 0) {
+    const top = [...stock].sort((a, b) => (b.quantity ?? 0) - (a.quantity ?? 0))[0];
+    if (top?.locationName) return top.locationName;
+  }
+  return "—";
+}
+
+/** Adapt a backend BatchDto to the UI's mock `Batch` shape. */
+function adaptBatch(dto: BatchDto): Batch {
+  return {
+    id: dto.id,
+    productId: dto.productId,
+    batchNumber: dto.batchNumber,
+    quantity: dto.totalQuantity ?? 0,
+    expiryDate: isoDate(dto.expiryDate),
+    receivedDate: isoDate(dto.receivedDate),
+    supplier: dto.supplierReference ?? "—",
+    location: primaryLocation(dto),
+    status: toUiStatus(dto.status),
+    purchaseCost: dto.purchaseCost ?? undefined,
+    supplierReference: dto.supplierReference ?? undefined,
+  };
+}
+
+function adaptBatchDetail(dto: BatchDto, fallbackName?: string): BatchDetail {
+  return {
+    ...adaptBatch(dto),
+    productName: dto.product?.name ?? fallbackName ?? dto.productId,
+  };
+}
+
+/** `Batch` plus the product name embedded in the backend batch detail. */
+export interface BatchDetail extends Batch {
+  productName: string;
+}
+
+/** Light product shape for pickers/name lookups on the batch pages. */
+export interface ProductOption {
+  id: string;
+  name: string;
+  baseUnit: string;
+}
+
+/**
+ * GET /inventory/batches — live batches for the batch pages, optionally
+ * filtered server-side by location (list rows carry no location data).
+ * Walks the paginated endpoint so backend page-size caps can't hide rows.
+ */
+export async function fetchBatches(locationId?: string): Promise<Batch[]> {
+  const first = await listBatchesApi({ limit: 100, locationId });
+  const rows = [...first.data];
+  const totalPages = Math.min(first.meta?.totalPages ?? 1, 10);
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await listBatchesApi({ page, limit: 100, locationId });
+    rows.push(...next.data);
+  }
+  return rows.map(adaptBatch);
+}
+
+/** GET /inventory/batches/{id} — live single batch; null when not found. */
+export async function fetchBatchById(id: string): Promise<BatchDetail | null> {
+  try {
+    return adaptBatchDetail(await getBatchApi(id));
+  } catch (err) {
+    if (err instanceof BatchesApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** GET /inventory/inventory-products — real product options for batch pages. */
+export async function fetchProductOptions(): Promise<ProductOption[]> {
+  const result = await listInventoryProducts({ limit: 500 });
+  return result.data.map((p) => ({
+    id: p.id,
+    name: p.name,
+    baseUnit: p.baseUnit?.name ?? "",
+  }));
+}
+
+// PATCH /inventory/batches/{id}
+// ⚠️ The backend REQUIRES batchNumber on every PATCH — callers must pass the
+// batch's current batch number through unchanged unless renaming it.
+export interface UpdateBatchPayload {
+  batchNumber: string
+  expiryDate?: string
+  purchaseCost?: number
+  supplierReference?: string
+}
+
+export async function updateBatch(
+  id: string,
+  payload: UpdateBatchPayload,
+  currentProductName?: string,
+): Promise<BatchDetail> {
+  const dto = await updateBatchApi(id, {
+    batchNumber: payload.batchNumber,
+    expiryDate: payload.expiryDate,
+    purchaseCost: payload.purchaseCost,
+    supplierReference: payload.supplierReference,
+  });
+  // PATCH responses don't embed the product — keep the name the page loaded.
+  return adaptBatchDetail(dto, currentProductName);
+}
+
+// DELETE /inventory/batches/{id} — soft delete / deactivate
+export async function deleteBatch(id: string): Promise<void> {
+  await deactivateBatchApi(id);
+}
+
+// POST /inventory/batches
+export interface CreateBatchPayload {
+  productId: string;
+  batchNumber: string;
+  receivedDate: string; // "YYYY-MM-DD"
+  expiryDate: string;   // "YYYY-MM-DD"
+  purchaseCost: number;
+  supplierReference: string;
+}
+
+export async function createBatch(payload: CreateBatchPayload): Promise<Batch> {
+  const dto = await createBatchApi({
+    productId: payload.productId,
+    batchNumber: payload.batchNumber,
+    receivedDate: payload.receivedDate,
+    expiryDate: payload.expiryDate,
+    purchaseCost: payload.purchaseCost,
+    supplierReference: payload.supplierReference?.trim() || undefined,
+  });
+  // POST responses don't embed product/quantity/status — the pages refetch
+  // the list right after creating, so a plain adaptation is fine here.
+  return adaptBatch(dto);
 }
 
 // ─── Units ─────────────────────────────────────────────────────────────────
