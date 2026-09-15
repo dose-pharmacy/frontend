@@ -62,6 +62,8 @@ export interface Location {
   description: string;
   isActive: boolean;
   productCount: number;
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ProductGroup {
@@ -157,10 +159,10 @@ export const MOCK_UNITS: Unit[] = [
 ];
 
 export const MOCK_LOCATIONS: Location[] = [
-  { id: "loc1", name: "Main Store", description: "Primary storage for bulk inventory", isActive: true, productCount: 6 },
-  { id: "loc2", name: "Dispensing Area", description: "Front-counter dispensing counter stock", isActive: true, productCount: 4 },
-  { id: "loc3", name: "Cold Storage", description: "Refrigerated storage for temperature-sensitive medicines", isActive: true, productCount: 0 },
-  { id: "loc4", name: "Branch 1", description: "Satellite pharmacy branch", isActive: false, productCount: 0 },
+  { id: "loc1", name: "Main Store", description: "Primary storage for bulk inventory", isActive: true, productCount: 6, createdAt: "2023-01-01T00:00:00Z", updatedAt: "2023-01-01T00:00:00Z" },
+  { id: "loc2", name: "Dispensing Area", description: "Front-counter dispensing counter stock", isActive: true, productCount: 4, createdAt: "2023-01-01T00:00:00Z", updatedAt: "2023-01-01T00:00:00Z" },
+  { id: "loc3", name: "Cold Storage", description: "Refrigerated storage for temperature-sensitive medicines", isActive: true, productCount: 0, createdAt: "2023-01-01T00:00:00Z", updatedAt: "2023-01-01T00:00:00Z" },
+  { id: "loc4", name: "Branch 1", description: "Satellite pharmacy branch", isActive: false, productCount: 0, createdAt: "2023-01-01T00:00:00Z", updatedAt: "2023-01-01T00:00:00Z" },
 ];
 
 export const MOCK_GROUPS: ProductGroup[] = [

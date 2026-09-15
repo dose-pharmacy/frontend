@@ -80,6 +80,9 @@ export async function getMasterUnits(): Promise<MasterUnit[]> {
 }
 
 // ─── Locations ─────────────────────────────────────────────────────────────
+// NOTE: locations are now served by the real API client in ./locationsApi
+// (listLocations, createLocation, getLocation, updateLocation, deactivateLocation).
+// The mock getLocations below is kept only until every page stops using it.
 export async function getLocations(): Promise<Location[]> {
   await delay(400);
   return [...MOCK_LOCATIONS];
