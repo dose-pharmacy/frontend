@@ -88,6 +88,9 @@ export interface Transaction {
   reference: string;
   user: string;
   balanceAfter: number;
+  batchNumber?: string // Add this property
+  createdBy?: string
+  notes?: string
 }
 
 export interface BinCardEntry {
