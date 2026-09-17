@@ -35,9 +35,6 @@ export default function InventoryDashboardPage() {
     let cancelled = false
     setLoading(true)
 
-    // KPIs come from GET /inventory/dashboard. The overview payload is
-    // counts-only, so the panels below pull from the dedicated reorder /
-    // expiry / stock endpoints. A failing panel degrades to its empty state.
     void (async () => {
       try {
         const [dashR, reorderR, expiryR] = await Promise.allSettled([
@@ -61,15 +58,12 @@ export default function InventoryDashboardPage() {
 
         let expiring: ExpiryBatchDto[] = []
         if (expiryR.status === "fulfilled") {
-          // The list endpoint can repeat a batch across threshold windows — dedupe.
           expiring = dedupeBatchesById(expiryR.value.data)
             .filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 60 && b.stock.quantity > 0)
             .sort((a, b) => a.daysRemaining - b.daysRemaining)
           setExpiringSoonBatches(expiring.slice(0, 5))
         }
 
-        // Recent activity: the backend only exposes per-product transaction
-        // ledgers, so sample the products surfaced by the panels above.
         const ids = new Set<string>()
         if (reorderR.status === "fulfilled") {
           for (const i of reorderR.value.items) ids.add(i.product.id)
@@ -98,8 +92,6 @@ export default function InventoryDashboardPage() {
     }
   }, [])
 
-  // KPI values from the overview endpoint. The API has no explicit
-  // "in stock" count, so derive it from the stock-health figures.
   const kpis = useMemo(
     () => ({
       total: metrics?.totalProducts ?? 0,
@@ -118,7 +110,7 @@ export default function InventoryDashboardPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="h-full flex flex-col min-h-0">
       <PageHeader
         breadcrumb="Inventory / Overview"
         title="Inventory Overview"
@@ -130,7 +122,7 @@ export default function InventoryDashboardPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-6">
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
@@ -139,34 +131,11 @@ export default function InventoryDashboardPage() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <MetricCard
-            title="Total Products"
-            value={loading ? "—" : kpis.total}
-            icon={<BoxIcon />}
-          />
-          <MetricCard
-            title="In Stock"
-            value={loading ? "—" : kpis.inStock}
-            icon={<CheckIcon />}
-          />
-          <MetricCard
-            title="Low Stock"
-            value={loading ? "—" : kpis.lowStock}
-            icon={<WarnIcon />}
-            subtitle="Needs attention"
-          />
-          <MetricCard
-            title="Out of Stock"
-            value={loading ? "—" : kpis.outOfStock}
-            icon={<AlertIcon />}
-            subtitle="Action required"
-          />
-          <MetricCard
-            title="Expiring Soon"
-            value={loading ? "—" : kpis.expiringSoon}
-            icon={<ClockIcon />}
-            subtitle="Within 30 days"
-          />
+          <MetricCard title="Total Products" value={loading ? "—" : kpis.total} icon={<BoxIcon />} />
+          <MetricCard title="In Stock" value={loading ? "—" : kpis.inStock} icon={<CheckIcon />} />
+          <MetricCard title="Low Stock" value={loading ? "—" : kpis.lowStock} icon={<WarnIcon />} subtitle="Needs attention" />
+          <MetricCard title="Out of Stock" value={loading ? "—" : kpis.outOfStock} icon={<AlertIcon />} subtitle="Action required" />
+          <MetricCard title="Expiring Soon" value={loading ? "—" : kpis.expiringSoon} icon={<ClockIcon />} subtitle="Within 30 days" />
         </div>
 
         {/* Attention Required */}
@@ -219,50 +188,30 @@ export default function InventoryDashboardPage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#DBEFF3]">
               <div>
                 <p className="font-semibold text-[#333333]">Expiring Soon</p>
-                <p className="text-xs text-[#666666] mt-0.5">
-                  Batches expiring within 60 days
-                </p>
+                <p className="text-xs text-[#666666] mt-0.5">Batches expiring within 60 days</p>
               </div>
-              <button
-                onClick={() => navigate("/inventory/expiry")}
-                className="text-xs font-semibold text-[#49B0C1] hover:underline"
-              >
+              <button onClick={() => navigate("/inventory/expiry")} className="text-xs font-semibold text-[#49B0C1] hover:underline">
                 View All
               </button>
             </div>
             {loading ? (
               <LoadingSkeleton rows={4} />
             ) : expiringSoonBatches.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-[#666666]">
-                No batches expiring soon.
-              </p>
+              <p className="px-5 py-8 text-center text-sm text-[#666666]">No batches expiring soon.</p>
             ) : (
               <div className="divide-y divide-[#DBEFF3]">
                 {expiringSoonBatches.map((b) => {
                   const days = b.daysRemaining
                   const urgent = days <= 30
                   return (
-                    <div
-                      key={b.id}
-                      className="flex items-center justify-between px-5 py-3"
-                    >
+                    <div key={b.id} className="flex items-center justify-between px-5 py-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#333333] truncate">
-                          {b.product.name}
-                        </p>
-                        <p className="text-xs text-[#666666] font-mono">
-                          {b.batchNumber}
-                        </p>
+                        <p className="text-sm font-medium text-[#333333] truncate">{b.product.name}</p>
+                        <p className="text-xs text-[#666666] font-mono">{b.batchNumber}</p>
                       </div>
                       <div className="text-right ml-4 flex-shrink-0">
-                        <p
-                          className={`text-sm font-bold ${urgent ? "text-red-600" : "text-yellow-600"}`}
-                        >
-                          {days}d left
-                        </p>
-                        <p className="text-xs text-[#666666]">
-                          {b.stock.quantity.toLocaleString()} units
-                        </p>
+                        <p className={`text-sm font-bold ${urgent ? "text-red-600" : "text-yellow-600"}`}>{days}d left</p>
+                        <p className="text-xs text-[#666666]">{b.stock.quantity.toLocaleString()} units</p>
                       </div>
                     </div>
                   )
@@ -276,48 +225,32 @@ export default function InventoryDashboardPage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#DBEFF3]">
               <div>
                 <p className="font-semibold text-[#333333]">Low Stock Alert</p>
-                <p className="text-xs text-[#666666] mt-0.5">
-                  Products at or below reorder point
-                </p>
+                <p className="text-xs text-[#666666] mt-0.5">Products at or below reorder point</p>
               </div>
-              <button
-                onClick={() => navigate("/inventory/reorder")}
-                className="text-xs font-semibold text-[#49B0C1] hover:underline"
-              >
+              <button onClick={() => navigate("/inventory/reorder")} className="text-xs font-semibold text-[#49B0C1] hover:underline">
                 View Reorder
               </button>
             </div>
             {loading ? (
               <LoadingSkeleton rows={4} />
             ) : lowStock.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-[#666666]">
-                All products are adequately stocked.
-              </p>
+              <p className="px-5 py-8 text-center text-sm text-[#666666]">All products are adequately stocked.</p>
             ) : (
               <div className="divide-y divide-[#DBEFF3]">
                 {lowStock.map((i) => (
-                  <div
-                    key={i.product.id}
-                    className="flex items-center justify-between px-5 py-3"
-                  >
+                  <div key={i.product.id} className="flex items-center justify-between px-5 py-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#333333] truncate">
-                        {i.product.name}
-                      </p>
+                      <p className="text-sm font-medium text-[#333333] truncate">{i.product.name}</p>
                       <p className="text-xs text-[#666666]">
                         Reorder at {i.reorderPoint.toLocaleString()}{" "}
                         {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
                       </p>
                     </div>
                     <div className="text-right ml-4 flex-shrink-0">
-                      <p
-                        className={`text-sm font-bold ${i.currentStock <= 0 ? "text-red-600" : "text-yellow-600"}`}
-                      >
+                      <p className={`text-sm font-bold ${i.currentStock <= 0 ? "text-red-600" : "text-yellow-600"}`}>
                         {i.currentStock.toLocaleString()} {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
                       </p>
-                      <span
-                        className={`text-xs font-semibold rounded-full px-2 py-0.5 ${i.currentStock <= 0 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}
-                      >
+                      <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${i.currentStock <= 0 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
                         {i.currentStock <= 0 ? "Out of Stock" : "Low Stock"}
                       </span>
                     </div>
@@ -333,38 +266,26 @@ export default function InventoryDashboardPage() {
           <div className="flex items-center justify-between px-5 py-4 border-b border-[#DBEFF3]">
             <div>
               <p className="font-semibold text-[#333333]">Recent Stock Activity</p>
-              <p className="text-xs text-[#666666] mt-0.5">
-                Latest inventory movements
-              </p>
+              <p className="text-xs text-[#666666] mt-0.5">Latest inventory movements</p>
             </div>
-            <button
-              onClick={() => navigate("/inventory/stock")}
-              className="text-xs font-semibold text-[#49B0C1] hover:underline"
-            >
+            <button onClick={() => navigate("/inventory/stock")} className="text-xs font-semibold text-[#49B0C1] hover:underline">
               View All Movements
             </button>
           </div>
           {loading ? (
             <LoadingSkeleton rows={5} />
           ) : recentActivity.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-[#666666]">
-              No stock activity recorded yet.
-            </p>
+            <p className="px-5 py-8 text-center text-sm text-[#666666]">No stock activity recorded yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-[#DBEFF3] text-left">
-                    {["Date", "Product", "Type", "Location", "Qty In", "Qty Out", "Ref"].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="px-4 py-3 font-semibold text-[#333333]"
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {["Date", "Product", "Type", "Location", "Qty In", "Qty Out", "Ref"].map((h) => (
+                      <th key={h} className="px-4 py-3 font-semibold text-[#333333] whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -378,29 +299,14 @@ export default function InventoryDashboardPage() {
                     const isIn = t.direction === "IN"
                     const qtyLabel = `${t.quantity.toLocaleString()}${batchNumber ? ` · ${batchNumber}` : ""}`
                     return (
-                      <tr
-                        key={t.id}
-                        className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}
-                      >
-                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
-                          {formatTime(t.createdAt)}
-                        </td>
-                        <td className="px-4 py-3 text-[#333333] font-medium">
-                          {productName}
-                        </td>
-                        <td className="px-4 py-3">
-                          <TxTypeBadge type={t.transactionType} />
-                        </td>
+                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{formatTime(t.createdAt)}</td>
+                        <td className="px-4 py-3 text-[#333333] font-medium">{productName}</td>
+                        <td className="px-4 py-3"><TxTypeBadge type={t.transactionType} /></td>
                         <td className="px-4 py-3 text-[#666666]">{locationName}</td>
-                        <td className="px-4 py-3 text-green-700 font-semibold">
-                          {isIn ? `+${qtyLabel}` : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-red-600 font-semibold">
-                          {!isIn ? `−${qtyLabel}` : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-[#666666] font-mono">
-                          {t.referenceType ?? t.referenceId ?? "—"}
-                        </td>
+                        <td className="px-4 py-3 text-green-700 font-semibold">{isIn ? `+${qtyLabel}` : "—"}</td>
+                        <td className="px-4 py-3 text-red-600 font-semibold">{!isIn ? `−${qtyLabel}` : "—"}</td>
+                        <td className="px-4 py-3 text-xs text-[#666666] font-mono">{t.referenceType ?? t.referenceId ?? "—"}</td>
                       </tr>
                     )
                   })}

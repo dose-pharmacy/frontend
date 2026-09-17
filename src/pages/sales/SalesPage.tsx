@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Select from "../../components/ui/Select"
@@ -6,11 +6,22 @@ import Pagination from "../../components/ui/Pagination"
 import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
+import Input from "../../components/ui/Input"
+import FormError from "../../components/ui/FormError"
+import {
+  listSales,
+  getSale,
+  cancelSale,
+  SalesApiError,
+  type SaleDto,
+  type SaleItemDto,
+  type SaleStatus,
+} from "../../features/sales/salesApi"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types (UI view of a sale) ───────────────────────────────────────────────
 
 type PaymentMethod = "Cash" | "Card" | "Digital Transfer" | "Insurance"
-type SaleStatus = "completed" | "voided" | "refunded"
+type SaleStatusUi = "completed" | "voided" | "refunded"
 
 interface SaleItem {
   product: string
@@ -39,153 +50,89 @@ interface Sale {
   discount: number
   tax: number
   total: number
-  status: SaleStatus
+  status: SaleStatusUi
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── DTO → UI adaptation ─────────────────────────────────────────────────────
 
-const MOCK_SALES: Sale[] = [
-  {
-    id: "s1",
-    invoice: "INV-00131",
-    date: "Sep 13, 2026",
-    time: "16:42",
-    cashier: "Hana",
-    items: [
-      { product: "Paracetamol 500mg", brand: "MediCore", batch: "PCT-2024-001", unit: "Strip", qty: 3, unitPrice: 25, discount: 0 },
-      { product: "Vitamin C 500mg", brand: "VitaPlus", batch: "VIT-2024-003", unit: "Bottle", qty: 1, unitPrice: 95, discount: 0 },
-    ],
-    payments: [{ method: "Cash", amount: 170 }],
-    subtotal: 170, discount: 0, tax: 0, total: 170, status: "completed",
-  },
-  {
-    id: "s2",
-    invoice: "INV-00130",
-    date: "Sep 13, 2026",
-    time: "15:18",
-    cashier: "Sara",
-    items: [
-      { product: "Amoxicillin 500mg", brand: "Pharma Plus", batch: "AMX-2024-002", unit: "Box", qty: 1, unitPrice: 120, discount: 0 },
-      { product: "Ibuprofen 400mg", brand: "PainAway", batch: "IBU-2024-001", unit: "Strip", qty: 2, unitPrice: 35, discount: 5 },
-    ],
-    payments: [{ method: "Card", amount: 185 }],
-    subtotal: 190, discount: 5, tax: 0, total: 185, status: "completed",
-  },
-  {
-    id: "s3",
-    invoice: "INV-00129",
-    date: "Sep 13, 2026",
-    time: "13:55",
-    cashier: "Hana",
-    items: [
-      { product: "Atorvastatin 20mg", brand: "CardioLife", batch: "ATV-2024-001", unit: "Strip", qty: 3, unitPrice: 145, discount: 0 },
-    ],
-    payments: [{ method: "Digital Transfer", amount: 435 }],
-    subtotal: 435, discount: 0, tax: 65.25, total: 500.25, status: "completed",
-  },
-  {
-    id: "s4",
-    invoice: "INV-00128",
-    date: "Sep 13, 2026",
-    time: "11:30",
-    cashier: "Sara",
-    items: [
-      { product: "Omeprazole 20mg", brand: "GastroShield", batch: "OMP-2024-001", unit: "Strip", qty: 2, unitPrice: 45, discount: 0 },
-      { product: "Cetirizine 10mg", brand: "AllerFree", batch: "CTZ-2024-001", unit: "Strip", qty: 1, unitPrice: 20, discount: 0 },
-    ],
-    payments: [{ method: "Cash", amount: 110 }],
-    subtotal: 110, discount: 0, tax: 0, total: 110, status: "completed",
-  },
-  {
-    id: "s5",
-    invoice: "INV-00127",
-    date: "Sep 13, 2026",
-    time: "09:12",
-    cashier: "Hana",
-    items: [
-      { product: "Losartan 50mg", brand: "PressureX", batch: "LOS-2024-001", unit: "Strip", qty: 1, unitPrice: 60, discount: 0 },
-    ],
-    payments: [{ method: "Cash", amount: 60 }],
-    subtotal: 60, discount: 0, tax: 0, total: 60, status: "voided",
-  },
-  {
-    id: "s6",
-    invoice: "INV-00126",
-    date: "Sep 12, 2026",
-    time: "17:05",
-    cashier: "Sara",
-    items: [
-      { product: "Paracetamol 500mg", brand: "MediCore", batch: "PCT-2024-001", unit: "Box", qty: 2, unitPrice: 25, discount: 0 },
-      { product: "Amoxicillin 500mg", brand: "Pharma Plus", batch: "AMX-2024-001", unit: "Strip", qty: 4, unitPrice: 12, discount: 10 },
-      { product: "Cetirizine 10mg", brand: "AllerFree", batch: "CTZ-2024-001", unit: "Tablet", qty: 10, unitPrice: 2, discount: 0 },
-    ],
-    payments: [{ method: "Insurance", amount: 98 }],
-    subtotal: 108, discount: 10, tax: 0, total: 98, status: "completed",
-  },
-  {
-    id: "s7",
-    invoice: "INV-00125",
-    date: "Sep 12, 2026",
-    time: "14:33",
-    cashier: "Hana",
-    items: [
-      { product: "Metformin 850mg", brand: "GlucoMed", batch: "MET-2023-003", unit: "Strip", qty: 5, unitPrice: 35, discount: 0 },
-      { product: "Atorvastatin 20mg", brand: "CardioLife", batch: "ATV-2024-001", unit: "Strip", qty: 2, unitPrice: 145, discount: 20 },
-    ],
-    payments: [
-      { method: "Cash", amount: 300 },
-      { method: "Card", amount: 115 },
-    ],
-    subtotal: 435, discount: 20, tax: 0, total: 415, status: "refunded",
-  },
-  {
-    id: "s8",
-    invoice: "INV-00124",
-    date: "Sep 12, 2026",
-    time: "11:20",
-    cashier: "Sara",
-    items: [
-      { product: "Ibuprofen 400mg", brand: "PainAway", batch: "IBU-2024-001", unit: "Box", qty: 1, unitPrice: 35, discount: 0 },
-    ],
-    payments: [{ method: "Cash", amount: 35 }],
-    subtotal: 35, discount: 0, tax: 0, total: 35, status: "completed",
-  },
-  {
-    id: "s9",
-    invoice: "INV-00123",
-    date: "Sep 11, 2026",
-    time: "16:00",
-    cashier: "Hana",
-    items: [
-      { product: "Omeprazole 20mg", brand: "GastroShield", batch: "OMP-2024-001", unit: "Capsule", qty: 10, unitPrice: 4.5, discount: 0 },
-      { product: "Losartan 50mg", brand: "PressureX", batch: "LOS-2024-001", unit: "Tablet", qty: 14, unitPrice: 6, discount: 0 },
-    ],
-    payments: [{ method: "Digital Transfer", amount: 129 }],
-    subtotal: 129, discount: 0, tax: 19.35, total: 148.35, status: "completed",
-  },
-  {
-    id: "s10",
-    invoice: "INV-00122",
-    date: "Sep 11, 2026",
-    time: "10:45",
-    cashier: "Sara",
-    items: [
-      { product: "Cetirizine 10mg", brand: "AllerFree", batch: "CTZ-2024-001", unit: "Box", qty: 2, unitPrice: 20, discount: 0 },
-      { product: "Vitamin C 500mg", brand: "VitaPlus", batch: "VIT-2024-003", unit: "Bottle", qty: 2, unitPrice: 95, discount: 10 },
-    ],
-    payments: [{ method: "Card", amount: 220 }],
-    subtotal: 230, discount: 10, tax: 0, total: 220, status: "completed",
-  },
-]
+const METHOD_TO_UI: Record<string, PaymentMethod> = {
+  CASH: "Cash",
+  CARD: "Card",
+  DIGITAL_TRANSFER: "Digital Transfer",
+  INSURANCE: "Insurance",
+}
 
-const CASHIERS = [...new Set(MOCK_SALES.map((s) => s.cashier))]
+function methodLabel(method: string): PaymentMethod {
+  return METHOD_TO_UI[method] ?? "Cash"
+}
+
+function toUiStatus(status: SaleStatus): SaleStatusUi {
+  if (status === "COMPLETED") return "completed"
+  if (status === "CANCELLED" || status === "DRAFT") return "voided"
+  return "refunded"
+}
+
+function fmtDateTime(iso: string) {
+  const d = new Date(iso)
+  return {
+    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    time: d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+  }
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+function adaptSale(dto: SaleDto, detail?: SaleDto | null): Sale {
+  // List rows can arrive with empty items/payments — enrich them from the
+  // freshly fetched detail so modal contents and table counts stay right.
+  const itemsSource = dto.items.length > 0 ? dto.items : detail?.items ?? []
+  const paymentsSource = dto.payments.length > 0 ? dto.payments : detail?.payments ?? []
+  const items: SaleItem[] = itemsSource.map((it) => ({
+    product: it.product?.name ?? it.productId,
+    brand: it.product?.brand ?? "—",
+    batch: it.batchAllocations[0]?.batch.batchNumber ?? "—",
+    unit: it.unit?.name ?? "—",
+    qty: it.quantity,
+    unitPrice: it.actualUnitPrice,
+    discount: it.discountAmount,
+  }))
+  const payments: SalePayment[] = paymentsSource.map((p) => ({
+    method: methodLabel(p.method),
+    amount: p.amount,
+  }))
+  // The API reports amounts exclusive of tax; tax isn't part of the sale schema.
+  const tax = 0
+  const { date, time } = fmtDateTime(dto.completedAt ?? dto.createdAt)
+  return {
+    id: dto.id,
+    invoice: dto.saleNumber,
+    date,
+    time,
+    cashier: dto.cashier?.name ?? "—",
+    items,
+    payments,
+    subtotal: dto.subtotal,
+    discount: dto.totalDiscount,
+    tax,
+    total: dto.totalAmount,
+    status: toUiStatus(dto.status),
+  }
+}
+
 const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "Card", "Digital Transfer", "Insurance"]
 
 const PAGE_SIZE = 8
+const SWEEP_LIMIT = 100
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SalesPage() {
+  const [sales, setSales] = useState<Sale[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [dateFilter, setDateFilter] = useState("")
   const [methodFilter, setMethodFilter] = useState("")
@@ -193,9 +140,50 @@ export default function SalesPage() {
   const [cashierFilter, setCashierFilter] = useState("")
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Sale | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
+
+  // GET /pos/sales — one paginated sweep, then client-side slicing. The
+  // search/cashier/method/date filters have no direct API counterpart on the
+  // list endpoint (search matches sale numbers server-side; the rest don't
+  // exist as query params), so the loaded page of sales is filtered locally.
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    void (async () => {
+      try {
+        const first = await listSales({ page: 1, limit: SWEEP_LIMIT, search: search.trim() || undefined })
+        const rows = [...first.data]
+        const totalPages = Math.min(first.meta?.totalPages ?? 1, 10)
+        for (let p = 2; p <= totalPages; p++) {
+          const next = await listSales({ page: p, limit: SWEEP_LIMIT })
+          rows.push(...next.data)
+        }
+        if (cancelled) return
+        setSales(rows.map((dto) => adaptSale(dto)))
+        setLoadError(null)
+      } catch (err) {
+        if (cancelled) return
+        setLoadError(
+          err instanceof SalesApiError
+            ? err.message
+            : "Failed to load sales. Please try again."
+        )
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [search, reloadTick])
+
+  const cashiers = useMemo(
+    () => [...new Set(sales.map((s) => s.cashier))].filter((c) => c !== "—"),
+    [sales]
+  )
 
   const filtered = useMemo(() => {
-    let rows = MOCK_SALES
+    let rows = sales
     if (search) {
       const q = search.toLowerCase()
       rows = rows.filter(
@@ -205,6 +193,7 @@ export default function SalesPage() {
           s.items.some((i) => i.product.toLowerCase().includes(q))
       )
     }
+    if (dateFilter) rows = rows.filter((s) => s.date === dateFilter)
     if (statusFilter) rows = rows.filter((s) => s.status === statusFilter)
     if (cashierFilter) rows = rows.filter((s) => s.cashier === cashierFilter)
     if (methodFilter)
@@ -212,7 +201,7 @@ export default function SalesPage() {
         s.payments.some((p) => p.method === methodFilter)
       )
     return rows
-  }, [search, statusFilter, cashierFilter, methodFilter])
+  }, [sales, search, dateFilter, statusFilter, cashierFilter, methodFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -250,11 +239,17 @@ export default function SalesPage() {
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
         {/* Summary strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <SummaryCard label="Transactions" value={summary.total} />
-          <SummaryCard label="Revenue" value={`${summary.revenue.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} />
-          <SummaryCard label="Voided" value={summary.voided} accent="text-orange-600" />
-          <SummaryCard label="Refunded" value={summary.refunded} accent="text-red-600" />
+          <SummaryCard label="Transactions" value={loading ? "—" : summary.total} />
+          <SummaryCard label="Revenue" value={loading ? "—" : `${summary.revenue.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} />
+          <SummaryCard label="Voided" value={loading ? "—" : summary.voided} accent="text-orange-600" />
+          <SummaryCard label="Refunded" value={loading ? "—" : summary.refunded} accent="text-red-600" />
         </div>
+
+        {loadError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {loadError}
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
@@ -276,14 +271,22 @@ export default function SalesPage() {
             </Select>
             <Select value={cashierFilter} onChange={(e) => { setCashierFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[130px]">
               <option value="">All Cashiers</option>
-              {CASHIERS.map((c) => <option key={c} value={c}>{c}</option>)}
+              {cashiers.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
+            <Input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => { setDateFilter(e.target.value); setPage(1) }}
+              className="flex-1 min-w-[130px]"
+            />
           </div>
         </div>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <LoadingSkeleton />
+          ) : filtered.length === 0 ? (
             <EmptyState title="No sales found" description="Adjust your search or filters." />
           ) : (
             <>
@@ -322,9 +325,11 @@ export default function SalesPage() {
                         <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{sale.cashier}</td>
                         <td className="px-4 py-3 hidden lg:table-cell">
                           <div className="flex flex-wrap gap-1">
-                            {sale.payments.map((p) => (
-                              <PaymentBadge key={p.method} method={p.method} />
-                            ))}
+                            {sale.payments.length === 0
+                              ? <span className="text-[#999] text-xs">—</span>
+                              : sale.payments.map((p, idx) => (
+                                <PaymentBadge key={`${p.method}-${idx}`} method={p.method} />
+                              ))}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">
@@ -332,7 +337,7 @@ export default function SalesPage() {
                         </td>
                         <td className="px-4 py-3 text-right hidden xl:table-cell">
                           {sale.discount > 0 ? (
-                            <span className="text-orange-600">−{sale.discount} ETB</span>
+                            <span className="text-orange-600">−{sale.discount.toLocaleString()} ETB</span>
                           ) : (
                             <span className="text-[#999]">—</span>
                           )}
@@ -371,7 +376,14 @@ export default function SalesPage() {
 
       {/* Sale Detail Modal */}
       {selected && (
-        <SaleDetailModal sale={selected} onClose={() => setSelected(null)} />
+        <SaleDetailModal
+          sale={selected}
+          onClose={() => setSelected(null)}
+          onVoided={() => {
+            setSelected(null)
+            setReloadTick((t) => t + 1)
+          }}
+        />
       )}
     </div>
   )
@@ -379,20 +391,79 @@ export default function SalesPage() {
 
 // ─── Sale Detail Modal ─────────────────────────────────────────────────────────
 
-function SaleDetailModal({ sale, onClose }: { sale: Sale; onClose: () => void }) {
+function SaleDetailModal({
+  sale,
+  onClose,
+  onVoided,
+}: {
+  sale: Sale
+  onClose: () => void
+  onVoided: () => void
+}) {
+  // Always fetch the receipt detail — list rows can omit items/payments.
+  const [detail, setDetail] = useState<Sale | null>(sale.items.length > 0 ? sale : null)
+  const [detailLoading, setDetailLoading] = useState(sale.items.length === 0)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [voiding, setVoiding] = useState(false)
+  const [voidError, setVoidError] = useState<string | null>(null)
+  const [voidPromptOpen, setVoidPromptOpen] = useState(false)
+  const [voidReason, setVoidReason] = useState("")
+
+  useEffect(() => {
+    let cancelled = false
+    getSale(sale.id)
+      .then((dto) => { if (!cancelled) setDetail(adaptSale(dto)) })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        // Fall back to the row data we already have.
+        setDetail(sale)
+        setDetailError(
+          err instanceof SalesApiError ? err.message : "Failed to load the receipt detail."
+        )
+      })
+      .finally(() => { if (!cancelled) setDetailLoading(false) })
+    return () => { cancelled = true }
+  }, [sale])
+
+  const view = detail ?? sale
+
+  async function handleVoid() {
+    if (!voidReason.trim()) return
+    setVoiding(true)
+    setVoidError(null)
+    try {
+      await cancelSale(view.id, voidReason.trim())
+      onVoided()
+    } catch (err) {
+      setVoidError(
+        err instanceof SalesApiError
+          ? err.message
+          : "Failed to cancel the sale. Please try again."
+      )
+    } finally {
+      setVoiding(false)
+    }
+  }
+
   const itemTotal = (item: SaleItem) => item.qty * item.unitPrice - item.discount
 
   return (
-    <Modal open title={`Sale ${sale.invoice}`} onClose={onClose} size="lg">
+    <Modal open title={`Sale ${view.invoice}`} onClose={onClose} size="lg">
       <div className="flex flex-col gap-5">
+        <FormError message={detailError ?? voidError} />
+
         {/* Header meta */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <MetaCell label="Date" value={`${sale.date} ${sale.time}`} />
-          <MetaCell label="Cashier" value={sale.cashier} />
-          <MetaCell label="Status" value={<StatusBadge status={sale.status} />} />
+          <MetaCell label="Date" value={`${view.date} ${view.time}`} />
+          <MetaCell label="Cashier" value={view.cashier} />
+          <MetaCell label="Status" value={<StatusBadge status={view.status} />} />
           <MetaCell label="Payment" value={
             <div className="flex flex-wrap gap-1">
-              {sale.payments.map((p) => <PaymentBadge key={p.method} method={p.method} />)}
+              {view.payments.length === 0
+                ? <span className="text-[#999] text-xs">—</span>
+                : view.payments.map((p, idx) => (
+                  <PaymentBadge key={`${p.method}-${idx}`} method={p.method} />
+                ))}
             </div>
           } />
         </div>
@@ -401,39 +472,49 @@ function SaleDetailModal({ sale, onClose }: { sale: Sale; onClose: () => void })
         <div>
           <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-2">Items</p>
           <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#DBEFF3] text-left">
-                    {["Product", "Brand", "Batch", "Unit", "Qty", "Unit Price", "Discount", "Total"].map((h) => (
-                      <th key={h} className="px-3 py-2.5 font-semibold text-[#333333] whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sale.items.map((item, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                      <td className="px-3 py-2.5 font-medium text-[#333333]">{item.product}</td>
-                      <td className="px-3 py-2.5 text-[#666666]">{item.brand}</td>
-                      <td className="px-3 py-2.5 font-mono text-xs text-[#666666]">{item.batch}</td>
-                      <td className="px-3 py-2.5 text-[#666666]">{item.unit}</td>
-                      <td className="px-3 py-2.5 text-center font-semibold text-[#333333]">{item.qty}</td>
-                      <td className="px-3 py-2.5 text-right text-[#333333]">{item.unitPrice.toLocaleString()} ETB</td>
-                      <td className="px-3 py-2.5 text-right">
-                        {item.discount > 0 ? (
-                          <span className="text-orange-600">−{item.discount} ETB</span>
-                        ) : (
-                          <span className="text-[#999]">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-[#333333]">
-                        {itemTotal(item).toLocaleString()} ETB
-                      </td>
+            {detailLoading ? (
+              <div className="p-4 space-y-2 animate-pulse">
+                {[...Array(3)].map((_, i) => <div key={i} className="h-8 rounded-lg bg-[#DBEFF3]" />)}
+              </div>
+            ) : view.items.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-[#666666]">
+                No line items recorded for this sale.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#DBEFF3] text-left">
+                      {["Product", "Brand", "Batch", "Unit", "Qty", "Unit Price", "Discount", "Total"].map((h) => (
+                        <th key={h} className="px-3 py-2.5 font-semibold text-[#333333] whitespace-nowrap">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {view.items.map((item, i) => (
+                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                        <td className="px-3 py-2.5 font-medium text-[#333333]">{item.product}</td>
+                        <td className="px-3 py-2.5 text-[#666666]">{item.brand}</td>
+                        <td className="px-3 py-2.5 font-mono text-xs text-[#666666]">{item.batch}</td>
+                        <td className="px-3 py-2.5 text-[#666666]">{item.unit}</td>
+                        <td className="px-3 py-2.5 text-center font-semibold text-[#333333]">{item.qty}</td>
+                        <td className="px-3 py-2.5 text-right text-[#333333]">{item.unitPrice.toLocaleString()} ETB</td>
+                        <td className="px-3 py-2.5 text-right">
+                          {item.discount > 0 ? (
+                            <span className="text-orange-600">−{item.discount.toLocaleString()} ETB</span>
+                          ) : (
+                            <span className="text-[#999]">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-semibold text-[#333333]">
+                          {itemTotal(item).toLocaleString()} ETB
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
@@ -442,49 +523,83 @@ function SaleDetailModal({ sale, onClose }: { sale: Sale; onClose: () => void })
           {/* Summary */}
           <div className="bg-[#DBEFF3]/40 rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Summary</p>
-            <SummaryRow label="Subtotal" value={`${sale.subtotal.toLocaleString()} ETB`} />
-            <SummaryRow label="Discount" value={sale.discount > 0 ? `−${sale.discount} ETB` : "—"} accent={sale.discount > 0} />
-            <SummaryRow label="Tax" value={sale.tax > 0 ? `${sale.tax.toLocaleString()} ETB` : "—"} />
+            <SummaryRow label="Subtotal" value={`${view.subtotal.toLocaleString()} ETB`} />
+            <SummaryRow label="Discount" value={view.discount > 0 ? `−${view.discount.toLocaleString()} ETB` : "—"} accent={view.discount > 0} />
+            <SummaryRow label="Tax" value={view.tax > 0 ? `${view.tax.toLocaleString()} ETB` : "—"} />
             <div className="border-t border-[#ABDBE3] pt-2 mt-1">
-              <SummaryRow label="Total" value={`${sale.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} bold />
+              <SummaryRow label="Total" value={`${view.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} bold />
             </div>
           </div>
 
           {/* Payment breakdown */}
           <div className="bg-[#DBEFF3]/40 rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Payment</p>
-            {sale.payments.map((p) => (
-              <SummaryRow key={p.method} label={p.method} value={`${p.amount.toLocaleString()} ETB`} />
-            ))}
-            <div className="border-t border-[#ABDBE3] pt-2 mt-1">
-              <SummaryRow
-                label="Total Paid"
-                value={`${sale.payments.reduce((a, p) => a + p.amount, 0).toLocaleString()} ETB`}
-                bold
-              />
-            </div>
+            {view.payments.length === 0 ? (
+              <p className="text-sm text-[#999]">No payments recorded.</p>
+            ) : (
+              <>
+                {view.payments.map((p, idx) => (
+                  <SummaryRow key={`${p.method}-${idx}`} label={p.method} value={`${p.amount.toLocaleString()} ETB`} />
+                ))}
+                <div className="border-t border-[#ABDBE3] pt-2 mt-1">
+                  <SummaryRow
+                    label="Total Paid"
+                    value={`${view.payments.reduce((a, p) => a + p.amount, 0).toLocaleString()} ETB`}
+                    bold
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2 justify-between border-t border-[#DBEFF3] pt-4">
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => alert("Print Receipt — backend pending")}>
+            <Button variant="secondary" onClick={() => window.print()}>
               <PrintIcon /> Print Receipt
             </Button>
-            {sale.status === "completed" && (
-              <>
-                <Button variant="secondary" onClick={() => alert("Void Sale — backend pending")}>
-                  Void Sale
-                </Button>
-                <Button variant="secondary" onClick={() => alert("Return / Refund — backend pending")}>
-                  Return / Refund
-                </Button>
-              </>
+            {view.status === "voided" && (
+              <Button
+                variant="secondary"
+                onClick={() => { setVoidPromptOpen(true); setVoidReason(""); setVoidError(null) }}
+                loading={voiding}
+              >
+                Void Sale
+              </Button>
             )}
+            <Button variant="secondary" onClick={() => alert("Return / Refund — backend pending")}>
+              Return / Refund
+            </Button>
           </div>
           <Button onClick={onClose}>Close</Button>
         </div>
+
+        {/* Void reason prompt */}
+        {voidPromptOpen && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex flex-col gap-3">
+            <p className="text-sm font-semibold text-[#333333]">
+              Cancel sale {view.invoice}?
+            </p>
+            <p className="text-xs text-[#666666]">
+              The backend only allows cancelling sales still in DRAFT status.
+            </p>
+            <Input
+              label="Reason"
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              placeholder="e.g. Wrong items scanned"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="secondary" onClick={() => setVoidPromptOpen(false)} disabled={voiding}>
+                Keep Sale
+              </Button>
+              <Button onClick={() => void handleVoid()} loading={voiding} disabled={!voidReason.trim()}>
+                Confirm Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   )
@@ -519,8 +634,8 @@ function SummaryRow({ label, value, bold, accent }: { label: string; value: stri
   )
 }
 
-function StatusBadge({ status }: { status: SaleStatus }) {
-  const cfg: Record<SaleStatus, { label: string; cls: string }> = {
+function StatusBadge({ status }: { status: SaleStatusUi }) {
+  const cfg: Record<SaleStatusUi, { label: string; cls: string }> = {
     completed: { label: "Completed", cls: "bg-green-100 text-green-700" },
     voided: { label: "Voided", cls: "bg-orange-100 text-orange-700" },
     refunded: { label: "Refunded", cls: "bg-red-100 text-red-700" },
@@ -540,6 +655,14 @@ function PaymentBadge({ method }: { method: PaymentMethod }) {
   }
   return (
     <span className={`text-xs font-semibold rounded-full px-2 py-0.5 whitespace-nowrap ${cfg[method]}`}>{method}</span>
+  )
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="p-6 space-y-3 animate-pulse">
+      {[...Array(6)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />)}
+    </div>
   )
 }
 
