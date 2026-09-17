@@ -8,6 +8,12 @@ import {
   type ProductOption,
 } from "../../features/inventory/inventoryService"
 import type { Batch } from "../../features/inventory/inventoryMock"
+import {
+  listExpiryBatches,
+  createExpiryAction,
+  ExpiryApiError,
+  type ExpiryBatchDto,
+} from "../../features/inventory/expiryApi"
 import { listLocations, type LocationDto } from "../../features/inventory/locationsApi"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
@@ -24,6 +30,7 @@ type Tab = "batches" | "expiring" | "expired"
 type ExpiryAction = "return" | "clearance" | "dispose"
 
 const PAGE_SIZE = 10
+const EXPIRY_LIMIT = 100
 
 interface AddBatchForm {
   productId: string
@@ -65,6 +72,10 @@ export default function BatchesExpiryPage() {
   const [tab, setTab] = useState<Tab>("batches")
   const [products, setProducts] = useState<ProductOption[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
+  const [expiringBatches, setExpiringBatches] = useState<ExpiryBatchDto[]>([])
+  const [expiredBatches, setExpiredBatches] = useState<ExpiryBatchDto[]>([])
+  const [expiryLoading, setExpiryLoading] = useState(false)
+  const [expiryError, setExpiryError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -75,7 +86,7 @@ export default function BatchesExpiryPage() {
   const [batchPage, setBatchPage] = useState(1)
 
   // Expiry action modal
-  const [actionBatch, setActionBatch] = useState<Batch | null>(null)
+  const [actionBatch, setActionBatch] = useState<ExpiryBatchDto | null>(null)
   const [actionType, setActionType] = useState<ExpiryAction>("return")
   const [actionForm, setActionForm] = useState({ supplier: "", returnQty: "", discount: "", notes: "", reason: "" })
   const [formError, setFormError] = useState<string | null>(null)
@@ -99,7 +110,7 @@ export default function BatchesExpiryPage() {
       .then((opts) => setProducts(opts))
       .catch(() => setProducts([]))
   }, [])
-  
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -136,6 +147,36 @@ export default function BatchesExpiryPage() {
       )
   }
 
+  // ── Expiring / expired batches from GET /inventory/expiry/batches ──
+  // One paginated sweep covers both tabs; the API only exposes a single
+  // "days remaining" window, so the tabs slice the same rows client-side.
+  useEffect(() => {
+    let cancelled = false
+    setExpiryLoading(true)
+    listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
+      .then((res) => {
+        if (cancelled) return
+        const rows = res.data
+        setExpiringBatches(rows.filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 90 && b.stock.quantity > 0))
+        setExpiredBatches(rows.filter((b) => b.daysRemaining < 0))
+        setExpiryError(null)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setExpiryError(
+          err instanceof ExpiryApiError
+            ? err.message
+            : "Failed to load expiring batches. Please try again."
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setExpiryLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   function productName(productId: string) {
     return products.find((p) => p.id === productId)?.name ?? productId
   }
@@ -170,24 +211,19 @@ export default function BatchesExpiryPage() {
   // Expiry tabs
   const expiring = useMemo(
     () =>
-      batches
-        .filter((b) => {
-          const d = daysUntilExpiry(b.expiryDate)
-          return d >= 0 && d <= 90 && b.quantity > 0
-        })
-        .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()),
-    [batches]
+      [...expiringBatches]
+        .sort((a, b) => a.daysRemaining - b.daysRemaining),
+    [expiringBatches]
   )
 
   const expired = useMemo(
     () =>
-      batches
-        .filter((b) => daysUntilExpiry(b.expiryDate) < 0)
-        .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()),
-    [batches]
+      [...expiredBatches]
+        .sort((a, b) => a.daysRemaining - b.daysRemaining),
+    [expiredBatches]
   )
 
-  function openAction(b: Batch, type: ExpiryAction = "return") {
+  function openAction(b: ExpiryBatchDto, type: ExpiryAction = "return") {
     setActionBatch(b)
     setActionType(type)
     setActionForm({ supplier: "", returnQty: "", discount: "", notes: "", reason: "" })
@@ -195,7 +231,9 @@ export default function BatchesExpiryPage() {
   }
 
   async function handleConfirmAction() {
+    if (!actionBatch) return
     setFormError(null)
+    const qty = Number(actionForm.returnQty)
     if (actionType === "return" && (!actionForm.supplier || !actionForm.returnQty)) {
       setFormError("Supplier and return quantity are required.")
       return
@@ -209,10 +247,56 @@ export default function BatchesExpiryPage() {
       return
     }
     setSubmitting(true)
-    await new Promise((r) => setTimeout(r, 900))
-    setSubmitting(false)
-    setActionBatch(null)
-    alert(`Action confirmed (mock): ${actionType} for ${actionBatch?.batchNumber}`)
+    try {
+      if (actionType === "return") {
+        await createExpiryAction(actionBatch.id, {
+          actionType: "RETURN_TO_SUPPLIER",
+          quantity: qty,
+          locationId: actionBatch.stock.location.id,
+          discountPercent: 0,
+          reason: `Return to supplier: ${actionForm.supplier}`,
+          ...(actionForm.notes.trim() ? { notes: actionForm.notes.trim() } : {}),
+        })
+      } else if (actionType === "clearance") {
+        // No dedicated clearance endpoint — sent as a discounted supplier
+        // return, matching the API's supplierId/discountPercent schema.
+        await createExpiryAction(actionBatch.id, {
+          actionType: "RETURN_TO_SUPPLIER",
+          quantity: actionBatch.stock.quantity,
+          locationId: actionBatch.stock.location.id,
+          discountPercent: Number(actionForm.discount) || 0,
+          reason: "Clearance sale",
+          ...(actionForm.notes.trim() ? { notes: actionForm.notes.trim() } : {}),
+        })
+      } else {
+        await createExpiryAction(actionBatch.id, {
+          actionType: "DISPOSE",
+          quantity: actionBatch.stock.quantity,
+          locationId: actionBatch.stock.location.id,
+          reason: actionForm.reason,
+          ...(actionForm.notes.trim() ? { notes: actionForm.notes.trim() } : {}),
+        })
+      }
+      setActionBatch(null)
+      // Refresh both the expiry sweep and the all-batches list.
+      listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
+        .then((res) => {
+          const rows = res.data
+          setExpiringBatches(rows.filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 90 && b.stock.quantity > 0))
+          setExpiredBatches(rows.filter((b) => b.daysRemaining < 0))
+          setExpiryError(null)
+        })
+        .catch(() => setExpiryError("Failed to refresh expiring batches."))
+      await reloadBatches()
+    } catch (err) {
+      setFormError(
+        err instanceof ExpiryApiError
+          ? err.message
+          : "Failed to perform the expiry action. Please try again."
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   // ── Add Batch ──
@@ -290,6 +374,11 @@ export default function BatchesExpiryPage() {
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {loadError}
+          </div>
+        )}
+        {expiryError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {expiryError}
           </div>
         )}
 
@@ -388,9 +477,9 @@ export default function BatchesExpiryPage() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Critical (≤ 30 days)", count: expiring.filter((b) => daysUntilExpiry(b.expiryDate) <= 30).length, cls: "border-red-200 bg-red-50", textCls: "text-red-600" },
-                { label: "Within 60 days", count: expiring.filter((b) => { const d = daysUntilExpiry(b.expiryDate); return d > 30 && d <= 60 }).length, cls: "border-orange-200 bg-orange-50", textCls: "text-orange-600" },
-                { label: "Within 90 days", count: expiring.filter((b) => { const d = daysUntilExpiry(b.expiryDate); return d > 60 && d <= 90 }).length, cls: "border-yellow-200 bg-yellow-50", textCls: "text-yellow-600" },
+                { label: "Critical (≤ 30 days)", count: expiring.filter((b) => b.daysRemaining <= 30).length, cls: "border-red-200 bg-red-50", textCls: "text-red-600" },
+                { label: "Within 60 days", count: expiring.filter((b) => { const d = b.daysRemaining; return d > 30 && d <= 60 }).length, cls: "border-orange-200 bg-orange-50", textCls: "text-orange-600" },
+                { label: "Within 90 days", count: expiring.filter((b) => { const d = b.daysRemaining; return d > 60 && d <= 90 }).length, cls: "border-yellow-200 bg-yellow-50", textCls: "text-yellow-600" },
                 { label: "Already Expired", count: expired.length, cls: "border-gray-200 bg-gray-50", textCls: "text-gray-600" },
               ].map(({ label, count, cls, textCls }) => (
                 <div key={label} className={`rounded-xl border p-4 ${cls}`}>
@@ -400,7 +489,7 @@ export default function BatchesExpiryPage() {
               ))}
             </div>
 
-            {loading ? (
+            {expiryLoading ? (
               <LoadingSkeleton />
             ) : expiring.length === 0 ? (
               <EmptyState title="No expiring batches" description="No batches expiring within the next 90 days." />
@@ -409,24 +498,21 @@ export default function BatchesExpiryPage() {
                 <ExpiryGroup
                   title="Critical — Expiring within 30 days"
                   urgency="critical"
-                  batches={expiring.filter((b) => daysUntilExpiry(b.expiryDate) <= 30)}
-                  productName={productName}
+                  batches={expiring.filter((b) => b.daysRemaining <= 30)}
                   productUnit={productUnit}
                   onAction={openAction}
                 />
                 <ExpiryGroup
                   title="Expiring within 60 days"
                   urgency="warning"
-                  batches={expiring.filter((b) => { const d = daysUntilExpiry(b.expiryDate); return d > 30 && d <= 60 })}
-                  productName={productName}
+                  batches={expiring.filter((b) => { const d = b.daysRemaining; return d > 30 && d <= 60 })}
                   productUnit={productUnit}
                   onAction={openAction}
                 />
                 <ExpiryGroup
                   title="Expiring within 90 days"
                   urgency="notice"
-                  batches={expiring.filter((b) => { const d = daysUntilExpiry(b.expiryDate); return d > 60 && d <= 90 })}
-                  productName={productName}
+                  batches={expiring.filter((b) => { const d = b.daysRemaining; return d > 60 && d <= 90 })}
                   productUnit={productUnit}
                   onAction={openAction}
                 />
@@ -438,7 +524,7 @@ export default function BatchesExpiryPage() {
         {/* ── EXPIRED TAB ── */}
         {tab === "expired" && (
           <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-            {loading ? (
+            {expiryLoading ? (
               <LoadingSkeleton />
             ) : expired.length === 0 ? (
               <EmptyState title="No expired batches" description="All batches are within their expiry date." />
@@ -458,13 +544,13 @@ export default function BatchesExpiryPage() {
                   <tbody>
                     {expired.map((b, i) => (
                       <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-red-50/40"}>
-                        <td className="px-4 py-3 font-medium text-[#333333]">{productName(b.productId)}</td>
+                        <td className="px-4 py-3 font-medium text-[#333333]">{b.product.name}</td>
                         <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
                         <td className="px-4 py-3 text-red-600 font-semibold">{formatDate(b.expiryDate)}</td>
                         <td className="px-4 py-3 font-semibold text-[#333333]">
-                          {b.quantity.toLocaleString()} {productUnit(b.productId)}s
+                          {b.stock.quantity.toLocaleString()} {productUnit(b.product.id)}s
                         </td>
-                        <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{b.location}</td>
+                        <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{b.stock.location.name}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             <button onClick={() => openAction(b, "return")} className="text-xs font-semibold text-[#49B0C1] hover:underline">Return</button>
@@ -584,15 +670,18 @@ export default function BatchesExpiryPage() {
         </div>
       </Modal>
 
-      {/* ─────────── Expiry Action Modal (unchanged) ─────────── */}
+      {/* ─────────── Expiry Action Modal ─────────── */}
       <Modal open={!!actionBatch} title="Expiry Action" onClose={() => setActionBatch(null)} size="md">
         {actionBatch && (
           <div className="flex flex-col gap-5">
             <div className="rounded-xl bg-[#DBEFF3] p-4 grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-[#666666]">Product: </span><span className="font-semibold text-[#333333]">{productName(actionBatch.productId)}</span></div>
+              <div><span className="text-[#666666]">Product: </span><span className="font-semibold text-[#333333]">{actionBatch.product.name}</span></div>
               <div><span className="text-[#666666]">Batch: </span><span className="font-mono font-semibold text-[#333333]">{actionBatch.batchNumber}</span></div>
-              <div><span className="text-[#666666]">Qty: </span><span className="font-semibold text-[#333333]">{actionBatch.quantity.toLocaleString()} {productUnit(actionBatch.productId)}s</span></div>
-              <div><span className="text-[#666666]">Expiry: </span><span className="font-semibold text-red-600">{actionBatch.expiryDate}</span></div>
+              <div><span className="text-[#666666]">Qty: </span><span className="font-semibold text-[#333333]">{actionBatch.stock.quantity.toLocaleString()} {productUnit(actionBatch.product.id)}s</span></div>
+              <div><span className="text-[#666666]">Expiry: </span><span className="font-semibold text-red-600">{formatDate(actionBatch.expiryDate)}</span></div>
+              <div className="col-span-2"><span className="text-[#666666]">Days remaining: </span>
+                <span className="font-bold text-orange-600">{actionBatch.daysRemaining}</span>
+              </div>
             </div>
             <FormError message={formError} />
             <div className="flex flex-col gap-2">
@@ -609,7 +698,7 @@ export default function BatchesExpiryPage() {
             {actionType === "return" && (
               <div className="flex flex-col gap-3">
                 <Input label="Supplier" placeholder="Supplier name" value={actionForm.supplier} onChange={(e) => setActionForm((f) => ({ ...f, supplier: e.target.value }))} />
-                <Input label="Return Quantity" type="number" min={1} value={actionForm.returnQty} onChange={(e) => setActionForm((f) => ({ ...f, returnQty: e.target.value }))} />
+                <Input label="Return Quantity" type="number" min={1} max={actionBatch.stock.quantity} value={actionForm.returnQty} onChange={(e) => setActionForm((f) => ({ ...f, returnQty: e.target.value }))} />
               </div>
             )}
             {actionType === "clearance" && (
@@ -632,14 +721,13 @@ export default function BatchesExpiryPage() {
 }
 
 function ExpiryGroup({
-  title, urgency, batches, productName, productUnit, onAction,
+  title, urgency, batches, productUnit, onAction,
 }: {
   title: string
   urgency: "critical" | "warning" | "notice"
-  batches: Batch[]
-  productName: (id: string) => string
+  batches: ExpiryBatchDto[]
   productUnit: (id: string) => string
-  onAction: (b: Batch, type: ExpiryAction) => void
+  onAction: (b: ExpiryBatchDto, type: ExpiryAction) => void
 }) {
   if (batches.length === 0) return null
   const headerCls = urgency === "critical" ? "bg-red-500" : urgency === "warning" ? "bg-orange-400" : "bg-yellow-400"
@@ -653,16 +741,16 @@ function ExpiryGroup({
       </div>
       <div className="bg-white rounded-b-xl border border-t-0 border-[#DBEFF3] divide-y divide-[#DBEFF3]">
         {batches.map((b) => {
-          const days = daysUntilExpiry(b.expiryDate)
+          const days = b.daysRemaining
           return (
             <div key={b.id} className="flex items-center gap-4 px-4 py-3">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-[#333333] truncate">{productName(b.productId)}</p>
-                <p className="text-xs text-[#666666] font-mono">{b.batchNumber} · {b.location}</p>
+                <p className="font-medium text-[#333333] truncate">{b.product.name}</p>
+                <p className="text-xs text-[#666666] font-mono">{b.batchNumber} · {b.stock.location.name}</p>
               </div>
               <div className="text-right flex-shrink-0">
                 <p className={`text-sm font-bold ${dotCls}`}>{days} days</p>
-                <p className="text-xs text-[#666666]">{b.quantity.toLocaleString()} {productUnit(b.productId)}s</p>
+                <p className="text-xs text-[#666666]">{b.stock.quantity.toLocaleString()} {productUnit(b.product.id)}s</p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 <button onClick={() => onAction(b, "return")} className="text-xs font-semibold text-[#49B0C1] hover:underline">Return</button>
