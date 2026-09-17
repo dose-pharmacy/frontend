@@ -12,6 +12,7 @@ import {
   getBatchTransactions,
   getBinCard,
   createOpeningStock,
+  createStockAdjustment,
   StockApiError,
   type StockRowDto,
   type StockTransactionDto,
@@ -28,6 +29,14 @@ import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import Input from "../../components/ui/Input"
+
+function describeError(err: unknown): string {
+  if (err instanceof StockApiError) {
+    const detail = err.details ? Object.values(err.details).filter(Boolean).join(" — ") : ""
+    return detail ? `${err.message}: ${detail}` : err.message
+  }
+  return err instanceof Error ? err.message : "Something went wrong. Please try again."
+}
 
 type Tab = "stock" | "movements"
 
@@ -246,7 +255,11 @@ export default function StockPage() {
         onClose={() => setAddStockOpen(false)}
         onCreated={() => { setAddStockOpen(false); loadStock() }}
       />
-      <AdjustStockModal open={adjustOpen} onClose={() => setAdjustOpen(false)} />
+            <AdjustStockModal
+        open={adjustOpen}
+        onClose={() => setAdjustOpen(false)}
+        onAdjusted={() => { setAdjustOpen(false); loadStock() }}
+      />
       {stockDetail && (
         <StockDetailModal
           row={stockDetail}
@@ -1254,7 +1267,7 @@ function AddStockModal({
       })
       onCreated()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record opening stock. Please try again.")
+      setError(describeError(err))
     } finally {
       setSubmitting(false)
     }
@@ -1350,38 +1363,65 @@ function AddStockModal({
 
 // ─── Adjust Stock Modal (POST /inventory/stock-adjustments — schema pending) ──
 
-function AdjustStockModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  // NOTE: The exact POST /stock-adjustments request/response schema is not
-  // confirmed yet, so this modal intentionally does NOT submit to the backend.
-  // Wire it through stockApi.createStockAdjustment once the Swagger definition
-  // is available.
+function AdjustStockModal({
+  open, onClose, onAdjusted,
+}: {
+  open: boolean
+  onClose: () => void
+  onAdjusted: () => void
+}) {
   const [productId, setProductId] = useState("")
   const [batchId, setBatchId] = useState("")
   const [batches, setBatches] = useState<BatchDto[]>([])
+  const [batchesLoading, setBatchesLoading] = useState(false)
+  const [units, setUnits] = useState<{ unitId: string; name: string; isBaseUnit: boolean }[]>([])
+  const [unitId, setUnitId] = useState("")
+  const [locationId, setLocationId] = useState("")
   const [adjustment, setAdjustment] = useState("")
   const [reason, setReason] = useState("")
   const [notes, setNotes] = useState("")
 
   const [productOptions, setProductOptions] = useState<ProductOption[]>([])
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
-  const [locationId, setLocationId] = useState("")
+  const [optionsLoading, setOptionsLoading] = useState(false)
+
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!open || productOptions.length > 0) return
+    setOptionsLoading(true)
     Promise.all([fetchProductOptions(), listLocations({ limit: 100 })])
       .then(([opts, locs]) => {
         setProductOptions(opts)
         setLocations(locs.data.filter((l) => l.isActive).map((l) => ({ id: l.id, name: l.name })))
       })
       .catch(() => {})
+      .finally(() => setOptionsLoading(false))
   }, [open, productOptions.length])
 
   useEffect(() => {
-    if (!productId) { setBatches([]); setBatchId(""); return }
+    if (!productId) { setBatches([]); setBatchId(""); setUnits([]); setUnitId(""); return }
     let cancelled = false
-    listProductBatches(productId, { limit: 100 })
-      .then((b) => { if (!cancelled) setBatches(b.data) })
-      .catch(() => { if (!cancelled) setBatches([]) })
+    setBatchesLoading(true)
+    Promise.all([
+      listProductBatches(productId, { limit: 100 }),
+      getProductDetail(productId),
+    ])
+      .then(([b, p]) => {
+        if (cancelled) return
+        setBatches(b.data)
+        const productUnits = p.units.map((u) => ({
+          unitId: u.unitId,
+          name: u.unit.name,
+          isBaseUnit: u.isBaseUnit,
+        }))
+        setUnits(productUnits)
+        const base = productUnits.find((u) => u.isBaseUnit) ?? productUnits[0]
+        setUnitId(base?.unitId ?? "")
+      })
+      .catch(() => { if (!cancelled) { setBatches([]); setUnits([]) } })
+      .finally(() => { if (!cancelled) setBatchesLoading(false) })
     return () => { cancelled = true }
   }, [productId])
 
@@ -1391,37 +1431,79 @@ function AdjustStockModal({ open, onClose }: { open: boolean; onClose: () => voi
   const adjNum = parseInt(adjustment) || 0
   const newStock = Math.max(0, currentStock + adjNum)
 
-  function handleSubmit() {
-    // Pending Swagger: show a notice instead of calling the backend with an
-    // invented payload.
-    onClose()
+  function reset() {
+    setProductId(""); setBatchId(""); setLocationId(""); setAdjustment("")
+    setReason(""); setNotes(""); setError("")
+  }
+
+  async function handleSubmit() {
+    if (!productId || !batchId || !locationId || !adjustment || !reason || !unitId) return
+    const magnitude = Math.abs(adjNum)
+    if (!magnitude) { setError("Adjustment quantity can't be zero."); return }
+    setError("")
+    setSubmitting(true)
+    try {
+      await createStockAdjustment({
+        productId,
+        batchId,
+        locationId,
+        direction: adjNum >= 0 ? "IN" : "OUT",
+        quantity: magnitude,
+        unitId,
+        reason,
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      })
+      reset()
+      onAdjusted()
+    } catch (err) {
+      setError(describeError(err))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <Modal open={open} title="Adjust Stock" onClose={onClose} size="md">
+    <Modal open={open} title="Adjust Stock" onClose={() => { reset(); onClose() }} size="md">
       <p className="text-sm text-[#666666] -mt-2 mb-4">Correct recorded quantity after a physical stock count or other correction.</p>
-      <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700 mb-4">
-        Stock adjustments aren&apos;t submitted yet — the exact POST
-        /stock-adjustments request schema is pending Swagger confirmation.
-      </div>
       <div className="flex flex-col gap-4">
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+        )}
+
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Product</label>
-          <select value={productId} onChange={(e) => { setProductId(e.target.value); setBatchId("") }} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
-            <option value="">Select product...</option>
+          <select
+            value={productId}
+            onChange={(e) => { setProductId(e.target.value); setBatchId("") }}
+            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+            disabled={optionsLoading}
+          >
+            <option value="">{optionsLoading ? "Loading products..." : "Select product..."}</option>
             {productOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
+
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Batch</label>
-          <select value={batchId} onChange={(e) => setBatchId(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" disabled={!productId}>
-            <option value="">Select batch...</option>
+          <select
+            value={batchId}
+            onChange={(e) => setBatchId(e.target.value)}
+            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+            disabled={!productId || batchesLoading}
+          >
+            <option value="">{batchesLoading ? "Loading batches..." : "Select batch..."}</option>
             {batches.map((b) => <option key={b.id} value={b.id}>{b.batchNumber}</option>)}
           </select>
         </div>
+
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Location</label>
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+            disabled={optionsLoading}
+          >
             <option value="">Select location...</option>
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
@@ -1434,13 +1516,34 @@ function AdjustStockModal({ open, onClose }: { open: boolean; onClose: () => voi
           </div>
         )}
 
-        <Input
-          label="Adjustment (use − for reduction, + for addition)"
-          type="number"
-          value={adjustment}
-          onChange={(e) => setAdjustment(e.target.value)}
-          placeholder="e.g. -5 or +10"
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Adjustment (use − for reduction, + for addition)"
+            type="number"
+            value={adjustment}
+            onChange={(e) => setAdjustment(e.target.value)}
+            placeholder="e.g. -5 or 10"
+          />
+          <div>
+            <label className="text-sm font-medium text-[#333333] block mb-1.5">Unit</label>
+            <select
+              value={unitId}
+              onChange={(e) => setUnitId(e.target.value)}
+              className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+              disabled={!productId || units.length === 0}
+            >
+              {units.length === 0 ? (
+                <option value="">{productId ? "No units configured" : "Select product first"}</option>
+              ) : (
+                units.map((u) => (
+                  <option key={u.unitId} value={u.unitId}>
+                    {u.name}{u.isBaseUnit ? " (base)" : ""}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        </div>
 
         {adjustment && selectedBatch && (
           <div className={`rounded-xl px-4 py-3 flex items-center justify-between ${adjNum >= 0 ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
@@ -1465,14 +1568,13 @@ function AdjustStockModal({ open, onClose }: { open: boolean; onClose: () => voi
           <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" placeholder="Add context about this adjustment..." />
         </div>
         <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!productId || !batchId || !adjustment || !reason}>Save Adjustment</Button>
+          <Button variant="secondary" onClick={() => { reset(); onClose() }}>Cancel</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={!productId || !batchId || !locationId || !adjustment || !reason || !unitId}>Save Adjustment</Button>
         </div>
       </div>
     </Modal>
   )
 }
-
 // ─── Shared components ────────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

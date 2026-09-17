@@ -194,6 +194,36 @@ async function batchesRequest<T>(path: string, init: RequestInit = {}): Promise<
   }
 }
 
+async function productBatchesRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${PRODUCT_BATCHES_BASE}${path}`, {
+      credentials: "include",
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new BatchesApiError(
+      "Cannot reach the server. Please check your connection and try again.",
+    );
+  }
+
+  if (!res.ok) throw await parseErrorResponse(res);
+
+  const text = await res.text();
+  if (!text) return null as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null as T;
+  }
+}
+
+
 function buildQueryString(query: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -218,8 +248,8 @@ export async function listProductBatches(
     limit: query.limit,
     locationId: query.locationId,
   });
-  const result = await batchesRequest<BatchListResult>(
-    `../products/${encodeURIComponent(productId)}/batches${qs}`,
+  const result = await productBatchesRequest<BatchListResult>(
+    `/${encodeURIComponent(productId)}/batches${qs}`,
   );
   return (
     result ?? {

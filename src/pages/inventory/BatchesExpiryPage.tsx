@@ -95,6 +95,12 @@ export default function BatchesExpiryPage() {
   }, [])
 
   useEffect(() => {
+    fetchProductOptions()
+      .then((opts) => setProducts(opts))
+      .catch(() => setProducts([]))
+  }, [])
+  
+  useEffect(() => {
     let cancelled = false
     setLoading(true)
     fetchBatches(locationFilter || undefined)

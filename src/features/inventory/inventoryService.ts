@@ -20,6 +20,7 @@ import {
   type BatchDetailDto,
 } from "./batchesApi";
 import { listInventoryProducts } from "./productsApi";
+import { getStock } from "./stockApi";
 
 const delay = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 
@@ -56,8 +57,11 @@ function isoDate(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
-function primaryLocation(dto: BatchDto): string {
-  // Only the get-one response embeds locationStock; list rows don't.
+function primaryLocation(dto: BatchDto, locationsByBatch?: Map<string, string>): string {
+  const fromMap = locationsByBatch?.get(dto.id);
+  if (fromMap) return fromMap;
+
+  // Detail responses embed locationStock; list rows (handled above) don't.
   const stock = (dto as BatchDetailDto).locationStock;
   if (Array.isArray(stock) && stock.length > 0) {
     const top = [...stock].sort((a, b) => (b.quantity ?? 0) - (a.quantity ?? 0))[0];
@@ -67,7 +71,7 @@ function primaryLocation(dto: BatchDto): string {
 }
 
 /** Adapt a backend BatchDto to the UI's mock `Batch` shape. */
-function adaptBatch(dto: BatchDto): Batch {
+function adaptBatch(dto: BatchDto, locationsByBatch?: Map<string, string>): Batch {
   return {
     id: dto.id,
     productId: dto.productId,
@@ -76,7 +80,7 @@ function adaptBatch(dto: BatchDto): Batch {
     expiryDate: isoDate(dto.expiryDate),
     receivedDate: isoDate(dto.receivedDate),
     supplier: dto.supplierReference ?? "—",
-    location: primaryLocation(dto),
+    location: primaryLocation(dto, locationsByBatch),
     status: toUiStatus(dto.status),
     purchaseCost: dto.purchaseCost ?? undefined,
     supplierReference: dto.supplierReference ?? undefined,
@@ -108,15 +112,45 @@ export interface ProductOption {
  * Walks the paginated endpoint so backend page-size caps can't hide rows.
  */
 export async function fetchBatches(locationId?: string): Promise<Batch[]> {
-  const first = await listBatchesApi({ limit: 100, locationId });
+  const [first, locationsByBatch] = await Promise.all([
+    listBatchesApi({ limit: 100, locationId }),
+    buildBatchLocationMap(),
+  ]);
   const rows = [...first.data];
   const totalPages = Math.min(first.meta?.totalPages ?? 1, 10);
   for (let page = 2; page <= totalPages; page++) {
     const next = await listBatchesApi({ page, limit: 100, locationId });
     rows.push(...next.data);
   }
-  return rows.map(adaptBatch);
+  return rows.map((dto) => adaptBatch(dto, locationsByBatch));
 }
+
+
+/** Build batchId → location name(s) from live stock rows (the batch list
+ *  endpoint itself carries no location data). Batches split across more
+ *  than one location are joined with ", ". */
+async function buildBatchLocationMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  try {
+    const first = await getStock({ page: 1, limit: 100 });
+    const rows = [...first.data];
+    const totalPages = Math.min(first.pagination?.totalPages ?? 1, 10);
+    for (let page = 2; page <= totalPages; page++) {
+      const next = await getStock({ page, limit: 100 });
+      rows.push(...next.data);
+    }
+    for (const row of rows) {
+      const name = (row.location as { name?: string } | undefined)?.name;
+      if (!row.batchId || !name) continue;
+      const existing = map.get(row.batchId);
+      map.set(row.batchId, existing && !existing.includes(name) ? `${existing}, ${name}` : (existing ?? name));
+    }
+  } catch {
+    // Location enrichment is best-effort — batches still load without it.
+  }
+  return map;
+}
+
 
 /** GET /inventory/batches/{id} — live single batch; null when not found. */
 export async function fetchBatchById(id: string): Promise<BatchDetail | null> {
@@ -130,7 +164,7 @@ export async function fetchBatchById(id: string): Promise<BatchDetail | null> {
 
 /** GET /inventory/inventory-products — real product options for batch pages. */
 export async function fetchProductOptions(): Promise<ProductOption[]> {
-  const result = await listInventoryProducts({ limit: 500 });
+  const result = await listInventoryProducts({ limit: 100 });
   return result.data.map((p) => ({
     id: p.id,
     name: p.name,

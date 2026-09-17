@@ -152,9 +152,20 @@ export interface StockAdjustmentInput {
   productId: string;
   batchId: string;
   locationId: string;
-  adjustmentQuantity: number;
-  reason?: string;
+  direction: "IN" | "OUT";
+  quantity: number;
+  unitId: string;
+  reason: string;
   notes?: string;
+}
+
+export interface StockAdjustmentResultDto {
+  transaction: {
+    id: string; productId: string; batchId: string; locationId: string;
+    transactionType: string; direction: "IN" | "OUT";
+    quantity: number; balanceAfter: number;
+  };
+  stock: { id: string; quantity: number };
 }
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
@@ -341,8 +352,17 @@ export async function getBinCard(
 }
 
 /** POST /inventory/opening-stock — record stock already physically available. */
-export async function createOpeningStock(input: OpeningStockInput): Promise<OpeningStockDto> {
-  const result = await stockRequest<{ data?: OpeningStockDto } | OpeningStockDto>(
+export interface OpeningStockResultDto {
+  transaction: {
+    id: string; productId: string; batchId: string; locationId: string;
+    transactionType: string; direction: "IN" | "OUT";
+    quantity: number; balanceAfter: number;
+  };
+  stock: { id: string; quantity: number };
+}
+
+export async function createOpeningStock(input: OpeningStockInput): Promise<OpeningStockResultDto> {
+  const result = await stockRequest<{ success: boolean; data: OpeningStockResultDto }>(
     "/opening-stock",
     {
       method: "POST",
@@ -356,8 +376,8 @@ export async function createOpeningStock(input: OpeningStockInput): Promise<Open
       }),
     },
   );
-  // Some endpoints wrap the created entity in `.data`, others return it raw.
-  return (result as { data?: OpeningStockDto })?.data ?? (result as OpeningStockDto);
+  if (!result?.data) throw new StockApiError("Unexpected response from the server.");
+  return result.data;
 }
 
 /**
@@ -367,9 +387,11 @@ export async function createOpeningStock(input: OpeningStockInput): Promise<Open
  */
 export async function createStockAdjustment(
   input: StockAdjustmentInput,
-): Promise<unknown> {
-  return stockRequest<unknown>("/stock-adjustments", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+): Promise<StockAdjustmentResultDto> {
+  const result = await stockRequest<{ success: boolean; data: StockAdjustmentResultDto }>(
+    "/stock-adjustments",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  if (!result?.data) throw new StockApiError("Unexpected response from the server.");
+  return result.data;
 }
