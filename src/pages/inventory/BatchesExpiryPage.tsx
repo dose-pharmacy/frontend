@@ -11,6 +11,7 @@ import type { Batch } from "../../features/inventory/inventoryMock"
 import {
   listExpiryBatches,
   createExpiryAction,
+  dedupeBatchesById,
   ExpiryApiError,
   type ExpiryBatchDto,
 } from "../../features/inventory/expiryApi"
@@ -23,6 +24,7 @@ import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
 import Input from "../../components/ui/Input"
 import FormError from "../../components/ui/FormError"
+import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory"
 import Pagination from "../../components/ui/Pagination"
 import StatusBadge from "../../components/ui/StatusBadge"
 
@@ -91,6 +93,7 @@ export default function BatchesExpiryPage() {
   const [actionForm, setActionForm] = useState({ supplier: "", returnQty: "", discount: "", notes: "", reason: "" })
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [actionRefreshKey, setActionRefreshKey] = useState(0)
 
   // Add Batch modal
   const [addOpen, setAddOpen] = useState(false)
@@ -156,7 +159,8 @@ export default function BatchesExpiryPage() {
     listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
       .then((res) => {
         if (cancelled) return
-        const rows = res.data
+        // The backend can emit one row per matching threshold window — dedupe.
+        const rows = dedupeBatchesById(res.data)
         setExpiringBatches(rows.filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 90 && b.stock.quantity > 0))
         setExpiredBatches(rows.filter((b) => b.daysRemaining < 0))
         setExpiryError(null)
@@ -278,10 +282,11 @@ export default function BatchesExpiryPage() {
         })
       }
       setActionBatch(null)
+      setActionRefreshKey((k) => k + 1)
       // Refresh both the expiry sweep and the all-batches list.
       listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
         .then((res) => {
-          const rows = res.data
+          const rows = dedupeBatchesById(res.data)
           setExpiringBatches(rows.filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 90 && b.stock.quantity > 0))
           setExpiredBatches(rows.filter((b) => b.daysRemaining < 0))
           setExpiryError(null)
@@ -476,12 +481,12 @@ export default function BatchesExpiryPage() {
         {tab === "expiring" && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: "Critical (≤ 30 days)", count: expiring.filter((b) => b.daysRemaining <= 30).length, cls: "border-red-200 bg-red-50", textCls: "text-red-600" },
-                { label: "Within 60 days", count: expiring.filter((b) => { const d = b.daysRemaining; return d > 30 && d <= 60 }).length, cls: "border-orange-200 bg-orange-50", textCls: "text-orange-600" },
-                { label: "Within 90 days", count: expiring.filter((b) => { const d = b.daysRemaining; return d > 60 && d <= 90 }).length, cls: "border-yellow-200 bg-yellow-50", textCls: "text-yellow-600" },
-                { label: "Already Expired", count: expired.length, cls: "border-gray-200 bg-gray-50", textCls: "text-gray-600" },
-              ].map(({ label, count, cls, textCls }) => (
+            {[
+  { label: "Critical (≤ 30 days)", count: expiring.filter((b) => b.daysRemaining <= 30).length, cls: "border-red-200 bg-red-50", textCls: "text-red-600" },
+  { label: "Within 60 days", count: expiring.filter((b) => b.daysRemaining > 30 && b.daysRemaining <= 60).length, cls: "border-orange-200 bg-orange-50", textCls: "text-orange-600" },
+  { label: "Within 90 days", count: expiring.filter((b) => b.daysRemaining > 60 && b.daysRemaining <= 90).length, cls: "border-yellow-200 bg-yellow-50", textCls: "text-yellow-600" },
+  { label: "Already Expired", count: expired.length, cls: "border-gray-200 bg-gray-50", textCls: "text-gray-600" },
+].map(({ label, count, cls, textCls }) => (
                 <div key={label} className={`rounded-xl border p-4 ${cls}`}>
                   <p className={`text-2xl font-bold ${textCls}`}>{count}</p>
                   <p className="text-xs text-[#666666] mt-0.5">{label}</p>
@@ -505,17 +510,19 @@ export default function BatchesExpiryPage() {
                 <ExpiryGroup
                   title="Expiring within 60 days"
                   urgency="warning"
-                  batches={expiring.filter((b) => { const d = b.daysRemaining; return d > 30 && d <= 60 })}
+                  batches={expiring.filter((b) => b.daysRemaining > 30 && b.daysRemaining <= 60)}
                   productUnit={productUnit}
                   onAction={openAction}
                 />
                 <ExpiryGroup
                   title="Expiring within 90 days"
                   urgency="notice"
-                  batches={expiring.filter((b) => { const d = b.daysRemaining; return d > 60 && d <= 90 })}
+                  batches={expiring.filter((b) => b.daysRemaining > 60 && b.daysRemaining <= 90)}
                   productUnit={productUnit}
                   onAction={openAction}
                 />
+                
+                
               </>
             )}
           </>
@@ -684,6 +691,7 @@ export default function BatchesExpiryPage() {
               </div>
             </div>
             <FormError message={formError} />
+            <ExpiryActionHistory batchId={actionBatch.id} refreshKey={actionRefreshKey} />
             <div className="flex flex-col gap-2">
               <p className="text-sm font-semibold text-[#333333]">Select Action</p>
               {(["return", "clearance", "dispose"] as ExpiryAction[]).map((a) => (

@@ -11,6 +11,7 @@ import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import FormError from "../../components/ui/FormError";
+import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory";
 
 interface Thresholds { t30: number; t60: number; t90: number; }
 type ExpiryAction = "return" | "clearance" | "dispose";
@@ -28,6 +29,7 @@ export default function ExpiryDashboardPage() {
   const [actionForm, setActionForm] = useState({ supplier: "", returnQty: "", discount: "", notes: "", reason: "" });
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [actionRefreshKey, setActionRefreshKey] = useState(0);
 
   // Load the dashboard; re-runs whenever applied thresholds change (incl. first mount).
   useEffect(() => {
@@ -51,12 +53,11 @@ export default function ExpiryDashboardPage() {
 
   function applyThresholds() { setThresholds({ ...tempThresholds }); }
 
-  /** Batches of the window matching the range, with a days-remaining fallback. */
+  /** Batches whose days-remaining falls in [daysFrom, daysTo], from every window. */
   function windowBatches(daysFrom: number, daysTo: number): ExpiryBatchDto[] {
-    const match = windows.find((w) => w.daysFrom === daysFrom && w.daysTo === daysTo);
-    if (match) return match.batches;
-    const all = windows.flatMap((w) => w.batches);
-    return all.filter((b) => b.daysRemaining >= daysFrom && b.daysRemaining <= daysTo);
+    return windows
+      .flatMap((w) => w.batches)
+      .filter((b) => b.daysRemaining >= daysFrom && b.daysRemaining <= daysTo);
   }
 
   function openAction(b: ExpiryBatchDto) {
@@ -106,6 +107,11 @@ export default function ExpiryDashboardPage() {
         });
       }
       setActionBatch(null);
+      setActionRefreshKey((k) => k + 1);
+      // Re-fetch so the window counts/quantities reflect the action.
+      getExpiryDashboard({ thresholds: [thresholds.t30, thresholds.t60, thresholds.t90] })
+        .then((result) => setWindows(result.windows))
+        .catch(() => undefined);
     } catch (err: unknown) {
       setFormError(err instanceof ExpiryApiError ? err.message : "Failed to perform the expiry action. Please try again.");
     } finally {
@@ -173,6 +179,13 @@ export default function ExpiryDashboardPage() {
               urgency="low"
               onAction={openAction}
             />
+            {/* Already expired */}
+            <ExpirySection
+              title="EXPIRED"
+              batches={windowBatches(-Infinity, -1)}
+              urgency="expired"
+              onAction={openAction}
+            />
           </>
         ) : null}
       </div>
@@ -193,6 +206,8 @@ export default function ExpiryDashboardPage() {
             </div>
 
             <FormError message={formError} />
+
+            <ExpiryActionHistory batchId={actionBatch.id} refreshKey={actionRefreshKey} />
 
             {/* Action selector */}
             <div className="flex flex-col gap-2">
@@ -239,9 +254,9 @@ export default function ExpiryDashboardPage() {
 }
 
 function ExpirySection({ title, batches, urgency, onAction }: {
-  title: string; batches: ExpiryBatchDto[]; urgency: "high" | "medium" | "low"; onAction: (b: ExpiryBatchDto) => void;
+  title: string; batches: ExpiryBatchDto[]; urgency: "high" | "medium" | "low" | "expired"; onAction: (b: ExpiryBatchDto) => void;
 }) {
-  const headerBg = urgency === "high" ? "bg-red-500" : urgency === "medium" ? "bg-yellow-500" : "bg-[#49B0C1]";
+  const headerBg = urgency === "high" ? "bg-red-500" : urgency === "medium" ? "bg-yellow-500" : urgency === "expired" ? "bg-gray-500" : "bg-[#49B0C1]";
   return (
     <section>
       <div className={`${headerBg} px-4 py-2 rounded-t-xl`}>
@@ -264,13 +279,14 @@ function ExpirySection({ title, batches, urgency, onAction }: {
               <tbody>
                 {batches.map((b, i) => {
                   const days = b.daysRemaining;
+                  const key = `${b.id}-${i}`;
                   return (
-                    <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                    <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
                       <td className="px-4 py-3 text-[#333333]">{b.product.name}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
                       <td className="px-4 py-3 font-semibold">{b.stock.quantity}</td>
                       <td className="px-4 py-3">
-                        <span className={`font-bold ${urgency === "high" ? "text-red-600" : urgency === "medium" ? "text-yellow-600" : "text-[#49B0C1]"}`}>
+                        <span className={`font-bold ${urgency === "high" ? "text-red-600" : urgency === "medium" ? "text-yellow-600" : urgency === "expired" ? "text-red-700" : "text-[#49B0C1]"}`}>
                           {days} days
                         </span>
                         {urgency === "high" && <span className="ml-2 text-xs text-red-400" aria-label="Urgent">⚠</span>}
@@ -279,6 +295,9 @@ function ExpirySection({ title, batches, urgency, onAction }: {
                         <div className="flex gap-2">
                           <button onClick={() => { onAction(b); }} className="text-xs font-semibold text-[#49B0C1] hover:underline">Return</button>
                           <button onClick={() => { onAction(b); }} className="text-xs font-semibold text-orange-500 hover:underline">Clearance</button>
+                          {urgency === "expired" && (
+                            <button onClick={() => { onAction(b); }} className="text-xs font-semibold text-red-500 hover:underline">Dispose</button>
+                          )}
                         </div>
                       </td>
                     </tr>

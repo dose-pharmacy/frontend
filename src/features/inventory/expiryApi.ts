@@ -269,6 +269,22 @@ function buildQueryString(query: Record<string, string | number | undefined>) {
   return qs ? `?${qs}` : "";
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * The backend can list the same batch in more than one expiry window
+ * (overlapping/cumulative ranges). Windows and lists must render each batch
+ * once, so dedupe by batch id before feeding rows to the UI.
+ */
+export function dedupeBatchesById(batches: ExpiryBatchDto[]): ExpiryBatchDto[] {
+  const seen = new Set<string>();
+  return batches.filter((b) => {
+    if (seen.has(b.id)) return false;
+    seen.add(b.id);
+    return true;
+  });
+}
+
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
 /**
