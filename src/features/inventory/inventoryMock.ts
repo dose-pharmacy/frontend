@@ -104,6 +104,7 @@ export interface BinCardEntry {
   balance: number;
   user: string;
   location: string;
+  
 }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
