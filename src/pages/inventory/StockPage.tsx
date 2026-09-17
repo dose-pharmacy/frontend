@@ -12,7 +12,7 @@ import {
   getBatchTransactions,
   getBinCard,
   createOpeningStock,
-  createStockAdjustment,ch
+  createStockAdjustment,
   StockApiError,
   type StockRowDto,
   type StockTransactionDto,
