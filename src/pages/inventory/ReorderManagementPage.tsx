@@ -1,31 +1,88 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { getReorderData } from "../../features/inventory/inventoryService";
+import {
+  getReorderDashboard,
+  getReorderSuggestions,
+  ReorderApiError,
+  type ReorderDashboardItemDto,
+  type ReorderSuggestionDto,
+} from "../../features/inventory/reorderApi";
 import PageHeader from "../../components/ui/PageHeader";
 import MetricCard from "../../components/ui/MetricCard";
 import Button from "../../components/ui/Button";
+import FormError from "../../components/ui/FormError";
 import GenerateRequirementsModal from "./ReorderReq";
 
 export default function ReorderManagementPage() {
   const navigate = useNavigate();
-  const [data, setData] = useState<Awaited<ReturnType<typeof getReorderData>>>([]);
+  const [dashboard, setDashboard] = useState<ReorderDashboardItemDto[]>([]);
+  const [summary, setSummary] = useState({ critical: 0, high: 0, medium: 0, low: 0, totalItems: 0, totalSuggestedQuantity: 0 });
+  const [suggestions, setSuggestions] = useState<ReorderSuggestionDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showGenerate, setShowGenerate] = useState(false);
 
-  useEffect(() => { getReorderData().then((d) => { setData(d); setLoading(false); }); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getReorderDashboard({ page: 1, limit: 100 }), getReorderSuggestions({ page: 1, limit: 100 })])
+      .then(([dash, sugg]) => {
+        if (cancelled) return;
+        setDashboard(dash.items);
+        setSummary(dash.summary);
+        setSuggestions(sugg.data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof ReorderApiError ? err.message : "Failed to load reorder data. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-  const criticalCount = data.filter((d) => d.urgency === "critical").length;
-  const avgSales = data.length ? (data.reduce((s, d) => s + d.avgDailySales, 0) / data.length).toFixed(1) : "0";
+  function refresh() {
+    setLoading(true);
+    Promise.all([getReorderDashboard({ page: 1, limit: 100 }), getReorderSuggestions({ page: 1, limit: 100 })])
+      .then(([dash, sugg]) => {
+        setDashboard(dash.items);
+        setSummary(dash.summary);
+        setSuggestions(sugg.data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ReorderApiError ? err.message : "Failed to load reorder data. Please try again.");
+      })
+      .finally(() => setLoading(false));
+  }
 
-  const suggestions = data.map((d) => ({
-    id: d.productId,
-    name: d.productName,
-    suggestedQty: d.suggestedQty,
+  const avgSales = suggestions.length
+    ? (suggestions.reduce((s, d) => s + (d.averageDailySales ?? 0), 0) / suggestions.length).toFixed(1)
+    : "0";
+
+  const modalSuggestions = suggestions.map((s) => ({
+    id: s.product.id,
+    name: s.product.name,
+    suggestedQty: s.suggestedQuantity,
     status: "Draft",
   }));
 
+  const urgencyBadge = (urgency: string) => {
+    switch (urgency) {
+      case "CRITICAL":
+        return <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700"><span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />Critical</span>;
+      case "HIGH":
+        return <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700"><span className="h-1.5 w-1.5 rounded-full bg-orange-500" aria-hidden />High</span>;
+      case "MEDIUM":
+        return <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />Medium</span>;
+      default:
+        return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#DBEFF3] px-2.5 py-0.5 text-xs font-medium text-[#49B0C1]"><span className="h-1.5 w-1.5 rounded-full bg-[#49B0C1]" aria-hidden />Low</span>;
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
       <PageHeader
         breadcrumb="Inventory / Reorder"
         title="Reorder"
@@ -41,19 +98,23 @@ export default function ReorderManagementPage() {
       <div className="p-6 flex flex-col gap-6">
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
-          <MetricCard title="Below Threshold" value={data.length} icon={<AlertIcon />} subtitle="items need attention" />
+          <MetricCard title="Below Threshold" value={summary.totalItems} icon={<AlertIcon />} subtitle="items need attention" />
           <MetricCard title="Avg Daily Sales" value={avgSales} icon={<TrendIcon />} subtitle="units/day" />
-          <MetricCard title="Pending Orders" value={0} icon={<OrderIcon />} subtitle="purchase orders" />
+          <MetricCard title="Total Suggested Qty" value={summary.totalSuggestedQuantity} icon={<OrderIcon />} subtitle="units to reorder" />
         </div>
+
+        {error && (
+          <FormError message={error} />
+        )}
 
         {loading ? (
           <div className="space-y-3 animate-pulse">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-[#DBEFF3] rounded-xl" />)}</div>
-        ) : (
+        ) : !error ? (
           <>
             {/* Low stock alerts */}
             <section>
               <div className="bg-[#49B0C1] px-4 py-2.5 rounded-t-xl flex items-center justify-between">
-                <p className="text-sm font-bold text-white">LOW STOCK ALERTS ({data.length} items)</p>
+                <p className="text-sm font-bold text-white">LOW STOCK ALERTS ({dashboard.length} items)</p>
               </div>
               <div className="bg-white rounded-b-xl border border-t-0 border-[#DBEFF3] overflow-hidden">
                 <div className="overflow-x-auto">
@@ -66,21 +127,22 @@ export default function ReorderManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.map((d, i) => (
-                        <tr key={d.productId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
-                          <td className="px-4 py-3 font-medium text-[#333333]">{d.productName}</td>
-                          <td className="px-4 py-3 font-bold text-red-600">{d.currentStock}</td>
-                          <td className="px-4 py-3 text-[#666666]">{d.threshold}</td>
-                          <td className="px-4 py-3 text-[#666666]">{d.velocity}</td>
-                          <td className="px-4 py-3 font-semibold text-[#333333]">{d.suggestedQty}</td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
-                              Critical
-                            </span>
-                          </td>
+                      {dashboard.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-6 text-center text-[#333333]/60">No low-stock alerts right now.</td>
                         </tr>
-                      ))}
+                      ) : (
+                        dashboard.map((d, i) => (
+                          <tr key={d.product.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                            <td className="px-4 py-3 font-medium text-[#333333]">{d.product.name}</td>
+                            <td className={`px-4 py-3 font-bold ${d.currentStock <= d.minimumThreshold ? "text-red-600" : "text-[#333333]"}`}>{d.currentStock}</td>
+                            <td className="px-4 py-3 text-[#666666]">{d.minimumThreshold}</td>
+                            <td className="px-4 py-3 text-[#666666]">—</td>
+                            <td className="px-4 py-3 font-semibold text-[#333333]">{d.suggestedQuantity}</td>
+                            <td className="px-4 py-3">{urgencyBadge(d.urgency)}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -103,34 +165,37 @@ export default function ReorderManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.map((d, i) => (
-                        <tr key={d.productId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
-                          <td className="px-4 py-3 font-medium text-[#333333]">{d.productName}</td>
-                          <td className="px-4 py-3 text-[#666666]">{d.avgDailySales}</td>
-                          <td className="px-4 py-3 text-[#666666]">{d.leadTime}</td>
-                          <td className="px-4 py-3 font-semibold text-[#49B0C1]">{d.suggestedQty}</td>
-                          {/*<td className="px-4 py-3">
-                            <Button onClick={() => alert("Create purchase order — Purchasing module coming soon.")}>Order</Button>
-                          </td>*/}
+                      {suggestions.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-[#333333]/60">No reorder suggestions right now.</td>
                         </tr>
-                      ))}
+                      ) : (
+                        suggestions.map((s, i) => (
+                          <tr key={s.product.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                            <td className="px-4 py-3 font-medium text-[#333333]">{s.product.name}</td>
+                            <td className="px-4 py-3 text-[#666666]">{s.averageDailySales}</td>
+                            <td className="px-4 py-3 text-[#666666]">{s.leadTimeDays}</td>
+                            <td className="px-4 py-3 font-semibold text-[#49B0C1]">{s.suggestedQuantity}</td>
+                            {/*<td className="px-4 py-3">
+                              <Button onClick={() => alert("Create purchase order — Purchasing module coming soon.")}>Order</Button>
+                            </td>*/}
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
             </section>
           </>
-        )}
+        ) : null}
       </div>
 
       <GenerateRequirementsModal
         open={showGenerate}
         onClose={() => setShowGenerate(false)}
-        suggestions={suggestions}
-        onGenerate={(items) => {
-          console.log("Generating purchase requirements for:", items);
-          // TODO: call your backend / navigate to purchase requirements page
-        }}
+        suggestions={modalSuggestions}
+        onGenerate={() => refresh()}
       />
     </div>
   );

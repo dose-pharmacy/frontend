@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { getProducts } from "../../features/inventory/inventoryService";
-import type { Product } from "../../features/inventory/inventoryMock";
+import {
+  getReorderConfig,
+  updateReorderConfig,
+  ReorderApiError,
+  type ReorderConfigDto,
+} from "../../features/inventory/reorderApi";
+import { fetchProductOptions } from "../../features/inventory/inventoryService";
 import PageHeader from "../../components/ui/PageHeader";
 import Select from "../../components/ui/Select";
 import Input from "../../components/ui/Input";
@@ -11,6 +16,19 @@ import Breadcrumb from "../../components/ui/Breadcrumb";
 
 interface Config { minStock: string; reorderPoint: string; leadTime: string; reorderQty: string; useVelocity: boolean; formula: string; buffer: string; }
 const empty = (): Config => ({ minStock: "", reorderPoint: "", leadTime: "", reorderQty: "", useVelocity: false, formula: "basic", buffer: "10" });
+
+/** Map a backend reorder-config to the form state (numbers → strings for inputs). */
+function fromDto(dto: ReorderConfigDto): Config {
+  return {
+    minStock: String(dto.minimumStockLevel ?? ""),
+    reorderPoint: String(dto.reorderPoint ?? ""),
+    leadTime: String(dto.leadTimeDays ?? ""),
+    reorderQty: String(dto.reorderQuantity ?? ""),
+    useVelocity: dto.useSalesVelocity,
+    formula: "basic",
+    buffer: String(dto.bufferPercentage ?? 10),
+  };
+}
 
 function validate(c: Config): Partial<Record<keyof Config, string>> {
   const e: Partial<Record<keyof Config, string>> = {};
@@ -23,16 +41,50 @@ function validate(c: Config): Partial<Record<keyof Config, string>> {
 
 export default function ReorderConfigPage() {
   const navigate = useNavigate();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [config, setConfig] = useState<Config>(empty());
   const [errors, setErrors] = useState<Partial<Record<keyof Config, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getProducts().then((p) => { setProducts(p); if (p.length) setSelectedProduct(p[0].id); });
+    fetchProductOptions().then((p) => {
+      setProducts(p);
+      if (p.length) setSelectedProduct(p[0].id);
+    });
   }, []);
+
+  // Load the product's current reorder configuration whenever the selection changes.
+  useEffect(() => {
+    if (!selectedProduct) return;
+    let cancelled = false;
+    setLoadingConfig(true);
+    setErrors({});
+    setFormError(null);
+    getReorderConfig(selectedProduct)
+      .then((dto) => {
+        if (cancelled) return;
+        setConfig(fromDto(dto));
+        setFormError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setConfig(empty());
+        setFormError(
+          err instanceof ReorderApiError && err.status === 404
+            ? "No reorder configuration saved for this product yet — fill in the fields below and save."
+            : err instanceof ReorderApiError
+              ? err.message
+              : "Failed to load the product's reorder configuration.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingConfig(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedProduct]);
 
   function set(field: keyof Config, value: string | boolean) {
     setConfig((c) => ({ ...c, [field]: value }));
@@ -40,14 +92,26 @@ export default function ReorderConfigPage() {
   }
 
   async function handleSave() {
+    if (!selectedProduct) { setFormError("Select a product first."); return; }
     setFormError(null);
     const e = validate(config);
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    alert("Configuration saved (mock).");
-    navigate("/inventory/reorder");
+    try {
+      await updateReorderConfig(selectedProduct, {
+        minimumStockLevel: Number(config.minStock),
+        reorderPoint: Number(config.reorderPoint),
+        leadTimeDays: Number(config.leadTime),
+        reorderQuantity: Number(config.reorderQty),
+        useSalesVelocity: config.useVelocity,
+        bufferPercentage: Number(config.buffer) || 0,
+      });
+      navigate("/inventory/reorder");
+    } catch (err: unknown) {
+      setFormError(err instanceof ReorderApiError ? err.message : "Failed to save the configuration. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const calcExplanation = config.useVelocity
@@ -62,19 +126,26 @@ export default function ReorderConfigPage() {
       <div className="p-6 max-w-2xl flex flex-col gap-6">
         <FormError message={formError} />
 
-        <Select label="Product" value={selectedProduct} onChange={(e) => { setSelectedProduct(e.target.value); setConfig(empty()); setErrors({}); }}>
+        <Select label="Product" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
           {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
 
         {/* Current settings */}
         <div className="bg-[#DBEFF3] rounded-xl p-5 flex flex-col gap-4">
           <p className="text-sm font-bold text-[#333333]">Current Settings</p>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Input label="Minimum Stock Level" type="number" min={0} value={config.minStock} onChange={(e) => set("minStock", e.target.value)} error={errors.minStock} placeholder="e.g. 20" />
-            <Input label="Reorder Point" type="number" min={0} value={config.reorderPoint} onChange={(e) => set("reorderPoint", e.target.value)} error={errors.reorderPoint} placeholder="e.g. 50" />
-            <Input label="Lead Time (days)" type="number" min={1} value={config.leadTime} onChange={(e) => set("leadTime", e.target.value)} error={errors.leadTime} placeholder="e.g. 3" />
-            <Input label="Reorder Quantity" type="number" min={1} value={config.reorderQty} onChange={(e) => set("reorderQty", e.target.value)} error={errors.reorderQty} placeholder="e.g. 100" />
-          </div>
+          {loadingConfig ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-12 bg-white/60 rounded-xl" />
+              <div className="h-12 bg-white/60 rounded-xl" />
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input label="Minimum Stock Level" type="number" min={0} value={config.minStock} onChange={(e) => set("minStock", e.target.value)} error={errors.minStock} placeholder="e.g. 20" />
+              <Input label="Reorder Point" type="number" min={0} value={config.reorderPoint} onChange={(e) => set("reorderPoint", e.target.value)} error={errors.reorderPoint} placeholder="e.g. 50" />
+              <Input label="Lead Time (days)" type="number" min={1} value={config.leadTime} onChange={(e) => set("leadTime", e.target.value)} error={errors.leadTime} placeholder="e.g. 3" />
+              <Input label="Reorder Quantity" type="number" min={1} value={config.reorderQty} onChange={(e) => set("reorderQty", e.target.value)} error={errors.reorderQty} placeholder="e.g. 100" />
+            </div>
+          )}
         </div>
 
         {/* Advanced settings */}
