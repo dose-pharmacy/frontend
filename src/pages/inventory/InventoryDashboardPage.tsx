@@ -1,85 +1,120 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router"
 import {
-  getProducts,
-  getBatches,
-  getAllTransactions,
-  daysUntilExpiry,
-} from "../../features/inventory/inventoryService"
-import type { Product, Batch, Transaction } from "../../features/inventory/inventoryMock"
+  getInventoryOverview,
+  InventoryOverviewApiError,
+  type InventoryMetricsDto,
+} from "../../features/inventory/inventoryOverviewApi"
+import {
+  getReorderDashboard,
+  type ReorderDashboardItemDto,
+} from "../../features/inventory/reorderApi"
+import {
+  listExpiryBatches,
+  dedupeBatchesById,
+  type ExpiryBatchDto,
+} from "../../features/inventory/expiryApi"
+import {
+  getProductTransactions,
+  type StockTransactionDto,
+} from "../../features/inventory/stockApi"
 import MetricCard from "../../components/ui/MetricCard"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
 
 export default function InventoryDashboardPage() {
   const navigate = useNavigate()
-  const [products, setProducts] = useState<Product[]>([])
-  const [batches, setBatches] = useState<Batch[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [metrics, setMetrics] = useState<InventoryMetricsDto | null>(null)
+  const [lowStock, setLowStock] = useState<ReorderDashboardItemDto[]>([])
+  const [expiringSoonBatches, setExpiringSoonBatches] = useState<ExpiryBatchDto[]>([])
+  const [recentActivity, setRecentActivity] = useState<StockTransactionDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([getProducts(), getBatches(), getAllTransactions()]).then(
-      ([p, b, t]) => {
-        setProducts(p)
-        setBatches(b)
-        setTransactions(t)
-        setLoading(false)
+    let cancelled = false
+    setLoading(true)
+
+    // KPIs come from GET /inventory/dashboard. The overview payload is
+    // counts-only, so the panels below pull from the dedicated reorder /
+    // expiry / stock endpoints. A failing panel degrades to its empty state.
+    void (async () => {
+      try {
+        const [dashR, reorderR, expiryR] = await Promise.allSettled([
+          getInventoryOverview({ thresholds: [30, 60, 90] }),
+          getReorderDashboard({ limit: 5 }),
+          listExpiryBatches({ thresholds: [30, 60, 90], limit: 100, page: 1 }),
+        ])
+        if (cancelled) return
+
+        if (dashR.status === "fulfilled") {
+          setMetrics(dashR.value)
+          setError(null)
+        } else {
+          setError(
+            dashR.reason instanceof InventoryOverviewApiError
+              ? dashR.reason.message
+              : "Failed to load inventory metrics. Please try again."
+          )
+        }
+        if (reorderR.status === "fulfilled") setLowStock(reorderR.value.items)
+
+        let expiring: ExpiryBatchDto[] = []
+        if (expiryR.status === "fulfilled") {
+          // The list endpoint can repeat a batch across threshold windows — dedupe.
+          expiring = dedupeBatchesById(expiryR.value.data)
+            .filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 60 && b.stock.quantity > 0)
+            .sort((a, b) => a.daysRemaining - b.daysRemaining)
+          setExpiringSoonBatches(expiring.slice(0, 5))
+        }
+
+        // Recent activity: the backend only exposes per-product transaction
+        // ledgers, so sample the products surfaced by the panels above.
+        const ids = new Set<string>()
+        if (reorderR.status === "fulfilled") {
+          for (const i of reorderR.value.items) ids.add(i.product.id)
+        }
+        for (const b of expiring.slice(0, 3)) ids.add(b.product.id)
+        const sampleIds = [...ids].slice(0, 3)
+        const ledgers = await Promise.all(
+          sampleIds.map((id) =>
+            getProductTransactions(id, { page: 1, limit: 5 }).catch(() => ({ data: [] as StockTransactionDto[] })),
+          ),
+        )
+        if (cancelled) return
+        setRecentActivity(
+          ledgers
+            .flatMap((l) => l.data)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, 8),
+        )
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-    )
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const metrics = useMemo(
+  // KPI values from the overview endpoint. The API has no explicit
+  // "in stock" count, so derive it from the stock-health figures.
+  const kpis = useMemo(
     () => ({
-      total: products.length,
-      inStock: products.filter((p) => p.status === "in_stock").length,
-      lowStock: products.filter((p) => p.status === "low_stock").length,
-      outOfStock: products.filter((p) => p.status === "out_of_stock").length,
-      expiringSoon: batches.filter((b) => {
-        const d = daysUntilExpiry(b.expiryDate)
-        return d >= 0 && d <= 30 && b.quantity > 0
-      }).length,
+      total: metrics?.totalProducts ?? 0,
+      inStock: Math.max(0, (metrics?.totalProducts ?? 0) - (metrics?.lowStock ?? 0) - (metrics?.outOfStock ?? 0)),
+      lowStock: metrics?.lowStock ?? 0,
+      outOfStock: metrics?.outOfStock ?? 0,
+      expiringSoon: metrics?.nearExpiry ?? 0,
     }),
-    [products, batches]
+    [metrics]
   )
 
-  const expiringSoonBatches = useMemo(
-    () =>
-      batches
-        .filter((b) => {
-          const d = daysUntilExpiry(b.expiryDate)
-          return d >= 0 && d <= 60 && b.quantity > 0
-        })
-        .sort(
-          (a, b) =>
-            new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
-        )
-        .slice(0, 5),
-    [batches]
-  )
-
-  const lowStockProducts = useMemo(
-    () =>
-      products
-        .filter((p) => p.status === "low_stock" || p.status === "out_of_stock")
-        .slice(0, 5),
-    [products]
-  )
-
-  const recentActivity = useMemo(
-    () =>
-      transactions
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 8),
-    [transactions]
-  )
-
-  function productName(productId: string) {
-    return products.find((p) => p.id === productId)?.name ?? productId
-  }
-
-  function productUnit(productId: string) {
-    return products.find((p) => p.id === productId)?.baseUnit ?? ""
+  function formatTime(value: string) {
+    return new Date(value).toLocaleString("en-GB", {
+      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    })
   }
 
   return (
@@ -96,73 +131,79 @@ export default function InventoryDashboardPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCard
             title="Total Products"
-            value={loading ? "—" : metrics.total}
+            value={loading ? "—" : kpis.total}
             icon={<BoxIcon />}
           />
           <MetricCard
             title="In Stock"
-            value={loading ? "—" : metrics.inStock}
+            value={loading ? "—" : kpis.inStock}
             icon={<CheckIcon />}
           />
           <MetricCard
             title="Low Stock"
-            value={loading ? "—" : metrics.lowStock}
+            value={loading ? "—" : kpis.lowStock}
             icon={<WarnIcon />}
             subtitle="Needs attention"
           />
           <MetricCard
             title="Out of Stock"
-            value={loading ? "—" : metrics.outOfStock}
+            value={loading ? "—" : kpis.outOfStock}
             icon={<AlertIcon />}
             subtitle="Action required"
           />
           <MetricCard
             title="Expiring Soon"
-            value={loading ? "—" : metrics.expiringSoon}
+            value={loading ? "—" : kpis.expiringSoon}
             icon={<ClockIcon />}
             subtitle="Within 30 days"
           />
         </div>
 
         {/* Attention Required */}
-        {!loading && (metrics.outOfStock > 0 || metrics.lowStock > 0 || metrics.expiringSoon > 0) && (
+        {!loading && (kpis.outOfStock > 0 || kpis.lowStock > 0 || kpis.expiringSoon > 0) && (
           <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
             <div className="px-5 py-3 border-b border-[#DBEFF3]">
               <p className="font-semibold text-[#333333]">Attention Required</p>
             </div>
             <div className="divide-y divide-[#DBEFF3]">
-              {metrics.outOfStock > 0 && (
+              {kpis.outOfStock > 0 && (
                 <div className="flex items-center justify-between px-5 py-3">
                   <div className="flex items-center gap-3">
                     <span className="h-2.5 w-2.5 rounded-full bg-red-500 flex-shrink-0" />
                     <span className="text-sm text-[#333333]">
-                      <span className="font-semibold">{metrics.outOfStock}</span> product{metrics.outOfStock !== 1 ? "s" : ""} out of stock
+                      <span className="font-semibold">{kpis.outOfStock}</span> product{kpis.outOfStock !== 1 ? "s" : ""} out of stock
                     </span>
                   </div>
                   <button onClick={() => navigate("/inventory/products")} className="text-xs font-semibold text-[#49B0C1] hover:underline">View →</button>
                 </div>
               )}
-              {metrics.lowStock > 0 && (
+              {kpis.lowStock > 0 && (
                 <div className="flex items-center justify-between px-5 py-3">
                   <div className="flex items-center gap-3">
                     <span className="h-2.5 w-2.5 rounded-full bg-orange-400 flex-shrink-0" />
                     <span className="text-sm text-[#333333]">
-                      <span className="font-semibold">{metrics.lowStock}</span> product{metrics.lowStock !== 1 ? "s" : ""} low in stock
+                      <span className="font-semibold">{kpis.lowStock}</span> product{kpis.lowStock !== 1 ? "s" : ""} low in stock
                     </span>
                   </div>
                   <button onClick={() => navigate("/inventory/reorder")} className="text-xs font-semibold text-[#49B0C1] hover:underline">View →</button>
                 </div>
               )}
-              {metrics.expiringSoon > 0 && (
+              {kpis.expiringSoon > 0 && (
                 <div className="flex items-center justify-between px-5 py-3">
                   <div className="flex items-center gap-3">
                     <span className="h-2.5 w-2.5 rounded-full bg-yellow-400 flex-shrink-0" />
                     <span className="text-sm text-[#333333]">
-                      <span className="font-semibold">{metrics.expiringSoon}</span> batch{metrics.expiringSoon !== 1 ? "es" : ""} expiring within 30 days
+                      <span className="font-semibold">{kpis.expiringSoon}</span> batch{kpis.expiringSoon !== 1 ? "es" : ""} expiring within 30 days
                     </span>
                   </div>
                   <button onClick={() => navigate("/inventory/batches-expiry")} className="text-xs font-semibold text-[#49B0C1] hover:underline">View →</button>
@@ -198,7 +239,7 @@ export default function InventoryDashboardPage() {
             ) : (
               <div className="divide-y divide-[#DBEFF3]">
                 {expiringSoonBatches.map((b) => {
-                  const days = daysUntilExpiry(b.expiryDate)
+                  const days = b.daysRemaining
                   const urgent = days <= 30
                   return (
                     <div
@@ -207,7 +248,7 @@ export default function InventoryDashboardPage() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#333333] truncate">
-                          {productName(b.productId)}
+                          {b.product.name}
                         </p>
                         <p className="text-xs text-[#666666] font-mono">
                           {b.batchNumber}
@@ -220,7 +261,7 @@ export default function InventoryDashboardPage() {
                           {days}d left
                         </p>
                         <p className="text-xs text-[#666666]">
-                          {b.quantity.toLocaleString()} {productUnit(b.productId)}s
+                          {b.stock.quantity.toLocaleString()} units
                         </p>
                       </div>
                     </div>
@@ -248,36 +289,36 @@ export default function InventoryDashboardPage() {
             </div>
             {loading ? (
               <LoadingSkeleton rows={4} />
-            ) : lowStockProducts.length === 0 ? (
+            ) : lowStock.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-[#666666]">
                 All products are adequately stocked.
               </p>
             ) : (
               <div className="divide-y divide-[#DBEFF3]">
-                {lowStockProducts.map((p) => (
+                {lowStock.map((i) => (
                   <div
-                    key={p.id}
+                    key={i.product.id}
                     className="flex items-center justify-between px-5 py-3"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[#333333] truncate">
-                        {p.name}
+                        {i.product.name}
                       </p>
                       <p className="text-xs text-[#666666]">
-                        Reorder at {p.reorderPoint.toLocaleString()}{" "}
-                        {p.baseUnit}s
+                        Reorder at {i.reorderPoint.toLocaleString()}{" "}
+                        {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
                       </p>
                     </div>
                     <div className="text-right ml-4 flex-shrink-0">
                       <p
-                        className={`text-sm font-bold ${p.status === "out_of_stock" ? "text-red-600" : "text-yellow-600"}`}
+                        className={`text-sm font-bold ${i.currentStock <= 0 ? "text-red-600" : "text-yellow-600"}`}
                       >
-                        {p.totalStock.toLocaleString()} {p.baseUnit}s
+                        {i.currentStock.toLocaleString()} {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
                       </p>
                       <span
-                        className={`text-xs font-semibold rounded-full px-2 py-0.5 ${p.status === "out_of_stock" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}
+                        className={`text-xs font-semibold rounded-full px-2 py-0.5 ${i.currentStock <= 0 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}
                       >
-                        {p.status === "out_of_stock" ? "Out of Stock" : "Low Stock"}
+                        {i.currentStock <= 0 ? "Out of Stock" : "Low Stock"}
                       </span>
                     </div>
                   </div>
@@ -327,36 +368,42 @@ export default function InventoryDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentActivity.map((t, i) => (
-                    <tr
-                      key={t.id}
-                      className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}
-                    >
-                      <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
-                        {t.date}
-                      </td>
-                      <td className="px-4 py-3 text-[#333333] font-medium">
-                        {productName(t.productId)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <TxTypeBadge type={t.type} />
-                      </td>
-                      <td className="px-4 py-3 text-[#666666]">{t.location}</td>
-                      <td className="px-4 py-3 text-green-700 font-semibold">
-                        {t.type === "sale" || t.type === "transfer" || t.type === "adjustment" && t.quantity < 0
-                          ? "—"
-                          : `+${t.quantity.toLocaleString()} ${productUnit(t.productId)}s`}
-                      </td>
-                      <td className="px-4 py-3 text-red-600 font-semibold">
-                        {t.type === "sale" || t.type === "transfer"
-                          ? `−${t.quantity.toLocaleString()} ${productUnit(t.productId)}s`
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-[#666666] font-mono">
-                        {t.reference}
-                      </td>
-                    </tr>
-                  ))}
+                  {recentActivity.map((t, i) => {
+                    const productName =
+                      (t.product as { name?: string } | undefined)?.name ?? t.productId
+                    const locationName =
+                      (t.location as { name?: string } | undefined)?.name ?? "—"
+                    const batchNumber =
+                      (t.batch as { batchNumber?: string } | undefined)?.batchNumber
+                    const isIn = t.direction === "IN"
+                    const qtyLabel = `${t.quantity.toLocaleString()}${batchNumber ? ` · ${batchNumber}` : ""}`
+                    return (
+                      <tr
+                        key={t.id}
+                        className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}
+                      >
+                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
+                          {formatTime(t.createdAt)}
+                        </td>
+                        <td className="px-4 py-3 text-[#333333] font-medium">
+                          {productName}
+                        </td>
+                        <td className="px-4 py-3">
+                          <TxTypeBadge type={t.transactionType} />
+                        </td>
+                        <td className="px-4 py-3 text-[#666666]">{locationName}</td>
+                        <td className="px-4 py-3 text-green-700 font-semibold">
+                          {isIn ? `+${qtyLabel}` : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-red-600 font-semibold">
+                          {!isIn ? `−${qtyLabel}` : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[#666666] font-mono">
+                          {t.referenceType ?? t.referenceId ?? "—"}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -379,13 +426,13 @@ function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
 
 function TxTypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    received: { label: "Received", cls: "bg-green-100 text-green-700" },
-    sale: { label: "Sale", cls: "bg-blue-100 text-blue-700" },
-    transfer: { label: "Transfer", cls: "bg-purple-100 text-purple-700" },
-    adjustment: { label: "Adjustment", cls: "bg-orange-100 text-orange-700" },
-    opening: { label: "Opening", cls: "bg-[#DBEFF3] text-[#49B0C1]" },
-    disposal: { label: "Disposal", cls: "bg-red-100 text-red-700" },
-    return: { label: "Return", cls: "bg-yellow-100 text-yellow-700" },
+    RECEIPT: { label: "Received", cls: "bg-green-100 text-green-700" },
+    SALE: { label: "Sale", cls: "bg-blue-100 text-blue-700" },
+    TRANSFER: { label: "Transfer", cls: "bg-purple-100 text-purple-700" },
+    ADJUSTMENT: { label: "Adjustment", cls: "bg-orange-100 text-orange-700" },
+    OPENING: { label: "Opening", cls: "bg-[#DBEFF3] text-[#49B0C1]" },
+    DISPOSAL: { label: "Disposal", cls: "bg-red-100 text-red-700" },
+    RETURN: { label: "Return", cls: "bg-yellow-100 text-yellow-700" },
   }
   const cfg = map[type] ?? { label: type, cls: "bg-gray-100 text-gray-700" }
   return (

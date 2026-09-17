@@ -1,6 +1,9 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { CATEGORIES, type POSProduct } from "../../features/pos/posMock";
-import { searchProducts, fmt } from "../../features/pos/posService";
+import { getPosProducts, adaptPosProduct, PosApiError } from "../../features/pos/posApi";
+import { listProductGroups } from "../../features/inventory/productGroupsApi";
+import type { ProductGroupDto } from "../../features/inventory/productGroupsApi";
+import { fmt } from "../../features/pos/posService";
 import { useCart } from "../../features/pos/useCart";
 import { useAuth } from "../../features/auth/AuthContext";
 import type { POSUnit } from "../../features/pos/posMock";
@@ -11,10 +14,14 @@ import PriceOverrideModal from "./components/PriceOverrideModal";
 
 type Modal = "none" | "product" | "payment" | "discount" | "override";
 
+const PAGE_SIZE = 100;
+
 export default function POSPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<POSProduct[]>([]);
+  const [groups, setGroups] = useState<ProductGroupDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<POSProduct | null>(null);
@@ -22,6 +29,7 @@ export default function POSPage() {
   const [overrideItem, setOverrideItem] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false); // mobile cart toggle
   const [saleComplete, setSaleComplete] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const [now, setNow] = useState(new Date());
 
   const cart = useCart();
@@ -29,11 +37,43 @@ export default function POSPage() {
   // Clock
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  // Load products
+  // Load product groups once for the category chips (server-side group filter).
   useEffect(() => {
-    setLoading(true);
-    searchProducts(search, category).then((data) => { setProducts(data); setLoading(false); });
-  }, [search, category]);
+    let cancelled = false;
+    listProductGroups({ isActive: true, limit: 50 })
+      .then((res) => { if (!cancelled) setGroups(res.data.filter((g) => g.isActive)); })
+      .catch(() => { if (!cancelled) setGroups([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Debounced product search against GET /pos/products.
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setLoading(true);
+      getPosProducts({
+        page: 1,
+        limit: PAGE_SIZE,
+        search: search.trim() || undefined,
+        productGroupId: category === "all" ? undefined : category,
+      })
+        .then((res) => {
+          if (cancelled) return;
+          setProducts(res.data.map(adaptPosProduct));
+          setLoadError(null);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setLoadError(
+            err instanceof PosApiError
+              ? err.message
+              : "Failed to load products. Please try again."
+          );
+        })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [search, category, retryTick]);
 
   function handleProductClick(p: POSProduct) {
     if (p.status === "out_of_stock") return;
@@ -121,12 +161,37 @@ export default function POSPage() {
                   {cat.label}
                 </button>
               ))}
+              {groups
+                .filter((g) => !CATEGORIES.some((c) => c.id === g.id))
+                .map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setCategory(g.id)}
+                    className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                      category === g.id
+                        ? "bg-[#49B0C1] text-white shadow-sm"
+                        : "bg-[#ABDBE3]/60 text-[#333333] hover:bg-[#ABDBE3]"
+                    }`}
+                  >
+                    <CategoryIcon icon="grid" />
+                    {g.name}
+                  </button>
+                ))}
             </div>
           </div>
 
           {/* Product grid */}
           <div className="flex-1 overflow-y-auto p-4">
-            {loading ? (
+            {loadError ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center text-3xl mb-4">⚠️</div>
+                <p className="text-lg font-semibold text-[#333333]">Couldn't load products</p>
+                <p className="text-sm text-red-600 mt-1 max-w-sm">{loadError}</p>
+                <button onClick={() => setRetryTick((t) => t + 1)} className="mt-4 rounded-lg bg-[#49B0C1] text-white px-5 py-2 text-sm font-semibold hover:bg-[#3a9baf] transition-colors">
+                  Retry
+                </button>
+              </div>
+            ) : loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {[...Array(8)].map((_, i) => (
                   <div key={i} className="h-40 rounded-xl bg-[#DBEFF3] animate-pulse" />
