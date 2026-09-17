@@ -4,16 +4,25 @@ import { getReorderData } from "../../features/inventory/inventoryService";
 import PageHeader from "../../components/ui/PageHeader";
 import MetricCard from "../../components/ui/MetricCard";
 import Button from "../../components/ui/Button";
+import GenerateRequirementsModal from "./ReorderReq";
 
 export default function ReorderManagementPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<Awaited<ReturnType<typeof getReorderData>>>([]);
   const [loading, setLoading] = useState(true);
+  const [showGenerate, setShowGenerate] = useState(false);
 
   useEffect(() => { getReorderData().then((d) => { setData(d); setLoading(false); }); }, []);
 
   const criticalCount = data.filter((d) => d.urgency === "critical").length;
   const avgSales = data.length ? (data.reduce((s, d) => s + d.avgDailySales, 0) / data.length).toFixed(1) : "0";
+
+  const suggestions = data.map((d) => ({
+    id: d.productId,
+    name: d.productName,
+    suggestedQty: d.suggestedQty,
+    status: "Draft",
+  }));
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -24,7 +33,7 @@ export default function ReorderManagementPage() {
         actions={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => navigate("/inventory/reorder/configuration")}>Configure Thresholds</Button>
-            <Button onClick={() => alert("Generate purchase requirements — backend pending")}>Generate Requirements</Button>
+            <Button onClick={() => setShowGenerate(true)}>Generate Requirements</Button>
           </div>
         }
       />
@@ -100,9 +109,9 @@ export default function ReorderManagementPage() {
                           <td className="px-4 py-3 text-[#666666]">{d.avgDailySales}</td>
                           <td className="px-4 py-3 text-[#666666]">{d.leadTime}</td>
                           <td className="px-4 py-3 font-semibold text-[#49B0C1]">{d.suggestedQty}</td>
-                          <td className="px-4 py-3">
+                          {/*<td className="px-4 py-3">
                             <Button onClick={() => alert("Create purchase order — Purchasing module coming soon.")}>Order</Button>
-                          </td>
+                          </td>*/}
                         </tr>
                       ))}
                     </tbody>
@@ -113,6 +122,16 @@ export default function ReorderManagementPage() {
           </>
         )}
       </div>
+
+      <GenerateRequirementsModal
+        open={showGenerate}
+        onClose={() => setShowGenerate(false)}
+        suggestions={suggestions}
+        onGenerate={(items) => {
+          console.log("Generating purchase requirements for:", items);
+          // TODO: call your backend / navigate to purchase requirements page
+        }}
+      />
     </div>
   );
 }

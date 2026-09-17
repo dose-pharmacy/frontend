@@ -55,7 +55,7 @@ export default function ReorderConfigPage() {
     : `Reorder Qty = Fixed quantity of ${config.reorderQty || "—"} units`;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
       <PageHeader title="Reorder Threshold Configuration" subtitle="Set restocking parameters per product" />
       <Breadcrumb items={[{ label: "Reorder Management", to: "/inventory/reorder" }, { label: "Configuration" }]} />
 

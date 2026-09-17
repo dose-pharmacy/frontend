@@ -879,7 +879,8 @@ function BinCardView({
     let cancelled = false
     setLoading(true)
     setError("")
-    getBinCard({ productId: row.productId, batchId: row.batchId })
+    //getBinCard({ productId: row.productId, batchId: row.batchId })
+    getBinCard({ productId: row.productId, batchId: row.batchId, locationId: row.locationId })
       .then((result) => { if (!cancelled) setCard(result) })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load the bin card.")
