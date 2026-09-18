@@ -176,9 +176,9 @@ export default function ReorderManagementPage() {
                             <td className="px-4 py-3 text-[#666666]">{s.averageDailySales}</td>
                             <td className="px-4 py-3 text-[#666666]">{s.leadTimeDays}</td>
                             <td className="px-4 py-3 font-semibold text-[#49B0C1]">{s.suggestedQuantity}</td>
-                            {/*<td className="px-4 py-3">
+                            <td className="px-4 py-3">
                               <Button onClick={() => alert("Create purchase order — Purchasing module coming soon.")}>Order</Button>
-                            </td>*/}
+                            </td>
                           </tr>
                         ))
                       )}

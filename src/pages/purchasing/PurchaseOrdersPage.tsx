@@ -1,185 +1,409 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
-import PurchasingSubNav from "./PurchasingSubNav";
-import PageHeader from "../../components/ui/PageHeader";
-import { getPurchaseOrders, getSuppliers, fmtMoney, fmtDate } from "../../features/purchasing/purchasingService";
-import type { PurchaseOrder, Supplier } from "../../features/purchasing/purchasingMock";
+import { useState, useRef, useEffect } from "react"
+import { useNavigate } from "react-router"
+import PageHeader from "../../components/ui/PageHeader"
+import SearchInput from "../../components/ui/SearchInput"
+import Modal from "../../components/ui/Modal"
+import Button from "../../components/ui/Button"
 
-const PAGE_SIZE = 5;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const STATUS_BADGE: Record<string, string> = {
-  draft: "bg-gray-400 text-white",
-  sent: "bg-[#49B0C1] text-white",
-  delivered: "bg-purple-500 text-white",
-  received: "bg-yellow-400 text-[#333333]",
-  completed: "bg-green-500 text-white",
-};
+export type POStatus = "REGISTERED" | "AWAITING_DELIVERY" | "RECEIVED" | "CLOSED" | "CANCELLED"
+
+export interface POItem {
+  id: string
+  product: string
+  requirementRef: string
+  quantity: number
+  unitCost: number
+}
+
+export interface PurchaseOrder {
+  id: string
+  reference: string
+  supplierId: string
+  supplierName: string
+  orderDate: string
+  expectedDeliveryDate: string
+  status: POStatus
+  items: POItem[]
+  notes: string
+  requirementRef: string
+}
+
+// ─── Mock data ────────────────────────────────────────────────────────────────
+
+export const MOCK_SUPPLIERS = [
+  { id: "s1", name: "PharmaCo Ltd",     contact: "Ahmed Mohammed", phone: "+251 911 123 456", email: "info@pharmaco.com",    paymentTerms: "Net 30" },
+  { id: "s2", name: "MediPharma",       contact: "Sara Tadesse",   phone: "+251 912 234 567", email: "orders@medipharma.et", paymentTerms: "Net 14" },
+  { id: "s3", name: "GlobalMed Supply", contact: "Daniel Bekele",  phone: "+251 913 345 678", email: "supply@globalmed.com", paymentTerms: "Net 45" },
+  { id: "s4", name: "EthioHealth",      contact: "Meron Haile",    phone: "+251 914 456 789", email: "info@ethiohealth.et",  paymentTerms: "Net 60" },
+]
+
+export const MOCK_REQUIREMENTS = [
+  { id: "r1", reference: "REQ-001", label: "REQ-001 — Low Stock Replenishment" },
+  { id: "r2", reference: "REQ-002", label: "REQ-002 — Urgent Restocking" },
+  { id: "r3", reference: "REQ-004", label: "REQ-004 — Monthly Order" },
+]
+
+let nextPONum = 5
+
+export const INITIAL_POS: PurchaseOrder[] = [
+  {
+    id: "po1", reference: "PO-2026-001", supplierId: "s1", supplierName: "PharmaCo Ltd",
+    orderDate: "2026-09-16", expectedDeliveryDate: "2026-09-21", status: "AWAITING_DELIVERY",
+    requirementRef: "REQ-001",
+    notes: "Urgent delivery required before month-end.",
+    items: [
+      { id: "i1", product: "Paracetamol 500mg", requirementRef: "REQ-001", quantity: 100, unitCost: 120 },
+      { id: "i2", product: "Amoxicillin 500mg", requirementRef: "REQ-001", quantity: 50, unitCost: 85 },
+      { id: "i3", product: "Vitamin C 1000mg",  requirementRef: "REQ-001", quantity: 75, unitCost: 60 },
+    ],
+  },
+  {
+    id: "po2", reference: "PO-2026-002", supplierId: "s2", supplierName: "MediPharma",
+    orderDate: "2026-09-15", expectedDeliveryDate: "2026-09-19", status: "REGISTERED",
+    requirementRef: "REQ-002",
+    notes: "",
+    items: [
+      { id: "i4", product: "Ibuprofen 400mg", requirementRef: "REQ-002", quantity: 80, unitCost: 95 },
+      { id: "i5", product: "Metformin 850mg", requirementRef: "REQ-002", quantity: 60, unitCost: 75 },
+    ],
+  },
+  {
+    id: "po3", reference: "PO-2026-003", supplierId: "s3", supplierName: "GlobalMed Supply",
+    orderDate: "2026-09-10", expectedDeliveryDate: "2026-09-14", status: "RECEIVED",
+    requirementRef: "",
+    notes: "Manual purchase order for cold-chain products.",
+    items: [
+      { id: "i6", product: "Atorvastatin 20mg", requirementRef: "", quantity: 45, unitCost: 110 },
+    ],
+  },
+  {
+    id: "po4", reference: "PO-2026-004", supplierId: "s1", supplierName: "PharmaCo Ltd",
+    orderDate: "2026-09-05", expectedDeliveryDate: "2026-09-09", status: "CLOSED",
+    requirementRef: "REQ-004",
+    notes: "",
+    items: [
+      { id: "i7", product: "Omeprazole 20mg",  requirementRef: "REQ-004", quantity: 120, unitCost: 55 },
+      { id: "i8", product: "Cetirizine 10mg",  requirementRef: "REQ-004", quantity: 200, unitCost: 40 },
+      { id: "i9", product: "Losartan 50mg",    requirementRef: "REQ-004", quantity: 60, unitCost: 90 },
+    ],
+  },
+  {
+    id: "po5", reference: "PO-2026-005", supplierId: "s4", supplierName: "EthioHealth",
+    orderDate: "2026-09-12", expectedDeliveryDate: "2026-09-18", status: "CANCELLED",
+    requirementRef: "",
+    notes: "Supplier could not fulfill the order.",
+    items: [
+      { id: "i10", product: "Insulin Glargine", requirementRef: "", quantity: 20, unitCost: 850 },
+    ],
+  },
+]
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export function fmtDate(d: string) {
+  if (!d) return "—"
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+function fmtMoney(n: number) { return `${n.toLocaleString("en-ET")} ETB` }
+
+function poTotal(po: PurchaseOrder) { return po.items.reduce((s, i) => s + i.quantity * i.unitCost, 0) }
+
+const STATUS_CFG: Record<POStatus, { label: string; cls: string }> = {
+  REGISTERED:       { label: "Registered",       cls: "bg-blue-100 text-blue-700" },
+  AWAITING_DELIVERY:{ label: "Awaiting Delivery", cls: "bg-yellow-100 text-yellow-700" },
+  RECEIVED:         { label: "Received",          cls: "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]" },
+  CLOSED:           { label: "Closed",            cls: "bg-green-100 text-green-700" },
+  CANCELLED:        { label: "Cancelled",         cls: "bg-gray-100 text-gray-500" },
+}
+
+export function StatusBadge({ status }: { status: POStatus }) {
+  const cfg = STATUS_CFG[status]
+  return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${cfg.cls}`}>{cfg.label}</span>
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+export function Toast({ message, onDone }: { message: string; onDone: () => void }) {
+  useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t) }, [onDone])
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl bg-[#333333] px-5 py-3.5 text-sm text-white shadow-xl">
+      <svg className="h-4 w-4 shrink-0 text-[#49B0C1]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+      </svg>
+      {message}
+    </div>
+  )
+}
+
+// ─── OverflowMenu ─────────────────────────────────────────────────────────────
+
+function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onClick: () => void }[] }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    function close(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener("mousedown", close)
+    return () => document.removeEventListener("mousedown", close)
+  }, [])
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg text-[#666666] hover:bg-[#DBEFF3] transition-colors">
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+          <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-30 w-52 rounded-xl border border-[#DBEFF3] bg-white shadow-xl py-1">
+          {items.map((item) => (
+            <button key={item.label} onClick={() => { setOpen(false); item.onClick() }} className={`w-full text-left px-4 py-2 text-sm hover:bg-[#DBEFF3]/60 transition-colors ${item.danger ? "text-red-600" : "text-[#333333]"}`}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Confirm Modal ────────────────────────────────────────────────────────────
+
+function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass, cancelLabel = "Cancel", onClose, onConfirm }: {
+  open: boolean; title: string; message: string; detail?: string
+  confirmLabel: string; confirmClass: string; cancelLabel?: string
+  onClose: () => void; onConfirm: () => Promise<void> | void
+}) {
+  const [loading, setLoading] = useState(false)
+  async function go() { setLoading(true); await onConfirm(); setLoading(false) }
+  return (
+    <Modal open={open} title={title} onClose={onClose} size="sm">
+      <p className="text-sm text-[#666666]">{message}</p>
+      {detail && <p className="mt-2 text-xs text-[#999]">{detail}</p>}
+      <div className="flex gap-3 justify-end mt-6">
+        <Button variant="secondary" onClick={onClose}>{cancelLabel}</Button>
+        <button onClick={go} disabled={loading} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 ${confirmClass}`}>
+          {loading ? "Processing..." : confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function PurchaseOrdersPage() {
-  const navigate = useNavigate();
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [suppFilter, setSuppFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const navigate = useNavigate()
+  const [orders, setOrders] = useState<PurchaseOrder[]>(INITIAL_POS)
+  const [suppFilter, setSuppFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const [toast, setToast] = useState("")
+  const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "markDelivery" | "close" | "cancel" } | null>(null)
 
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      getPurchaseOrders({ supplierId: suppFilter, status: statusFilter, search }),
-      getSuppliers(),
-    ]).then(([pos, sups]) => {
-      setOrders(pos);
-      setSuppliers(sups);
-      setLoading(false);
-    });
-  }, [suppFilter, statusFilter, search]);
+  const PAGE_SIZE = 10
 
-  const totalPages = Math.ceil(orders.length / PAGE_SIZE);
-  const paged = orders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filtered = orders.filter((o) => {
+    if (suppFilter && o.supplierId !== suppFilter) return false
+    if (statusFilter && o.status !== statusFilter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (!o.reference.toLowerCase().includes(q) && !o.supplierName.toLowerCase().includes(q)) return false
+    }
+    return true
+  })
 
-  const stats = {
-    total: orders.length,
-    pending: orders.filter((o) => o.status === "draft" || o.status === "sent").length,
-    inProgress: orders.filter((o) => o.status === "delivered" || o.status === "received").length,
-    completed: orders.filter((o) => o.status === "completed").length,
-  };
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const summary = {
+    total:    orders.length,
+    registered:    orders.filter((o) => o.status === "REGISTERED").length,
+    awaiting: orders.filter((o) => o.status === "AWAITING_DELIVERY").length,
+    received: orders.filter((o) => o.status === "RECEIVED").length,
+    closed:   orders.filter((o) => o.status === "CLOSED").length,
+  }
+
+  function updateStatus(id: string, status: POStatus) {
+    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status } : o))
+  }
+
+  function handleAction() {
+    if (!actionTarget) return
+    const { po, action } = actionTarget
+    const next: POStatus = action === "markDelivery" ? "AWAITING_DELIVERY" : action === "close" ? "CLOSED" : "CANCELLED"
+    const msgs: Record<string, string> = {
+      markDelivery: "Purchase order marked as awaiting delivery.",
+      close: "Purchase order closed.",
+      cancel: "Purchase order cancelled.",
+    }
+    updateStatus(po.id, next)
+    setActionTarget(null)
+    setToast(msgs[action])
+  }
+
+  const confirmCfg = actionTarget ? {
+    markDelivery: { title: "Mark as Awaiting Delivery?", message: `Send ${actionTarget.po.reference} to the supplier and mark it as awaiting delivery?`, confirmLabel: "Mark Awaiting Delivery", confirmClass: "bg-yellow-600 hover:bg-yellow-700 text-white", cancelLabel: "Cancel" },
+    close:        { title: "Close Purchase Order?", message: `This purchase order has been received. Closing it will mark the purchasing cycle as complete.`, confirmLabel: "Close Purchase Order", confirmClass: "bg-[#49B0C1] hover:bg-[#3a9aaa] text-white", cancelLabel: "Cancel" },
+    cancel:       { title: "Cancel Purchase Order?", message: `Are you sure you want to cancel ${actionTarget.po.reference}? This action will mark the order as cancelled.`, confirmLabel: "Cancel Purchase Order", confirmClass: "bg-red-600 hover:bg-red-700 text-white", cancelLabel: "Keep Order" },
+  }[actionTarget.action] : null
 
   return (
-    <div className="flex flex-col min-h-0 flex-1">
+    <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
+        breadcrumb="Purchasing / Orders"
         title="Purchase Orders"
-        subtitle="Purchasing → Orders"
+        subtitle="Create and manage supplier purchase orders."
         actions={
-          <button onClick={() => navigate("/purchasing/orders/new")} className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors">
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
-            Create New Order
+          <button onClick={() => navigate("/purchasing/orders/new")} className="inline-flex items-center gap-1.5 rounded-xl bg-white text-[#49B0C1] px-3.5 py-2 text-sm font-semibold hover:bg-[#DBEFF3] transition-colors">
+            + Create Purchase Order
           </button>
         }
       />
-     
 
-      <div className="flex-1 overflow-y-auto">
-        {/* Filters */}
-        <div className="bg-[#DBEFF3] px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 border-b border-[#ABDBE3]">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#666666] uppercase tracking-wide">Supplier</span>
-            <select value={suppFilter} onChange={(e) => { setSuppFilter(e.target.value); setPage(1); }} className="rounded-md border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none">
-              <option value="all">All Suppliers</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#666666] uppercase tracking-wide">Status</span>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="rounded-md border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none">
-              <option value="all">All</option>
-              <option value="draft">Draft</option>
-              <option value="sent">Sent</option>
-              <option value="delivered">Delivered</option>
-              <option value="received">Received</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-0.5 flex-1 min-w-[160px] max-w-xs">
-            <span className="text-[10px] text-[#666666] uppercase tracking-wide">Search</span>
-            <div className="relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#666666]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd"/></svg>
-              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search by PO # or supplier..." className="w-full rounded-md border border-[#ABDBE3] bg-white pl-8 pr-3 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none" />
-            </div>
-          </div>
-          <button onClick={() => { setSuppFilter("all"); setStatusFilter("all"); setSearch(""); setPage(1); }} className="self-end rounded-md bg-white border border-[#ABDBE3] px-3 py-1.5 text-sm text-[#666666] hover:bg-[#ABDBE3] transition-colors">⟳ Refresh</button>
-        </div>
-
-        {/* Stats */}
-        <div className="bg-white px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-[#DBEFF3]">
-          {[
-            { label: "Total Orders", value: stats.total, color: "text-[#333333]", icon: "📋" },
-            { label: "Pending", value: stats.pending, color: "text-orange-500", icon: "⏳" },
-            { label: "In Progress", value: stats.inProgress, color: "text-yellow-600", icon: "🔄" },
-            { label: "Completed", value: stats.completed, color: "text-green-600", icon: "✅" },
-          ].map(({ label, value, color, icon }) => (
-            <div key={label} className="bg-[#DBEFF3] rounded-xl p-4 flex items-center gap-3 border border-[#ABDBE3]/30 shadow-sm">
-              <span className="text-2xl" aria-hidden>{icon}</span>
-              <div>
-                <p className="text-xs text-[#666666]">{label}</p>
-                <p className={`text-2xl font-bold ${color}`}>{value}</p>
-              </div>
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {([
+            ["Total Orders",     summary.total,      "text-[#333333]"],
+            ["Registered",       summary.registered, "text-blue-600"],
+            ["Awaiting Delivery",summary.awaiting,   "text-yellow-600"],
+            ["Received",         summary.received,   "text-[#49B0C1]"],
+            ["Closed",           summary.closed,     "text-green-600"],
+          ] as [string, number, string][]).map(([label, val, accent]) => (
+            <div key={label} className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+              <p className="text-xs text-[#666666]">{label}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{val}</p>
             </div>
           ))}
         </div>
 
-        {/* Table */}
-        <div className="px-4 sm:px-6 py-4">
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[#ABDBE3]">
-                  {["PO Number", "Supplier", "Date", "Items", "Total Amount", "Status", "Actions"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
-                      {Array.from({ length: 7 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-[#ABDBE3]/40 rounded animate-pulse" /></td>)}
-                    </tr>
-                  ))
-                ) : paged.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-[#666666]">No purchase orders found.</td></tr>
-                ) : (
-                  paged.map((po, i) => (
-                    <tr key={po.id} className={`hover:bg-[#DBEFF3]/60 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}`}>
-                      <td className="px-4 py-3">
-                        <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-[#49B0C1] font-medium hover:underline">{po.reference}</button>
-                      </td>
-                      <td className="px-4 py-3 text-[#333333]">{po.supplierName}</td>
-                      <td className="px-4 py-3 text-[#333333]">{fmtDate(po.date)}</td>
-                      <td className="px-4 py-3 text-[#333333]">{po.items.length} items</td>
-                      <td className="px-4 py-3 font-semibold text-[#333333]">{fmtMoney(po.total)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${STATUS_BADGE[po.status]}`}>{po.status}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-[#49B0C1] hover:text-[#3a9baf]" title="View">
-                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41z" clipRule="evenodd"/></svg>
-                          </button>
-                          {(po.status === "draft") && (
-                            <button className="text-[#ABDBE3] hover:text-[#49B0C1]" title="Edit">
-                              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"/></svg>
-                            </button>
-                          )}
-                          {po.status === "draft" && (
-                            <button className="text-red-400 hover:text-red-600" title="Delete">
-                              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd"/></svg>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+        {/* Filters */}
+        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
+          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
+          <div className="flex flex-wrap gap-3 items-center">
+            <select value={suppFilter} onChange={(e) => { setSuppFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+              <option value="">All Suppliers</option>
+              {MOCK_SUPPLIERS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+              <option value="">All Statuses</option>
+              <option value="REGISTERED">Registered</option>
+              <option value="AWAITING_DELIVERY">Awaiting Delivery</option>
+              <option value="RECEIVED">Received</option>
+              <option value="CLOSED">Closed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+            {(search || suppFilter || statusFilter) && (
+              <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPage(1) }} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+                Clear Filters
+              </button>
+            )}
           </div>
-          {!loading && orders.length > 0 && (
-            <div className="flex items-center justify-between mt-3 px-1">
-              <p className="text-sm text-[#666666]">Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, orders.length)} of {orders.length} orders</p>
-              <div className="flex items-center gap-1">
-                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">← Prev</button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3]"}`}>{p}</button>
-                ))}
-                <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Next →</button>
+        </div>
+
+        {/* Table */}
+        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-[#DBEFF3] flex items-center justify-center">
+                <svg className="h-7 w-7 text-[#49B0C1]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" />
+                </svg>
               </div>
+              <div className="text-center">
+                <p className="font-semibold text-[#333333]">No purchase orders found</p>
+                <p className="text-sm text-[#666666] mt-1">
+                  {(search || suppFilter || statusFilter)
+                    ? "No purchase orders match your filters."
+                    : "Purchase orders will appear here once they are created."}
+                </p>
+              </div>
+              {(search || suppFilter || statusFilter) ? (
+                <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPage(1) }} className="text-sm font-semibold text-[#49B0C1] hover:underline">Clear Filters</button>
+              ) : (
+                <Button onClick={() => navigate("/purchasing/orders/new")}>+ Create Purchase Order</Button>
+              )}
             </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#DBEFF3] text-left">
+                      {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Items", "Total Amount", "Status", "Actions"].map((h) => (
+                        <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginated.map((po, i) => (
+                      <tr key={po.id} className={`hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}>
+                        <td className="px-4 py-3">
+                          <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="font-semibold text-[#49B0C1] hover:underline">{po.reference}</button>
+                        </td>
+                        <td className="px-4 py-3 text-[#333333]">{po.supplierName}</td>
+                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.orderDate)}</td>
+                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.expectedDeliveryDate)}</td>
+                        <td className="px-4 py-3 text-[#666666]">{po.items.length} item{po.items.length !== 1 ? "s" : ""}</td>
+                        <td className="px-4 py-3 font-semibold text-[#333333]">{fmtMoney(poTotal(po))}</td>
+                        <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">View →</button>
+                            <OverflowMenu items={[
+                              { label: "View", onClick: () => navigate(`/purchasing/orders/${po.id}`) },
+                              ...(po.status === "REGISTERED" ? [
+                                { label: "Edit", onClick: () => navigate(`/purchasing/orders/${po.id}?edit=1`) },
+                                { label: "Mark as Awaiting Delivery", onClick: () => setActionTarget({ po, action: "markDelivery" }) },
+                                { label: "Cancel Order", danger: true, onClick: () => setActionTarget({ po, action: "cancel" }) },
+                              ] : []),
+                              ...(po.status === "AWAITING_DELIVERY" ? [
+                                { label: "Cancel Order", danger: true, onClick: () => setActionTarget({ po, action: "cancel" }) },
+                              ] : []),
+                              ...(po.status === "RECEIVED" ? [
+                                { label: "Close Purchase Order", onClick: () => setActionTarget({ po, action: "close" }) },
+                              ] : []),
+                            ]} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+                <p className="text-xs text-[#666666]">
+                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} orders
+                </p>
+                <div className="flex gap-1">
+                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+                  ))}
+                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
+
+      {actionTarget && confirmCfg && (
+        <ConfirmModal
+          open
+          title={confirmCfg.title}
+          message={confirmCfg.message}
+          confirmLabel={confirmCfg.confirmLabel}
+          confirmClass={confirmCfg.confirmClass}
+          cancelLabel={confirmCfg.cancelLabel}
+          onClose={() => setActionTarget(null)}
+          onConfirm={async () => { await new Promise((r) => setTimeout(r, 500)); handleAction() }}
+        />
+      )}
+      {toast && <Toast message={toast} onDone={() => setToast("")} />}
     </div>
-  );
+  )
 }
