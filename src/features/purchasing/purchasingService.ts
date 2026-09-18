@@ -1,5 +1,4 @@
 import {
-  MOCK_SUPPLIERS,
   MOCK_REQUIREMENTS,
   MOCK_PURCHASE_ORDERS,
   MOCK_DELIVERIES,
@@ -13,17 +12,53 @@ import {
   type Invoice,
   type PurchaseReturn,
 } from "./purchasingMock";
+import {
+  listSuppliers,
+  getSupplierById,
+  type SupplierDto,
+  type SupplierDetailDto,
+} from "./suppliersApi";
 
 const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
 
+// ── Suppliers — live API (GET /purchasing/suppliers) ─────────────────────────
+// The real payload (contactPerson / paymentTerms / isActive / _count /
+// totalOutstanding) is adapted onto the UI's Supplier shape so every
+// supplier dropdown renders unchanged. rating has no API equivalent.
+
+function toUiSupplier(s: SupplierDto): Supplier {
+  return {
+    id: s.id,
+    name: s.name,
+    contact: s.contactPerson ?? "—",
+    phone: s.phone ?? "—",
+    email: s.email ?? "—",
+    address: s.address ?? "—",
+    rating: 0,
+    previousOrders: s._count?.purchaseOrders ?? 0,
+  };
+}
+
 export async function getSuppliers(): Promise<Supplier[]> {
-  await delay();
-  return [...MOCK_SUPPLIERS];
+  // Sweep pages so dropdowns get the full supplier list (page size 100).
+  const first = await listSuppliers({ page: 1, limit: 100 });
+  const rows = [...first.data];
+  const totalPages = first.meta.totalPages ?? 1;
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await listSuppliers({ page, limit: 100 });
+    rows.push(...next.data);
+  }
+  return rows.map(toUiSupplier);
 }
 
 export async function getSupplier(id: string): Promise<Supplier | undefined> {
-  await delay(200);
-  return MOCK_SUPPLIERS.find((s) => s.id === id);
+  const detail = await getSupplierById(id);
+  return toUiSupplier(detail);
+}
+
+/** Full supplier detail (POs, invoices, counts, outstanding) straight from GET /suppliers/{id}. */
+export async function getSupplierDetail(id: string): Promise<SupplierDetailDto> {
+  return getSupplierById(id);
 }
 
 export async function getRequirements(filters?: {
@@ -116,8 +151,9 @@ export async function getReorderAlerts() {
   return REORDER_ALERT_PRODUCTS;
 }
 
-export function fmtMoney(amount: number): string {
-  return `${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
+export function fmtMoney(amount: number | string): string {
+  const n = Number(amount) || 0;
+  return `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
 }
 
 export function fmtDate(dateStr: string): string {

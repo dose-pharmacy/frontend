@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router";
 import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import { getRequirement, getSuppliers, fmtMoney, fmtDate } from "../../features/purchasing/purchasingService";
+import { getSupplierById } from "../../features/purchasing/suppliersApi";
+import type { SupplierDetailDto } from "../../features/purchasing/suppliersApi";
 import type { PurchaseRequirement, Supplier } from "../../features/purchasing/purchasingMock";
 
 export default function SupplierAssignmentPage() {
@@ -12,6 +14,9 @@ export default function SupplierAssignmentPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [panelSupplier, setPanelSupplier] = useState<Supplier | null>(null);
+  const [panelDetail, setPanelDetail] = useState<SupplierDetailDto | null>(null);
+  const [panelLoading, setPanelLoading] = useState(false);
+  const [panelError, setPanelError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -38,6 +43,18 @@ export default function SupplierAssignmentPage() {
     await new Promise((r) => setTimeout(r, 900));
     setSaving(false);
     navigate("/purchasing/orders");
+  }
+
+  /** Opens the side panel and loads live data from GET /purchasing/suppliers/{id}. */
+  function openSupplierPanel(supplier: Supplier) {
+    setPanelSupplier(supplier);
+    setPanelDetail(null);
+    setPanelError(null);
+    setPanelLoading(true);
+    getSupplierById(supplier.id)
+      .then(setPanelDetail)
+      .catch(() => setPanelError("Could not load supplier details. Please try again."))
+      .finally(() => setPanelLoading(false));
   }
 
   if (loading) {
@@ -149,7 +166,7 @@ export default function SupplierAssignmentPage() {
                     <div className="text-xs text-[#666666] space-y-0.5">
                       <p>📞 {assignedSup.phone}</p>
                       <p>✉ {assignedSup.email}</p>
-                      <button onClick={() => setPanelSupplier(assignedSup)} className="text-[#49B0C1] hover:underline">{assignedSup.previousOrders} previous orders →</button>
+                      <button onClick={() => openSupplierPanel(assignedSup)} className="text-[#49B0C1] hover:underline">{assignedSup.previousOrders} previous orders →</button>
                     </div>
                   )}
                 </div>
@@ -195,27 +212,35 @@ export default function SupplierAssignmentPage() {
                 <p>✉ {panelSupplier.email}</p>
                 <p>📍 {panelSupplier.address}</p>
               </div>
+              {panelError && (
+                <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">⚠ {panelError}</div>
+              )}
+              {panelLoading && <div className="h-28 rounded-lg bg-[#DBEFF3] animate-pulse" />}
               <div>
-                <p className="text-sm font-semibold text-[#333333] mb-1">Rating</p>
-                <p className="text-[#49B0C1] font-bold">{"★".repeat(Math.floor(panelSupplier.rating))}{"☆".repeat(5 - Math.floor(panelSupplier.rating))} {panelSupplier.rating}/5</p>
+                <p className="text-sm font-semibold text-[#333333] mb-1">Outstanding Balance</p>
+                <p className="text-[#49B0C1] font-bold">{fmtMoney(panelDetail?.totalOutstanding ?? 0)}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-[#333333] mb-1">Payment Terms</p>
+                <p className="text-sm text-[#666666]">{panelDetail?.paymentTerms ?? "—"}</p>
               </div>
               <div>
                 <p className="font-bold text-[#333333] mb-2">Previous Orders</p>
                 <div className="rounded-lg overflow-hidden border border-[#DBEFF3] text-sm">
                   <table className="w-full">
-                    <thead><tr className="bg-[#ABDBE3]"><th className="px-3 py-2 text-left text-xs">PO #</th><th className="px-3 py-2 text-right text-xs">Amount</th><th className="px-3 py-2 text-right text-xs">Status</th></tr></thead>
+                    <thead><tr className="bg-[#ABDBE3]"><th className="px-3 py-2 text-left text-xs">PO #</th><th className="px-3 py-2 text-right text-xs">Order Date</th><th className="px-3 py-2 text-right text-xs">Status</th></tr></thead>
                     <tbody>
-                      {[
-                        { po: "PO-2026-001", amt: 52325, status: "Delivered" },
-                        { po: "PO-2025-015", amt: 28200, status: "Delivered" },
-                        { po: "PO-2025-003", amt: 16800, status: "Completed" },
-                      ].map((o, i) => (
-                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
-                          <td className="px-3 py-2 text-[#49B0C1]">{o.po}</td>
-                          <td className="px-3 py-2 text-right text-[#333333]">{fmtMoney(o.amt)}</td>
-                          <td className="px-3 py-2 text-right"><span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{o.status}</span></td>
-                        </tr>
-                      ))}
+                      {(panelDetail?.purchaseOrders ?? []).length === 0 ? (
+                        <tr><td colSpan={3} className="px-3 py-6 text-center text-[#666666]">No purchase orders yet.</td></tr>
+                      ) : (
+                        (panelDetail?.purchaseOrders ?? []).map((po, i) => (
+                          <tr key={po.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                            <td className="px-3 py-2 text-[#49B0C1]">{po.poNumber}</td>
+                            <td className="px-3 py-2 text-right text-[#333333]">{fmtDate(po.orderDate)}</td>
+                            <td className="px-3 py-2 text-right"><span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{po.status}</span></td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

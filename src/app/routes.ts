@@ -26,6 +26,7 @@ import SalesPage from "../pages/sales/SalesPage";
 import PurchaseRequirementsPage from "../pages/purchasing/PurchaseRequirementsPage";
 import CreateRequirementPage from "../pages/purchasing/CreateRequirementPage";
 import SupplierAssignmentPage from "../pages/purchasing/SupplierAssignmentPage";
+//import SupplierDetailPage from "../pages/purchasing/SupplierDetailPage";
 import PurchaseOrdersPage from "../pages/purchasing/PurchaseOrdersPage";
 import CreatePurchaseOrderPage from "../pages/purchasing/CreatePurchaseOrderPage";
 import DeliveryRegistrationPage from "../pages/purchasing/DeliveryRegistrationPage";
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
           { path: "/purchasing/deliveries/new", Component: DeliveryRegistrationPage },
           { path: "/purchasing/deliveries/:id/reconcile", Component: ReconciliationPage },
           { path: "/purchasing/payables", Component: SupplierPayablesPage },
+         // { path: "/purchasing/suppliers/:supplierId", Component: SupplierDetailPage },
           { path: "/purchasing/returns/new", Component: PurchaseReturnPage },
           // Reports
           { path: "/reports", Component: ReportsDashboardPage },
