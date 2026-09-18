@@ -1,13 +1,32 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
 import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
+import {
+  listRequirements,
+  createRequirement,
+  getRequirement,
+  updateRequirement,
+  closeRequirement,
+  deleteRequirement,
+  generateRequirementFromReorder,
+  addRequirementLine,
+  updateRequirementLine,
+  assignSupplierToLine,
+  removeRequirementLine,
+  RequirementsApiError,
+  type RequirementDto,
+  type RequirementLineDto,
+  type RequirementStatus,
+} from "../../features/purchasing/requirementsApi"
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
+import { getReorderSuggestions } from "../../features/inventory/reorderApi"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ReqStatus = "OPEN" | "ASSIGNED" | "CLOSED"
-type LineStatus = "OPEN" | "ASSIGNED"
+type LineStatus = "OPEN" | "ASSIGNED" | "CLOSED" | (string & {})
 type LineReason = "Low Stock" | "Reorder Alert" | "Manual" | ""
 
 interface RequirementLine {
@@ -19,6 +38,8 @@ interface RequirementLine {
   notes: string
   supplier: string
   status: LineStatus
+  /** Set when the line already has purchase orders (blocks edits/removal). */
+  hasPo?: boolean
 }
 
 interface Requirement {
@@ -26,80 +47,64 @@ interface Requirement {
   reference: string
   requiredBy: string
   notes: string
-  status: ReqStatus
+  status: RequirementStatus
   createdBy: string
   createdDate: string
   lines: RequirementLine[]
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── API → UI adapters ────────────────────────────────────────────────────────
 
-const PRODUCTS = [
-  "Paracetamol 500mg", "Amoxicillin 500mg", "Ibuprofen 400mg",
-  "Metformin 850mg", "Omeprazole 20mg", "Cetirizine 10mg",
-  "Atorvastatin 20mg", "Losartan 50mg", "Vitamin C 1000mg",
-]
+function reasonLabel(code: string | null | undefined): LineReason {
+  switch (code) {
+    case "LOW_STOCK": return "Low Stock"
+    case "REORDER_ALERT": return "Reorder Alert"
+    case "MANUAL": return "Manual"
+    default: return ""
+  }
+}
 
-const SUPPLIERS = [
-  { name: "ABC Pharmaceuticals", terms: "30 days" },
-  { name: "MediPharma", terms: "14 days" },
-  { name: "GlobalMed Supply", terms: "45 days" },
-  { name: "EthioHealth", terms: "60 days" },
-]
+function reasonCode(reason: LineReason): string | null {
+  switch (reason) {
+    case "Low Stock": return "LOW_STOCK"
+    case "Reorder Alert": return "REORDER_ALERT"
+    case "Manual": return "MANUAL"
+    default: return null
+  }
+}
 
-const REORDER_SUGGESTIONS = [
-  { product: "Paracetamol 500mg", quantity: 100 },
-  { product: "Amoxicillin 500mg", quantity: 50 },
-  { product: "Vitamin C 1000mg", quantity: 75 },
-  { product: "Omeprazole 20mg", quantity: 40 },
-  { product: "Cetirizine 10mg", quantity: 60 },
-  { product: "Losartan 50mg", quantity: 30 },
-]
+function mapLine(l: RequirementLineDto): RequirementLine {
+  return {
+    id: l.id,
+    product: l.product?.name ?? "Unknown product",
+    quantityNeeded: l.quantityNeeded,
+    quantityDelivered: l.quantityDelivered,
+    reason: reasonLabel(l.reasonCode),
+    notes: l.notes ?? "",
+    supplier: l.supplier?.name ?? "",
+    status: l.status,
+    hasPo: (l.purchaseOrderItems?.length ?? 0) > 0,
+  }
+}
 
-let nextReqNum = 4
-let nextLineId = 20
+function mapRequirement(r: RequirementDto): Requirement {
+  return {
+    id: r.id,
+    reference: r.reference,
+    requiredBy: r.requiredBy?.slice(0, 10) ?? "",
+    notes: r.notes ?? "",
+    status: r.status,
+    createdBy: r.createdBy?.name ?? "—",
+    createdDate: r.createdAt?.slice(0, 10) ?? "",
+    lines: (r.lines ?? []).map(mapLine),
+  }
+}
 
-function makeId() { return `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
-function makeLineId() { return `line-${++nextLineId}` }
-
-const INITIAL_REQS: Requirement[] = [
-  {
-    id: "r1", reference: "REQ-001", requiredBy: "2026-09-25",
-    notes: "Monthly stock replenishment",
-    status: "OPEN", createdBy: "Lolly Lolo", createdDate: "2026-09-18",
-    lines: [
-      { id: "l1", product: "Paracetamol 500mg", quantityNeeded: 100, quantityDelivered: 0, reason: "Low Stock", notes: "Below reorder threshold", supplier: "", status: "OPEN" },
-      { id: "l2", product: "Amoxicillin 500mg", quantityNeeded: 50, quantityDelivered: 0, reason: "Reorder Alert", notes: "Monthly replenishment", supplier: "ABC Pharmaceuticals", status: "ASSIGNED" },
-      { id: "l3", product: "Vitamin C 1000mg", quantityNeeded: 75, quantityDelivered: 0, reason: "Manual", notes: "", supplier: "", status: "OPEN" },
-      { id: "l4", product: "Omeprazole 20mg", quantityNeeded: 40, quantityDelivered: 0, reason: "Low Stock", notes: "", supplier: "", status: "OPEN" },
-      { id: "l5", product: "Cetirizine 10mg", quantityNeeded: 60, quantityDelivered: 0, reason: "Reorder Alert", notes: "", supplier: "", status: "OPEN" },
-    ],
-  },
-  {
-    id: "r2", reference: "REQ-002", requiredBy: "2026-09-27",
-    notes: "Urgent restocking",
-    status: "ASSIGNED", createdBy: "Lolly Lolo", createdDate: "2026-09-18",
-    lines: [
-      { id: "l6", product: "Ibuprofen 400mg", quantityNeeded: 80, quantityDelivered: 0, reason: "Low Stock", notes: "", supplier: "MediPharma", status: "ASSIGNED" },
-      { id: "l7", product: "Metformin 850mg", quantityNeeded: 60, quantityDelivered: 0, reason: "Reorder Alert", notes: "", supplier: "MediPharma", status: "ASSIGNED" },
-      { id: "l8", product: "Losartan 50mg", quantityNeeded: 30, quantityDelivered: 0, reason: "Low Stock", notes: "", supplier: "ABC Pharmaceuticals", status: "ASSIGNED" },
-    ],
-  },
-  {
-    id: "r3", reference: "REQ-003", requiredBy: "2026-09-30",
-    notes: "End of month order",
-    status: "CLOSED", createdBy: "Lolly Lolo", createdDate: "2026-09-17",
-    lines: [
-      { id: "l9", product: "Atorvastatin 20mg", quantityNeeded: 45, quantityDelivered: 45, reason: "Reorder Alert", notes: "", supplier: "GlobalMed Supply", status: "ASSIGNED" },
-      { id: "l10", product: "Paracetamol 500mg", quantityNeeded: 120, quantityDelivered: 120, reason: "Low Stock", notes: "", supplier: "ABC Pharmaceuticals", status: "ASSIGNED" },
-      { id: "l11", product: "Omeprazole 20mg", quantityNeeded: 50, quantityDelivered: 50, reason: "Manual", notes: "", supplier: "EthioHealth", status: "ASSIGNED" },
-      { id: "l12", product: "Ibuprofen 400mg", quantityNeeded: 70, quantityDelivered: 70, reason: "Low Stock", notes: "", supplier: "MediPharma", status: "ASSIGNED" },
-      { id: "l13", product: "Metformin 850mg", quantityNeeded: 40, quantityDelivered: 40, reason: "Reorder Alert", notes: "", supplier: "GlobalMed Supply", status: "ASSIGNED" },
-      { id: "l14", product: "Cetirizine 10mg", quantityNeeded: 80, quantityDelivered: 80, reason: "Manual", notes: "", supplier: "ABC Pharmaceuticals", status: "ASSIGNED" },
-      { id: "l15", product: "Vitamin C 1000mg", quantityNeeded: 90, quantityDelivered: 90, reason: "Low Stock", notes: "", supplier: "EthioHealth", status: "ASSIGNED" },
-    ],
-  },
-]
+function errMessage(e: unknown): string {
+  return e instanceof RequirementsApiError
+    ? e.message
+    : "Something went wrong. Please try again."
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -108,20 +113,22 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
 }
 
-function delay(ms = 700) { return new Promise((r) => setTimeout(r, ms)) }
+const PAGE_SIZE = 50
 
-function ReqBadge({ status }: { status: ReqStatus }) {
-  const map: Record<ReqStatus, string> = {
+function ReqBadge({ status }: { status: RequirementStatus }) {
+  const map: Record<string, string> = {
     OPEN:     "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]",
     ASSIGNED: "bg-blue-100 text-blue-700",
     CLOSED:   "bg-gray-100 text-gray-500",
   }
-  return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status]}`}>{status}</span>
+  return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? map.OPEN}`}>{status}</span>
 }
 
 function LineBadge({ status }: { status: LineStatus }) {
   return status === "ASSIGNED"
     ? <span className="text-xs font-bold rounded-full px-2.5 py-0.5 bg-blue-100 text-blue-700">ASSIGNED</span>
+    : status === "CLOSED"
+    ? <span className="text-xs font-bold rounded-full px-2.5 py-0.5 bg-gray-100 text-gray-500">CLOSED</span>
     : <span className="text-xs font-bold rounded-full px-2.5 py-0.5 bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]">OPEN</span>
 }
 
@@ -179,15 +186,31 @@ function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onC
 // ─── Root page ────────────────────────────────────────────────────────────────
 
 export default function PurchaseRequirementsPage() {
-  const [reqs, setReqs] = useState<Requirement[]>(INITIAL_REQS)
+  const [reqs, setReqs] = useState<Requirement[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState("")
   const [detailId, setDetailId] = useState<string | null>(null)
   const [toast, setToast] = useState("")
   const [newOpen, setNewOpen] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
 
   function showToast(msg: string) { setToast(msg) }
-  function updateReq(updated: Requirement) { setReqs((prev) => prev.map((r) => r.id === updated.id ? updated : r)) }
-  function deleteReq(id: string) { setReqs((prev) => prev.filter((r) => r.id !== id)) }
+  const reload = useCallback(() => setRefreshTick((t) => t + 1), [])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setLoadError("")
+    listRequirements({ page: 1, limit: PAGE_SIZE })
+      .then((result) => {
+        if (cancelled) return
+        setReqs(result.data.map(mapRequirement))
+      })
+      .catch((e) => { if (!cancelled) setLoadError(errMessage(e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [refreshTick])
 
   const detail = reqs.find((r) => r.id === detailId) ?? null
 
@@ -197,7 +220,7 @@ export default function PurchaseRequirementsPage() {
         <RequirementDetailScreen
           req={detail}
           onBack={() => setDetailId(null)}
-          onUpdate={updateReq}
+          onChanged={reload}
           onToast={showToast}
         />
         {toast && <Toast message={toast} onDone={() => setToast("")} />}
@@ -209,21 +232,23 @@ export default function PurchaseRequirementsPage() {
     <>
       <RequirementsListScreen
         reqs={reqs}
+        loading={loading}
+        loadError={loadError}
+        onRetry={reload}
         onSelect={(id) => setDetailId(id)}
         onNewReq={() => setNewOpen(true)}
         onGenerate={() => setGenerateOpen(true)}
-        onDelete={deleteReq}
         onToast={showToast}
       />
       <NewRequirementModal
         open={newOpen}
         onClose={() => setNewOpen(false)}
-        onCreate={(r) => { setReqs((prev) => [r, ...prev]); setNewOpen(false); showToast("Requirement created successfully.") }}
+        onCreated={() => { setNewOpen(false); reload(); showToast("Requirement created successfully.") }}
       />
       <GenerateFromReorderModal
         open={generateOpen}
         onClose={() => setGenerateOpen(false)}
-        onCreate={(r) => { setReqs((prev) => [r, ...prev]); setGenerateOpen(false); showToast("Requirement generated from reorder suggestions.") }}
+        onGenerated={() => { setGenerateOpen(false); reload(); showToast("Requirement generated from reorder suggestions.") }}
       />
       {toast && <Toast message={toast} onDone={() => setToast("")} />}
     </>
@@ -232,20 +257,21 @@ export default function PurchaseRequirementsPage() {
 
 // ─── Requirements List Screen ─────────────────────────────────────────────────
 
-function RequirementsListScreen({ reqs, onSelect, onNewReq, onGenerate, onDelete, onToast }: {
+function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, onNewReq, onGenerate, onToast }: {
   reqs: Requirement[]
+  loading: boolean
+  loadError: string
+  onRetry: () => void
   onSelect: (id: string) => void
   onNewReq: () => void
   onGenerate: () => void
-  onDelete: (id: string) => void
   onToast: (msg: string) => void
 }) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
-  const [loading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [page, setPage] = useState(1)
   const [deleteTarget, setDeleteTarget] = useState<Requirement | null>(null)
-  const PAGE_SIZE = 10
 
   const filtered = reqs.filter((r) => {
     if (statusFilter && r.status !== statusFilter) return false
@@ -256,14 +282,30 @@ function RequirementsListScreen({ reqs, onSelect, onNewReq, onGenerate, onDelete
     return true
   })
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / 10))
+  const paginated = filtered.slice((page - 1) * 10, page * 10)
 
   const summary = {
     open:     reqs.filter((r) => r.status === "OPEN").length,
     assigned: reqs.filter((r) => r.status === "ASSIGNED").length,
     closed:   reqs.filter((r) => r.status === "CLOSED").length,
     total:    reqs.length,
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await deleteRequirement(deleteTarget.id)
+      setDeleteTarget(null)
+      onToast("Requirement deleted successfully.")
+      onRetry()
+    } catch (e) {
+      setDeleteTarget(null)
+      onToast(errMessage(e))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -329,6 +371,11 @@ function RequirementsListScreen({ reqs, onSelect, onNewReq, onGenerate, onDelete
             <div className="p-6 space-y-3 animate-pulse">
               {[...Array(5)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />)}
             </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
+              <p className="text-sm font-semibold text-red-600">{loadError}</p>
+              <Button variant="secondary" onClick={onRetry}>Try Again</Button>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="h-16 w-16 rounded-2xl bg-[#DBEFF3] flex items-center justify-center">
@@ -388,7 +435,7 @@ function RequirementsListScreen({ reqs, onSelect, onNewReq, onGenerate, onDelete
               </div>
               <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} requirements
+                  Showing {Math.min((page - 1) * 10 + 1, filtered.length)}–{Math.min(page * 10, filtered.length)} of {filtered.length} requirements
                 </p>
                 <div className="flex gap-1">
                   <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
@@ -408,11 +455,12 @@ function RequirementsListScreen({ reqs, onSelect, onNewReq, onGenerate, onDelete
         open={!!deleteTarget}
         title="Delete Requirement?"
         message={`Delete ${deleteTarget?.reference}?`}
-        detail="This action cannot be undone."
+        detail="This action cannot be undone. Requirements that already have purchase orders cannot be deleted."
         confirmLabel="Delete"
         confirmClass="bg-red-600 hover:bg-red-700 text-white"
         onClose={() => setDeleteTarget(null)}
-        onConfirm={async () => { await delay(500); onDelete(deleteTarget!.id); setDeleteTarget(null); onToast("Requirement deleted successfully.") }}
+        onConfirm={confirmDelete}
+        loading={deleting}
       />
     </div>
   )
@@ -420,10 +468,10 @@ function RequirementsListScreen({ reqs, onSelect, onNewReq, onGenerate, onDelete
 
 // ─── Requirement Detail Screen ────────────────────────────────────────────────
 
-function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
+function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
   req: Requirement
   onBack: () => void
-  onUpdate: (r: Requirement) => void
+  onChanged: () => void
   onToast: (msg: string) => void
 }) {
   const [editOpen, setEditOpen] = useState(false)
@@ -432,25 +480,46 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
   const [assignLine, setAssignLine] = useState<RequirementLine | null>(null)
   const [deleteLine, setDeleteLine] = useState<RequirementLine | null>(null)
   const [closeOpen, setCloseOpen] = useState(false)
+  const [apiError, setApiError] = useState("")
+  const [busy, setBusy] = useState(false)
 
   const isReadOnly = req.status === "CLOSED"
 
-  function updateLine(updated: RequirementLine) {
-    onUpdate({ ...req, lines: req.lines.map((l) => l.id === updated.id ? updated : l) })
-  }
-  function removeLine(id: string) {
-    onUpdate({ ...req, lines: req.lines.filter((l) => l.id !== id) })
-  }
-  function addLine(line: RequirementLine) {
-    onUpdate({ ...req, lines: [...req.lines, line] })
-  }
-  function closeReq() {
-    onUpdate({ ...req, status: "CLOSED" })
-    setCloseOpen(false)
-    onToast("Requirement closed successfully.")
+  async function runAction(action: () => Promise<unknown>, toastMsg: string) {
+    setApiError("")
+    setBusy(true)
+    try {
+      await action()
+      onToast(toastMsg)
+      onChanged()
+    } catch (e) {
+      setApiError(errMessage(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const reqStatus: ReqStatus = req.lines.length > 0 && req.lines.every((l) => l.status === "ASSIGNED")
+  function updateLine(updated: RequirementLine) {
+    setEditLine(null)
+    void runAction(
+      () => updateRequirementLine(updated.id, {
+        quantityNeeded: updated.quantityNeeded,
+        reasonCode: reasonCode(updated.reason),
+        notes: updated.notes || null,
+      }),
+      "Requirement item updated.",
+    )
+  }
+  function removeLine(line: RequirementLine) {
+    setDeleteLine(null)
+    void runAction(() => removeRequirementLine(line.id), "Item removed from requirement.")
+  }
+  function closeReq() {
+    setCloseOpen(false)
+    void runAction(() => closeRequirement(req.id), "Requirement closed successfully.")
+  }
+
+  const reqStatus: RequirementStatus = req.lines.length > 0 && req.lines.every((l) => l.status === "ASSIGNED")
     ? "ASSIGNED"
     : req.status === "CLOSED"
     ? "CLOSED"
@@ -476,6 +545,13 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        {apiError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between">
+            <span>{apiError}</span>
+            <button onClick={() => setApiError("")} className="text-red-500 hover:text-red-700 text-xs font-semibold">Dismiss</button>
+          </div>
+        )}
+
         {/* Section 1: Requirement Information */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
           <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
@@ -499,7 +575,7 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
               <div key={label}>
                 <p className="text-xs text-[#999] mb-0.5">{label}</p>
                 {label === "Status"
-                  ? <ReqBadge status={value as ReqStatus} />
+                  ? <ReqBadge status={value as RequirementStatus} />
                   : <p className="text-sm font-semibold text-[#333333]">{value}</p>
                 }
               </div>
@@ -536,7 +612,10 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
                 <tbody>
                   {req.lines.map((line, idx) => (
                     <tr key={line.id} className={idx % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                      <td className="px-4 py-3 font-medium text-[#333333]">{line.product}</td>
+                      <td className="px-4 py-3 font-medium text-[#333333]">
+                        {line.product}
+                        {line.hasPo && <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5 align-middle">PO LINKED</span>}
+                      </td>
                       <td className="px-4 py-3 text-right font-bold text-[#333333]">{line.quantityNeeded}</td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">{line.quantityDelivered}</td>
                       <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{line.reason || "—"}</td>
@@ -556,7 +635,7 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
                             <OverflowMenu items={[
                               { label: "Edit", onClick: () => setEditLine(line) },
                               { label: line.supplier ? "Change Supplier" : "Assign Supplier", onClick: () => setAssignLine(line) },
-                              { label: "Remove", danger: true, onClick: () => setDeleteLine(line) },
+                              ...(line.hasPo ? [] : [{ label: "Remove", danger: true, onClick: () => setDeleteLine(line) }]),
                             ]} />
                           </div>
                         </td>
@@ -577,10 +656,10 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
       </div>
 
       {/* Modals */}
-      <EditRequirementModal open={editOpen} req={req} onClose={() => setEditOpen(false)} onSave={(updates) => { onUpdate({ ...req, ...updates }); setEditOpen(false); onToast("Requirement updated successfully.") }} />
-      <AddProductModal open={addProductOpen} existingProducts={req.lines.map((l) => l.product)} onClose={() => setAddProductOpen(false)} onAdd={(line) => { addLine(line); setAddProductOpen(false); onToast("Product added to requirement.") }} />
-      <EditLineModal open={!!editLine} line={editLine} onClose={() => setEditLine(null)} onSave={(updated) => { updateLine(updated); setEditLine(null); onToast("Requirement item updated.") }} />
-      <AssignSupplierModal open={!!assignLine} line={assignLine} onClose={() => setAssignLine(null)} onSave={(updated) => { updateLine(updated); setAssignLine(null); onToast("Supplier assigned successfully.") }} />
+      <EditRequirementModal open={editOpen} req={req} onClose={() => setEditOpen(false)} onSave={(updates) => { setEditOpen(false); void runAction(() => updateRequirement(req.id, updates), "Requirement updated successfully.") }} />
+      <AddProductModal open={addProductOpen} existingProductIds={[]} onClose={() => setAddProductOpen(false)} onAdd={(input) => { setAddProductOpen(false); void runAction(() => addRequirementLine(req.id, input), "Product added to requirement.") }} />
+      <EditLineModal open={!!editLine} line={editLine} onClose={() => setEditLine(null)} onSave={updateLine} />
+      <AssignSupplierModal open={!!assignLine} line={assignLine} onClose={() => setAssignLine(null)} onAssign={(supplierId) => { const line = assignLine; setAssignLine(null); if (line) void runAction(() => assignSupplierToLine(line.id, supplierId), "Supplier assigned successfully.") }} />
       <ConfirmModal
         open={!!deleteLine}
         title="Remove Requirement Item?"
@@ -589,17 +668,19 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
         confirmLabel="Remove"
         confirmClass="bg-red-600 hover:bg-red-700 text-white"
         onClose={() => setDeleteLine(null)}
-        onConfirm={async () => { await delay(400); removeLine(deleteLine!.id); setDeleteLine(null); onToast("Item removed from requirement.") }}
+        onConfirm={() => deleteLine && removeLine(deleteLine)}
+        loading={busy}
       />
       <ConfirmModal
         open={closeOpen}
         title="Close Requirement?"
         message={`Are you sure you want to close ${req.reference}?`}
-        detail="Closed requirements cannot be modified."
+        detail="Closed requirements cannot be modified. All lines will be marked CLOSED."
         confirmLabel="Close Requirement"
         confirmClass="bg-orange-600 hover:bg-orange-700 text-white"
         onClose={() => setCloseOpen(false)}
         onConfirm={closeReq}
+        loading={busy}
       />
     </div>
   )
@@ -607,22 +688,30 @@ function RequirementDetailScreen({ req, onBack, onUpdate, onToast }: {
 
 // ─── New Requirement Modal ────────────────────────────────────────────────────
 
-interface NewLine { product: string; quantity: string; reason: LineReason; notes: string }
+interface NewLine { productId: string; product: ProductDto | null; quantity: string; reason: LineReason; notes: string }
 
-function NewRequirementModal({ open, onClose, onCreate }: {
+function NewRequirementModal({ open, onClose, onCreated }: {
   open: boolean
   onClose: () => void
-  onCreate: (r: Requirement) => void
+  onCreated: () => void
 }) {
+  const [products, setProducts] = useState<ProductDto[]>([])
   const [requiredBy, setRequiredBy] = useState("")
   const [notes, setNotes] = useState("")
-  const [lines, setLines] = useState<NewLine[]>([{ product: PRODUCTS[0], quantity: "", reason: "Low Stock", notes: "" }])
+  const [lines, setLines] = useState<NewLine[]>([{ productId: "", product: null, quantity: "", reason: "Low Stock", notes: "" }])
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  function addLine() { setLines((l) => [...l, { product: "", quantity: "", reason: "Low Stock", notes: "" }]) }
+  useEffect(() => {
+    if (!open) return
+    listProducts({ limit: 200, isActive: true })
+      .then((r) => setProducts(r.data))
+      .catch(() => {})
+  }, [open])
+
+  function addLine() { setLines((l) => [...l, { productId: "", product: null, quantity: "", reason: "Low Stock", notes: "" }]) }
   function removeLine(i: number) { setLines((l) => l.filter((_, idx) => idx !== i)) }
-  function updateLine(i: number, field: keyof NewLine, value: string) {
+  function updateLine(i: number, field: keyof NewLine, value: string | ProductDto | null) {
     setLines((l) => l.map((row, idx) => idx === i ? { ...row, [field]: value } : row))
   }
 
@@ -630,36 +719,31 @@ function NewRequirementModal({ open, onClose, onCreate }: {
     if (!requiredBy) { setError("Required By date is required."); return }
     if (lines.length === 0) { setError("Add at least one product."); return }
     for (const l of lines) {
-      if (!l.product) { setError("Select a product for each row."); return }
+      if (!l.productId) { setError("Select a product for each row."); return }
       if (!l.quantity || parseInt(l.quantity) <= 0) { setError("Quantity must be greater than zero."); return }
     }
-    const products = lines.map((l) => l.product)
-    if (new Set(products).size !== products.length) { setError("Duplicate products are not allowed."); return }
+    const ids = lines.map((l) => l.productId)
+    if (new Set(ids).size !== ids.length) { setError("Duplicate products are not allowed."); return }
     setError("")
     setLoading(true)
-    await delay()
-    setLoading(false)
-    const num = `REQ-00${++nextReqNum}`
-    onCreate({
-      id: makeId(),
-      reference: num,
-      requiredBy,
-      notes,
-      status: "OPEN",
-      createdBy: "Current User",
-      createdDate: new Date().toISOString().slice(0, 10),
-      lines: lines.map((l) => ({
-        id: makeLineId(),
-        product: l.product,
-        quantityNeeded: parseInt(l.quantity),
-        quantityDelivered: 0,
-        reason: l.reason,
-        notes: l.notes,
-        supplier: "",
-        status: "OPEN",
-      })),
-    })
-    setRequiredBy(""); setNotes(""); setLines([{ product: PRODUCTS[0], quantity: "", reason: "Low Stock", notes: "" }])
+    try {
+      await createRequirement({
+        requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString(),
+        notes: notes || null,
+        lines: lines.map((l) => ({
+          productId: l.productId,
+          quantityNeeded: parseInt(l.quantity),
+          reasonCode: reasonCode(l.reason),
+          notes: l.notes || null,
+        })),
+      })
+      setRequiredBy(""); setNotes(""); setLines([{ productId: "", product: null, quantity: "", reason: "Low Stock", notes: "" }])
+      onCreated()
+    } catch (e) {
+      setError(errMessage(e))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -694,9 +778,17 @@ function NewRequirementModal({ open, onClose, onCreate }: {
                   {lines.map((line, i) => (
                     <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
                       <td className="px-3 py-2">
-                        <select value={line.product} onChange={(e) => updateLine(i, "product", e.target.value)} className={SC}>
+                        <select
+                          value={line.productId}
+                          onChange={(e) => {
+                            const p = products.find((x) => x.id === e.target.value) ?? null
+                            updateLine(i, "productId", e.target.value)
+                            updateLine(i, "product", p)
+                          }}
+                          className={SC}
+                        >
                           <option value="">Select product...</option>
-                          {PRODUCTS.map((p) => <option key={p}>{p}</option>)}
+                          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                       </td>
                       <td className="px-3 py-2">
@@ -741,59 +833,61 @@ function NewRequirementModal({ open, onClose, onCreate }: {
 
 // ─── Generate from Reorder Modal ──────────────────────────────────────────────
 
-function GenerateFromReorderModal({ open, onClose, onCreate }: {
+function GenerateFromReorderModal({ open, onClose, onGenerated }: {
   open: boolean
   onClose: () => void
-  onCreate: (r: Requirement) => void
+  onGenerated: () => void
 }) {
   const [loading, setLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<{ product: { id: string; name: string; sku: string }; suggestedQuantity: number }[]>([])
+  const [loadError, setLoadError] = useState("")
+
+  useEffect(() => {
+    if (!open) return
+    setLoadError("")
+    setSuggestions([])
+    getReorderSuggestions({ page: 1, limit: 50 })
+      .then((r) => setSuggestions(r.data.map((s) => ({ product: s.product, suggestedQuantity: s.suggestedQuantity }))))
+      .catch((e) => setLoadError(errMessage(e)))
+  }, [open])
 
   async function handleGenerate() {
     setLoading(true)
-    await delay(900)
-    setLoading(false)
-    const num = `REQ-00${++nextReqNum}`
-    onCreate({
-      id: makeId(),
-      reference: num,
-      requiredBy: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-      notes: "Auto-generated from reorder suggestions.",
-      status: "OPEN",
-      createdBy: "System",
-      createdDate: new Date().toISOString().slice(0, 10),
-      lines: REORDER_SUGGESTIONS.map((s) => ({
-        id: makeLineId(),
-        product: s.product,
-        quantityNeeded: s.quantity,
-        quantityDelivered: 0,
-        reason: "Reorder Alert",
-        notes: "",
-        supplier: "",
-        status: "OPEN",
-      })),
-    })
+    try {
+      await generateRequirementFromReorder()
+      onGenerated()
+    } catch (e) {
+      setLoadError(errMessage(e))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <Modal open={open} title="Generate Purchase Requirement" onClose={onClose} size="sm">
       <p className="text-sm text-[#666666] -mt-2 mb-4">The system will create a purchase requirement from the current reorder suggestions.</p>
-      <div className="rounded-xl border border-[#DBEFF3] p-4 mb-5">
+      {loadError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">{loadError}</p>}
+      <div className="rounded-xl border border-[#DBEFF3] p-4 mb-5 max-h-64 overflow-y-auto">
         <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Products to Purchase</p>
-        <ul className="space-y-2">
-          {REORDER_SUGGESTIONS.map((s) => (
-            <li key={s.product} className="flex items-center justify-between text-sm">
-              <span className="text-[#333333] font-medium">{s.product}</span>
-              <span className="font-bold text-[#49B0C1]">{s.quantity}</span>
-            </li>
-          ))}
-        </ul>
+        {suggestions.length === 0 ? (
+          <p className="text-sm text-[#999] py-2">{loadError ? "—" : "No reorder suggestions available."}</p>
+        ) : (
+          <ul className="space-y-2">
+            {suggestions.map((s) => (
+              <li key={s.product.id} className="flex items-center justify-between text-sm">
+                <span className="text-[#333333] font-medium">{s.product.name}</span>
+                <span className="font-bold text-[#49B0C1]">{s.suggestedQuantity}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <div className="rounded-lg bg-[#DBEFF3]/60 px-4 py-2.5 mb-5 text-sm font-semibold text-[#333333]">
-        {REORDER_SUGGESTIONS.length} products require purchasing
+        {suggestions.length} products require purchasing
       </div>
       <div className="flex gap-3 justify-end">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={handleGenerate} loading={loading}>Generate Requirement</Button>
+        <Button onClick={handleGenerate} loading={loading} disabled={suggestions.length === 0 && !loadError}>Generate Requirement</Button>
       </div>
     </Modal>
   )
@@ -805,17 +899,26 @@ function EditRequirementModal({ open, req, onClose, onSave }: {
   open: boolean
   req: Requirement
   onClose: () => void
-  onSave: (updates: { requiredBy: string; notes: string }) => void
+  onSave: (updates: { requiredBy: string; notes: string | null }) => void
 }) {
   const [requiredBy, setRequiredBy] = useState(req.requiredBy)
   const [notes, setNotes] = useState(req.notes)
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    if (open) { setRequiredBy(req.requiredBy); setNotes(req.notes) }
+  }, [open, req])
+
   async function handleSave() {
     setLoading(true)
-    await delay(500)
-    setLoading(false)
-    onSave({ requiredBy, notes })
+    try {
+      onSave({
+        requiredBy: requiredBy ? new Date(`${requiredBy}T00:00:00Z`).toISOString() : req.requiredBy,
+        notes: notes || null,
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -838,29 +941,39 @@ function EditRequirementModal({ open, req, onClose, onSave }: {
 
 // ─── Add Product Modal ────────────────────────────────────────────────────────
 
-function AddProductModal({ open, existingProducts, onClose, onAdd }: {
+function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
   open: boolean
-  existingProducts: string[]
+  existingProductIds: string[]
   onClose: () => void
-  onAdd: (line: RequirementLine) => void
+  onAdd: (input: { productId: string; quantityNeeded: number; reasonCode: string | null; notes: string | null }) => void
 }) {
-  const [product, setProduct] = useState("")
+  const [products, setProducts] = useState<ProductDto[]>([])
+  const [productId, setProductId] = useState("")
   const [quantity, setQuantity] = useState("")
   const [reason, setReason] = useState<LineReason>("Low Stock")
   const [notes, setNotes] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    if (!open) return
+    listProducts({ limit: 200, isActive: true })
+      .then((r) => setProducts(r.data))
+      .catch(() => {})
+  }, [open])
+
   async function handleAdd() {
-    if (!product) { setError("Please select a product."); return }
+    if (!productId) { setError("Please select a product."); return }
     if (!quantity || parseInt(quantity) <= 0) { setError("Quantity must be greater than zero."); return }
-    if (existingProducts.includes(product)) { setError("This product is already in the requirement."); return }
+    if (existingProductIds.includes(productId)) { setError("This product is already in the requirement."); return }
     setError("")
     setLoading(true)
-    await delay(500)
-    setLoading(false)
-    onAdd({ id: makeLineId(), product, quantityNeeded: parseInt(quantity), quantityDelivered: 0, reason, notes, supplier: "", status: "OPEN" })
-    setProduct(""); setQuantity(""); setReason("Low Stock"); setNotes("")
+    try {
+      onAdd({ productId, quantityNeeded: parseInt(quantity), reasonCode: reasonCode(reason), notes: notes || null })
+      setProductId(""); setQuantity(""); setReason("Low Stock"); setNotes("")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -868,9 +981,9 @@ function AddProductModal({ open, existingProducts, onClose, onAdd }: {
       <div className="flex flex-col gap-4">
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <Fw label="Product">
-          <select value={product} onChange={(e) => setProduct(e.target.value)} className={SC}>
+          <select value={productId} onChange={(e) => setProductId(e.target.value)} className={SC}>
             <option value="">Select product...</option>
-            {PRODUCTS.map((p) => <option key={p}>{p}</option>)}
+            {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Fw>
         <Fw label="Quantity Needed">
@@ -913,10 +1026,13 @@ function EditLineModal({ open, line, onClose, onSave }: {
   }, [line])
 
   async function handleSave() {
+    if (!line) return
     setLoading(true)
-    await delay(500)
-    setLoading(false)
-    onSave({ ...line!, quantityNeeded: parseInt(quantity), reason, notes })
+    try {
+      onSave({ ...line, quantityNeeded: parseInt(quantity) || line.quantityNeeded, reason, notes })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -953,25 +1069,42 @@ function EditLineModal({ open, line, onClose, onSave }: {
 
 // ─── Assign Supplier Modal ────────────────────────────────────────────────────
 
-function AssignSupplierModal({ open, line, onClose, onSave }: {
+function AssignSupplierModal({ open, line, onClose, onAssign }: {
   open: boolean
   line: RequirementLine | null
   onClose: () => void
-  onSave: (updated: RequirementLine) => void
+  onAssign: (supplierId: string) => void
 }) {
-  const [supplier, setSupplier] = useState("")
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
+  const [supplierId, setSupplierId] = useState("")
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { if (line) setSupplier(line.supplier || "") }, [line])
+  useEffect(() => {
+    if (!open) return
+    listSuppliers({ limit: 200, isActive: true })
+      .then((r) => setSuppliers(r.data))
+      .catch(() => {})
+  }, [open])
 
-  const selectedSupplier = SUPPLIERS.find((s) => s.name === supplier)
+  useEffect(() => {
+    if (open && line && suppliers.length > 0) {
+      const match = suppliers.find((s) => s.name === line.supplier)
+      setSupplierId(match?.id ?? "")
+    } else if (open) {
+      setSupplierId("")
+    }
+  }, [open, line, suppliers])
+
+  const selectedSupplier = suppliers.find((s) => s.id === supplierId)
 
   async function handleAssign() {
-    if (!supplier) return
+    if (!supplierId) return
     setLoading(true)
-    await delay(600)
-    setLoading(false)
-    onSave({ ...line!, supplier, status: "ASSIGNED" })
+    try {
+      onAssign(supplierId)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -990,19 +1123,19 @@ function AssignSupplierModal({ open, line, onClose, onSave }: {
           </div>
         )}
         <Fw label="Supplier">
-          <select value={supplier} onChange={(e) => setSupplier(e.target.value)} className={SC}>
+          <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={SC}>
             <option value="">Select supplier...</option>
-            {SUPPLIERS.map((s) => <option key={s.name}>{s.name}</option>)}
+            {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </Fw>
         {selectedSupplier && (
           <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5 text-sm text-blue-700">
-            Payment Terms: <strong>{selectedSupplier.terms}</strong>
+            Payment Terms: <strong>{selectedSupplier.paymentTerms ?? "—"}</strong>
           </div>
         )}
         <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleAssign} loading={loading} disabled={!supplier}>Assign Supplier</Button>
+          <Button onClick={handleAssign} loading={loading} disabled={!supplierId}>Assign Supplier</Button>
         </div>
       </div>
     </Modal>
@@ -1011,19 +1144,18 @@ function AssignSupplierModal({ open, line, onClose, onSave }: {
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
-function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass, onClose, onConfirm }: {
+function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass, onClose, onConfirm, loading }: {
   open: boolean; title: string; message: string; detail?: string
   confirmLabel: string; confirmClass: string; onClose: () => void; onConfirm: () => void
+  loading?: boolean
 }) {
-  const [loading, setLoading] = useState(false)
-  async function go() { setLoading(true); await onConfirm(); setLoading(false) }
   return (
     <Modal open={open} title={title} onClose={onClose} size="sm">
       <p className="text-sm text-[#666666]">{message}</p>
       {detail && <p className="mt-2 text-xs text-[#999]">{detail}</p>}
       <div className="flex gap-3 justify-end mt-6">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <button onClick={go} disabled={loading} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 ${confirmClass}`}>
+        <button onClick={onConfirm} disabled={loading} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 ${confirmClass}`}>
           {loading ? "..." : confirmLabel}
         </button>
       </div>
