@@ -704,7 +704,7 @@ function NewRequirementModal({ open, onClose, onCreated }: {
 
   useEffect(() => {
     if (!open) return
-    listProducts({ limit: 200, isActive: true })
+    listProducts({ limit: 100, isActive: true })
       .then((r) => setProducts(r.data))
       .catch(() => {})
   }, [open])

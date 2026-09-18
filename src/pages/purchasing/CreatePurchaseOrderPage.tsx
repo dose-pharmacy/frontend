@@ -4,33 +4,36 @@ import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import {
-  MOCK_SUPPLIERS, MOCK_REQUIREMENTS, INITIAL_POS,
   StatusBadge, Toast, fmtDate,
 } from "./PurchaseOrdersPage"
-import type { PurchaseOrder, POItem, POStatus } from "./PurchaseOrdersPage"
+import {
+  getPurchaseOrder,
+  createPurchaseOrder,
+  updatePurchaseOrder,
+  markPurchaseOrderDelivered,
+  cancelPurchaseOrder,
+  closePurchaseOrder,
+  PurchaseOrdersApiError,
+  type POItemDto,
+  type PurchaseOrderDto,
+} from "../../features/purchasing/purchaseOrdersApi"
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
+import { listRequirements, type RequirementLineDto } from "../../features/purchasing/requirementsApi"
+import type { POItem, POStatus } from "./PurchaseOrdersPage"
 
 // ─── Shared local data ────────────────────────────────────────────────────────
 
-const PRODUCT_LIST = [
-  { id: "pr1", name: "Paracetamol 500mg",  unitCost: 120 },
-  { id: "pr2", name: "Amoxicillin 500mg",  unitCost: 85  },
-  { id: "pr3", name: "Vitamin C 1000mg",   unitCost: 60  },
-  { id: "pr4", name: "Ibuprofen 400mg",    unitCost: 95  },
-  { id: "pr5", name: "Metformin 850mg",    unitCost: 75  },
-  { id: "pr6", name: "Omeprazole 20mg",    unitCost: 55  },
-  { id: "pr7", name: "Cetirizine 10mg",    unitCost: 40  },
-  { id: "pr8", name: "Losartan 50mg",      unitCost: 90  },
-  { id: "pr9", name: "Atorvastatin 20mg",  unitCost: 110 },
-  { id: "pr10",name: "Insulin Glargine",   unitCost: 850 },
-]
+/** A requirement line option for linking PO items back to requirements. */
+interface ReqLineOption {
+  lineId: string
+  label: string
+}
 
 function fmtMoney(n: number) { return `${n.toLocaleString("en-ET")} ETB` }
 
 function itemTotal(item: POItem) { return item.quantity * item.unitCost }
 function orderTotal(items: POItem[]) { return items.reduce((s, i) => s + itemTotal(i), 0) }
-
-let nextItemId = 100
-let nextPORef = 6
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
 
@@ -86,40 +89,40 @@ function StatusTimeline({ current, cancelled }: { current: POStatus; cancelled?:
 
 // ─── Add Product Modal ────────────────────────────────────────────────────────
 
-function AddProductModal({ open, existingProducts, requirementRef, onClose, onAdd }: {
+function AddProductModal({ open, products, reqLines, existingProductIds, onClose, onAdd }: {
   open: boolean
-  existingProducts: string[]
-  requirementRef: string
+  products: ProductDto[]
+  reqLines: ReqLineOption[]
+  existingProductIds: string[]
   onClose: () => void
   onAdd: (item: POItem) => void
 }) {
   const [product, setProduct] = useState("")
   const [quantity, setQuantity] = useState("")
   const [unitCost, setUnitCost] = useState("")
-  const [reqRef, setReqRef] = useState(requirementRef)
+  const [reqLineId, setReqLineId] = useState("")
   const [error, setError] = useState("")
 
-  const selectedProduct = PRODUCT_LIST.find((p) => p.id === product)
+  const selectedProduct = products.find((p) => p.id === product)
 
   useEffect(() => {
-    if (selectedProduct) setUnitCost(selectedProduct.unitCost.toString())
-  }, [product])
-
-  useEffect(() => { setReqRef(requirementRef) }, [requirementRef])
+    if (open) { setProduct(""); setQuantity(""); setUnitCost(""); setReqLineId(""); setError("") }
+  }, [open])
 
   function handleAdd() {
     if (!product) { setError("Please select a product."); return }
     if (!quantity || parseInt(quantity) <= 0) { setError("Quantity must be greater than zero."); return }
-    if (existingProducts.includes(selectedProduct?.name ?? "")) { setError("This product is already in the order."); return }
+    if (existingProductIds.includes(product)) { setError("This product is already in the order."); return }
     setError("")
     onAdd({
-      id: `item-${++nextItemId}`,
-      product: selectedProduct!.name,
-      requirementRef: reqRef,
+      id: `draft-${product}`,
+      productId: product,
+      product: selectedProduct?.name ?? "",
+      requirementLineId: reqLineId || null,
       quantity: parseInt(quantity),
       unitCost: parseFloat(unitCost) || 0,
     })
-    setProduct(""); setQuantity(""); setUnitCost(""); setReqRef(requirementRef)
+    setProduct(""); setQuantity(""); setUnitCost(""); setReqLineId("")
   }
 
   const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
@@ -132,7 +135,7 @@ function AddProductModal({ open, existingProducts, requirementRef, onClose, onAd
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Product</label>
           <select value={product} onChange={(e) => setProduct(e.target.value)} className={SC}>
             <option value="">Select product...</option>
-            {PRODUCT_LIST.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -147,9 +150,9 @@ function AddProductModal({ open, existingProducts, requirementRef, onClose, onAd
         </div>
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Requirement Line <span className="text-[#999] text-xs font-normal">(optional)</span></label>
-          <select value={reqRef} onChange={(e) => setReqRef(e.target.value)} className={SC}>
+          <select value={reqLineId} onChange={(e) => setReqLineId(e.target.value)} className={SC}>
             <option value="">No requirement</option>
-            {MOCK_REQUIREMENTS.map((r) => <option key={r.id} value={r.reference}>{r.label}</option>)}
+            {reqLines.map((r) => <option key={r.lineId} value={r.lineId}>{r.label}</option>)}
           </select>
         </div>
         {product && quantity && unitCost && (
@@ -169,17 +172,18 @@ function AddProductModal({ open, existingProducts, requirementRef, onClose, onAd
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
-function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass, cancelLabel = "Cancel", onClose, onConfirm }: {
-  open: boolean; title: string; message: string; detail?: string
+function ConfirmModal({ open, title, message, detail, error, confirmLabel, confirmClass, cancelLabel = "Cancel", onClose, onConfirm }: {
+  open: boolean; title: string; message: string; detail?: string; error?: string
   confirmLabel: string; confirmClass: string; cancelLabel?: string
   onClose: () => void; onConfirm: () => void
 }) {
   const [loading, setLoading] = useState(false)
-  async function go() { setLoading(true); await new Promise((r) => setTimeout(r, 600)); onConfirm(); setLoading(false) }
+  async function go() { setLoading(true); await onConfirm(); setLoading(false) }
   return (
     <Modal open={open} title={title} onClose={onClose} size="sm">
       <p className="text-sm text-[#666666]">{message}</p>
       {detail && <p className="mt-2 text-xs text-[#999]">{detail}</p>}
+      {error && <p className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
       <div className="flex gap-3 justify-end mt-6">
         <Button variant="secondary" onClick={onClose}>{cancelLabel}</Button>
         <button onClick={go} disabled={loading} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 ${confirmClass}`}>
@@ -200,75 +204,209 @@ export default function CreatePurchaseOrderPage() {
   const isNew = !id || id === "new"
   const wantsEdit = searchParams.get("edit") === "1"
 
-  const existingPO = isNew ? null : INITIAL_POS.find((p) => p.id === id) ?? null
-  const [poState, setPOState] = useState<PurchaseOrder | null>(existingPO)
+  // Real data
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
+  const [products, setProducts] = useState<ProductDto[]>([])
+  const [reqLines, setReqLines] = useState<ReqLineOption[]>([])
+
+  // Detail state
+  const [poState, setPOState] = useState<PurchaseOrderDto | null>(null)
+  const [loadingPO, setLoadingPO] = useState(!isNew)
+  const [pageError, setPageError] = useState("")
+
   const [editMode, setEditMode] = useState(isNew || wantsEdit)
   const [toast, setToast] = useState("")
 
   // Form state
-  const [reqRef, setReqRef]         = useState(existingPO?.requirementRef ?? "")
-  const [suppId, setSuppId]         = useState(existingPO?.supplierId ?? "")
-  const [orderDate, setOrderDate]   = useState(existingPO?.orderDate ?? new Date().toISOString().slice(0, 10))
-  const [delivDate, setDelivDate]   = useState(existingPO?.expectedDeliveryDate ?? "")
-  const [notes, setNotes]           = useState(existingPO?.notes ?? "")
-  const [items, setItems]           = useState<POItem[]>(existingPO?.items ?? [])
+  const [suppId, setSuppId]         = useState("")
+  const [orderDate, setOrderDate]   = useState(new Date().toISOString().slice(0, 10))
+  const [delivDate, setDelivDate]   = useState("")
+  const [notes, setNotes]           = useState("")
+  const [items, setItems]           = useState<POItem[]>([])
   const [saving, setSaving]         = useState(false)
+  const [saveError, setSaveError]   = useState("")
   const [addProductOpen, setAddProductOpen] = useState(false)
 
   // Status action modals
   const [markDeliveryOpen, setMarkDeliveryOpen] = useState(false)
   const [closeOpen, setCloseOpen]               = useState(false)
   const [cancelOpen, setCancelOpen]             = useState(false)
+  const [actionError, setActionError]           = useState("")
 
-  const status: POStatus = poState?.status ?? "REGISTERED"
-  const supplier = MOCK_SUPPLIERS.find((s) => s.id === suppId)
+  // Load suppliers + products + open requirement lines once.
+  useEffect(() => {
+    let active = true
+    listSuppliers({ limit: 100, isActive: true })
+      .then((res) => { if (active) setSuppliers(res.data) })
+      .catch(() => { /* supplier select simply stays empty */ })
+    listProducts({ limit:   100, isActive: true })
+      .then((res) => { if (active) setProducts(res.data) })
+      .catch(() => { /* product select simply stays empty */ })
+    listRequirements({ status: "OPEN", limit: 50 })
+      .then((res) => {
+        if (!active) return
+        const options: ReqLineOption[] = []
+        for (const req of res.data) {
+          for (const line of req.lines ?? []) {
+            if (line.status === "CLOSED") continue
+            const productPart = line.product?.name ?? line.productId
+            options.push({ lineId: line.id, label: `${req.reference} — ${productPart}` })
+          }
+        }
+        setReqLines(options)
+      })
+      .catch(() => { /* requirement-line select simply stays empty */ })
+    return () => { active = false }
+  }, [])
+
+  // Load the PO from the real endpoint when editing/viewing.
+  useEffect(() => {
+    if (isNew) return
+    let active = true
+    setLoadingPO(true)
+    setPageError("")
+    getPurchaseOrder(id!)
+      .then((dto) => {
+        if (!active) return
+        setPOState(dto)
+        setSuppId(dto.supplierId)
+        setDelivDate(dto.expectedDeliveryDate ? dto.expectedDeliveryDate.slice(0, 10) : "")
+        setNotes(dto.notes ?? "")
+        setItems(
+          (dto.items ?? []).map((it: POItemDto) => ({
+            id: it.id,
+            productId: it.productId,
+            product: "",
+            requirementLineId: it.requirementLineId ?? null,
+            quantity: it.quantityOrdered ?? 0,
+            unitCost: it.unitCost ?? 0,
+          })),
+        )
+      })
+      .catch((err) => {
+        if (!active) return
+        setPageError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to load this purchase order.")
+      })
+      .finally(() => { if (active) setLoadingPO(false) })
+    return () => { active = false }
+  }, [id, isNew])
+
+  const status: POStatus = (poState?.status as POStatus) ?? "REGISTERED"
+  const supplier = suppliers.find((s) => s.id === suppId) ?? null
+  // Detail fallback: when the suppliers list hasn't loaded, show the embedded supplier info.
+  const supplierView = supplier ?? (poState?.supplier
+    ? { id: poState.supplier.id, name: poState.supplier.name, contactPerson: poState.supplier.contactPerson ?? "", phone: poState.supplier.phone ?? "", email: poState.supplier.email ?? "", paymentTerms: poState.supplier.paymentTerms ?? "" }
+    : null)
   const total = orderTotal(items)
   const isReadOnly = !editMode || status === "CLOSED" || status === "CANCELLED"
 
-  function updateStatus(next: POStatus) {
-    if (poState) {
-      const updated = { ...poState, status: next }
-      setPOState(updated)
-      // Also update INITIAL_POS for list page consistency
-      const idx = INITIAL_POS.findIndex((p) => p.id === poState.id)
-      if (idx !== -1) INITIAL_POS[idx] = updated
-    }
+  function itemsToDto(): POItemDto[] {
+    return items.map((it) => ({
+      id: it.id,
+      productId: it.productId,
+      quantityOrdered: it.quantity,
+      unitCost: it.unitCost,
+      requirementLineId: it.requirementLineId ?? null,
+    }))
   }
 
   async function handleCreate() {
     if (!suppId || items.length === 0) return
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 900))
-    setSaving(false)
-    const ref = `PO-2026-00${nextPORef++}`
-    const newPO: PurchaseOrder = {
-      id: `po-new-${Date.now()}`, reference: ref,
-      supplierId: suppId, supplierName: supplier?.name ?? "",
-      orderDate, expectedDeliveryDate: delivDate,
-      status: "REGISTERED", items, notes, requirementRef: reqRef,
+    setSaveError("")
+    try {
+      await createPurchaseOrder({
+        supplierId: suppId,
+        expectedDeliveryDate: delivDate || null,
+        notes: notes || null,
+        items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
+          productId, quantityOrdered, unitCost, requirementLineId,
+        })),
+      })
+      setToast("Purchase order created successfully.")
+      setTimeout(() => navigate("/purchasing/orders"), 1200)
+    } catch (err) {
+      setSaveError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to create the purchase order. Please try again.")
+    } finally {
+      setSaving(false)
     }
-    INITIAL_POS.unshift(newPO)
-    setToast("Purchase order created successfully.")
-    setTimeout(() => navigate("/purchasing/orders"), 1200)
   }
 
   async function handleUpdate() {
     if (!poState || !suppId || items.length === 0) return
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 900))
-    const updated = { ...poState, supplierId: suppId, supplierName: supplier?.name ?? "", expectedDeliveryDate: delivDate, notes, items, requirementRef: reqRef }
-    setPOState(updated)
-    const idx = INITIAL_POS.findIndex((p) => p.id === poState.id)
-    if (idx !== -1) INITIAL_POS[idx] = updated
-    setSaving(false)
-    setEditMode(false)
-    setToast("Purchase order updated successfully.")
+    setSaveError("")
+    try {
+      const updated = await updatePurchaseOrder(poState.id, {
+        supplierId: suppId,
+        expectedDeliveryDate: delivDate || null,
+        notes: notes || null,
+        items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
+          productId, quantityOrdered, unitCost, requirementLineId,
+        })),
+      })
+      setPOState(updated)
+      setEditMode(false)
+      setToast("Purchase order updated successfully.")
+    } catch (err) {
+      setSaveError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to update the purchase order. Please try again.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Confirmed status transition against the real endpoint. */
+  async function handleStatusAction(action: "markDelivery" | "close" | "cancel") {
+    if (!poState) return
+    setActionError("")
+    try {
+      if (action === "markDelivery") await markPurchaseOrderDelivered(poState.id)
+      else if (action === "close") await closePurchaseOrder(poState.id)
+      else await cancelPurchaseOrder(poState.id)
+      setPOState({ ...poState, status: action === "markDelivery" ? "AWAITING_DELIVERY" : action === "close" ? "CLOSED" : "CANCELLED" })
+      setMarkDeliveryOpen(false)
+      setCloseOpen(false)
+      setCancelOpen(false)
+      setToast(
+        action === "markDelivery"
+          ? "Purchase order marked as awaiting delivery."
+          : action === "close"
+          ? "Purchase order closed."
+          : "Purchase order cancelled.",
+      )
+    } catch (err) {
+      setActionError(err instanceof PurchaseOrdersApiError ? err.message : "The action failed. Please try again.")
+    }
   }
 
   const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
   const ROC = "w-full rounded-xl border border-[#DBEFF3] bg-[#DBEFF3]/40 px-3.5 py-2.5 text-sm text-[#666666]"
 
-  const reference = poState?.reference ?? `PO-2026-00${nextPORef}`
+  const reference = poState?.poNumber ?? (isNew ? "New Purchase Order" : "")
+
+  if (loadingPO) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0">
+        <PageHeader breadcrumb="Purchasing / Orders" title="Purchase Order" subtitle="Loading..." />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+          <p className="text-sm text-[#666666]">Loading purchase order...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isNew && pageError) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0">
+        <PageHeader breadcrumb="Purchasing / Orders" title="Purchase Order" subtitle="Something went wrong." />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{pageError}</p>
+          <Button onClick={() => navigate("/purchasing/orders")}>← Back to Orders</Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -278,7 +416,7 @@ export default function CreatePurchaseOrderPage() {
         subtitle={isNew ? "Create a new purchase order to send to a supplier." : "Purchase Order"}
         actions={
           <div className="flex items-center gap-2">
-            {!isNew && poState && <StatusBadge status={poState.status} />}
+            {!isNew && poState && <StatusBadge status={status} />}
             {!isNew && editMode && (
               <button onClick={() => setEditMode(false)} className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3.5 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors">
                 Cancel Edit
@@ -304,6 +442,12 @@ export default function CreatePurchaseOrderPage() {
           </button>
         )}
 
+        {(saveError || (!isNew && editMode && !poState)) && (
+          <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {saveError || "This purchase order could not be loaded — editing is unavailable."}
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-3 gap-5">
           {/* ── LEFT COLUMN ── */}
           <div className="lg:col-span-2 flex flex-col gap-5">
@@ -312,7 +456,7 @@ export default function CreatePurchaseOrderPage() {
             {!isNew && poState && (
               <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">Order Status</p>
-                <StatusTimeline current={poState.status} cancelled={poState.status === "CANCELLED"} />
+                <StatusTimeline current={status} cancelled={status === "CANCELLED"} />
               </div>
             )}
 
@@ -328,21 +472,18 @@ export default function CreatePurchaseOrderPage() {
                 )}
                 <div>
                   <label className="text-sm font-medium text-[#333333] block mb-1.5">
-                    Purchase Requirement <span className="text-[#999] text-xs font-normal">(optional)</span>
+                    Purchase Requirement <span className="text-[#999] text-xs font-normal">(optional, set per item)</span>
                   </label>
-                  {isReadOnly ? (
-                    <div className={ROC}>{reqRef || "—"}</div>
-                  ) : (
-                    <select value={reqRef} onChange={(e) => setReqRef(e.target.value)} className={SC}>
-                      <option value="">No requirement</option>
-                      {MOCK_REQUIREMENTS.map((r) => <option key={r.id} value={r.reference}>{r.label}</option>)}
-                    </select>
-                  )}
+                  <div className={ROC}>
+                    {items.some((it) => it.requirementLineId)
+                      ? `${items.filter((it) => it.requirementLineId).length} of ${items.length} item${items.length !== 1 ? "s" : ""} linked`
+                      : "—"}
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-[#333333] block mb-1.5">Order Date</label>
                   {isReadOnly ? (
-                    <div className={ROC}>{fmtDate(orderDate)}</div>
+                    <div className={ROC}>{poState ? "—" : fmtDate(orderDate)}</div>
                   ) : (
                     <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className={SC} />
                   )}
@@ -364,24 +505,24 @@ export default function CreatePurchaseOrderPage() {
                 Supplier <span className="text-red-400">*</span>
               </p>
               {isReadOnly ? (
-                <div className={ROC}>{supplier?.name ?? "—"}</div>
+                <div className={ROC}>{supplierView?.name ?? "—"}</div>
               ) : (
                 <select value={suppId} onChange={(e) => setSuppId(e.target.value)} className={SC}>
                   <option value="">Select supplier...</option>
-                  {MOCK_SUPPLIERS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               )}
-              {supplier && (
+              {supplierView && (
                 <div className="mt-4 rounded-xl bg-[#DBEFF3]/50 p-4 grid sm:grid-cols-2 gap-3">
                   {[
-                    ["Contact Person", supplier.contact],
-                    ["Phone",          supplier.phone],
-                    ["Email",          supplier.email],
-                    ["Payment Terms",  supplier.paymentTerms],
+                    ["Contact Person", supplierView.contactPerson],
+                    ["Phone",          supplierView.phone],
+                    ["Email",          supplierView.email],
+                    ["Payment Terms",  supplierView.paymentTerms],
                   ].map(([label, value]) => (
                     <div key={label}>
                       <p className="text-xs text-[#999]">{label}</p>
-                      <p className="text-sm font-semibold text-[#333333]">{value}</p>
+                      <p className="text-sm font-semibold text-[#333333]">{value || "—"}</p>
                     </div>
                   ))}
                 </div>
@@ -420,22 +561,26 @@ export default function CreatePurchaseOrderPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((item, i) => (
-                        <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
-                          <td className="px-4 py-3 font-medium text-[#333333]">{item.product}</td>
-                          <td className="px-4 py-3 text-[#666666] font-mono text-xs hidden sm:table-cell">
-                            {item.requirementRef || <span className="text-[#999]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-[#333333]">{item.quantity}</td>
-                          <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(item.unitCost)}</td>
-                          <td className="px-4 py-3 text-right font-bold text-[#333333]">{fmtMoney(itemTotal(item))}</td>
-                          {!isReadOnly && (
-                            <td className="px-4 py-3">
-                              <button onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} className="text-xs text-red-400 hover:text-red-600 font-medium">Remove</button>
+                      {items.map((item, i) => {
+                        const product = products.find((p) => p.id === item.productId)
+                        const reqLine = reqLines.find((r) => r.lineId === item.requirementLineId)
+                        return (
+                          <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
+                            <td className="px-4 py-3 font-medium text-[#333333]">{product?.name ?? item.product ?? "—"}</td>
+                            <td className="px-4 py-3 text-[#666666] font-mono text-xs hidden sm:table-cell">
+                              {reqLine?.label ?? (item.requirementLineId ? item.requirementLineId.slice(0, 8) : <span className="text-[#999]">—</span>)}
                             </td>
-                          )}
-                        </tr>
-                      ))}
+                            <td className="px-4 py-3 text-right text-[#333333]">{item.quantity}</td>
+                            <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(item.unitCost)}</td>
+                            <td className="px-4 py-3 text-right font-bold text-[#333333]">{fmtMoney(itemTotal(item))}</td>
+                            {!isReadOnly && (
+                              <td className="px-4 py-3">
+                                <button onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} className="text-xs text-red-400 hover:text-red-600 font-medium">Remove</button>
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -482,8 +627,8 @@ export default function CreatePurchaseOrderPage() {
                   </div>
                   <div>
                     <p className="text-xs text-[#999]">Purchase Requirement</p>
-                    {poState?.requirementRef
-                      ? <p className="text-sm font-semibold text-[#49B0C1]">{poState.requirementRef}</p>
+                    {items.some((it) => it.requirementLineId)
+                      ? <p className="text-sm font-semibold text-[#49B0C1]">Linked requirement items</p>
                       : <p className="text-sm text-[#666666]">Manual Purchase Order</p>
                     }
                   </div>
@@ -513,10 +658,10 @@ export default function CreatePurchaseOrderPage() {
               </div>
 
               {/* Supplier payment terms */}
-              {supplier && (
+              {supplierView && (
                 <div className="mt-4 rounded-lg bg-[#DBEFF3]/50 px-4 py-3">
                   <p className="text-xs text-[#999]">Supplier Payment Terms</p>
-                  <p className="text-sm font-semibold text-[#333333] mt-0.5">{supplier.paymentTerms}</p>
+                  <p className="text-sm font-semibold text-[#333333] mt-0.5">{supplierView.paymentTerms || "—"}</p>
                   <p className="text-xs text-[#999] mt-1">Payment is managed through Supplier Payables.</p>
                 </div>
               )}
@@ -543,24 +688,24 @@ export default function CreatePurchaseOrderPage() {
                   <>
                     {status === "REGISTERED" && (
                       <>
-                        <button onClick={() => setMarkDeliveryOpen(true)} className="w-full rounded-xl bg-[#49B0C1] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3a9aaa] transition-colors">
+                        <button onClick={() => { setActionError(""); setMarkDeliveryOpen(true) }} className="w-full rounded-xl bg-[#49B0C1] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3a9aaa] transition-colors">
                           Mark as Awaiting Delivery
                         </button>
                         <button onClick={() => setEditMode(true)} className="w-full rounded-xl border border-[#ABDBE3] bg-white px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#DBEFF3] transition-colors">
                           Edit Order
                         </button>
-                        <button onClick={() => setCancelOpen(true)} className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
+                        <button onClick={() => { setActionError(""); setCancelOpen(true) }} className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
                           Cancel Order
                         </button>
                       </>
                     )}
                     {status === "AWAITING_DELIVERY" && (
-                      <button onClick={() => setCancelOpen(true)} className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
+                      <button onClick={() => { setActionError(""); setCancelOpen(true) }} className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
                         Cancel Order
                       </button>
                     )}
                     {status === "RECEIVED" && (
-                      <button onClick={() => setCloseOpen(true)} className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors">
+                      <button onClick={() => { setActionError(""); setCloseOpen(true) }} className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors">
                         Close Purchase Order
                       </button>
                     )}
@@ -589,8 +734,9 @@ export default function CreatePurchaseOrderPage() {
       {/* Modals */}
       <AddProductModal
         open={addProductOpen}
-        existingProducts={items.map((i) => i.product)}
-        requirementRef={reqRef}
+        products={products}
+        reqLines={reqLines}
+        existingProductIds={items.map((i) => i.productId)}
         onClose={() => setAddProductOpen(false)}
         onAdd={(item) => { setItems((prev) => [...prev, item]); setAddProductOpen(false) }}
       />
@@ -601,8 +747,9 @@ export default function CreatePurchaseOrderPage() {
         message={`Send ${reference} to the supplier and mark it as awaiting delivery?`}
         confirmLabel="Mark Awaiting Delivery"
         confirmClass="bg-yellow-600 hover:bg-yellow-700 text-white"
+        error={actionError}
         onClose={() => setMarkDeliveryOpen(false)}
-        onConfirm={() => { updateStatus("AWAITING_DELIVERY"); setMarkDeliveryOpen(false); setToast("Purchase order marked as awaiting delivery.") }}
+        onConfirm={() => handleStatusAction("markDelivery")}
       />
       <ConfirmModal
         open={closeOpen}
@@ -610,8 +757,9 @@ export default function CreatePurchaseOrderPage() {
         message="This purchase order has been received. Closing it will mark the purchasing cycle as complete."
         confirmLabel="Close Purchase Order"
         confirmClass="bg-green-600 hover:bg-green-700 text-white"
+        error={actionError}
         onClose={() => setCloseOpen(false)}
-        onConfirm={() => { updateStatus("CLOSED"); setCloseOpen(false); setToast("Purchase order closed.") }}
+        onConfirm={() => handleStatusAction("close")}
       />
       <ConfirmModal
         open={cancelOpen}
@@ -620,8 +768,9 @@ export default function CreatePurchaseOrderPage() {
         confirmLabel="Cancel Purchase Order"
         confirmClass="bg-red-600 hover:bg-red-700 text-white"
         cancelLabel="Keep Order"
+        error={actionError}
         onClose={() => setCancelOpen(false)}
-        onConfirm={() => { updateStatus("CANCELLED"); setCancelOpen(false); setToast("Purchase order cancelled.") }}
+        onConfirm={() => handleStatusAction("cancel")}
       />
 
       {toast && <Toast message={toast} onDone={() => setToast("")} />}

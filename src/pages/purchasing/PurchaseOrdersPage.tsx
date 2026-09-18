@@ -4,6 +4,15 @@ import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
+import {
+  listPurchaseOrders,
+  markPurchaseOrderDelivered,
+  cancelPurchaseOrder,
+  closePurchaseOrder,
+  PurchaseOrdersApiError,
+  type PurchaseOrderDto,
+} from "../../features/purchasing/purchaseOrdersApi"
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,8 +20,10 @@ export type POStatus = "REGISTERED" | "AWAITING_DELIVERY" | "RECEIVED" | "CLOSED
 
 export interface POItem {
   id: string
+  productId: string
+  /** Product display name when known (list rows from the API only carry the id). */
   product: string
-  requirementRef: string
+  requirementLineId: string | null
   quantity: number
   unitCost: number
 }
@@ -22,83 +33,14 @@ export interface PurchaseOrder {
   reference: string
   supplierId: string
   supplierName: string
+  /** The API does not return an order date — kept for display (renders "—"). */
   orderDate: string
   expectedDeliveryDate: string
   status: POStatus
   items: POItem[]
   notes: string
-  requirementRef: string
+  totalAmount: number
 }
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-export const MOCK_SUPPLIERS = [
-  { id: "s1", name: "PharmaCo Ltd",     contact: "Ahmed Mohammed", phone: "+251 911 123 456", email: "info@pharmaco.com",    paymentTerms: "Net 30" },
-  { id: "s2", name: "MediPharma",       contact: "Sara Tadesse",   phone: "+251 912 234 567", email: "orders@medipharma.et", paymentTerms: "Net 14" },
-  { id: "s3", name: "GlobalMed Supply", contact: "Daniel Bekele",  phone: "+251 913 345 678", email: "supply@globalmed.com", paymentTerms: "Net 45" },
-  { id: "s4", name: "EthioHealth",      contact: "Meron Haile",    phone: "+251 914 456 789", email: "info@ethiohealth.et",  paymentTerms: "Net 60" },
-]
-
-export const MOCK_REQUIREMENTS = [
-  { id: "r1", reference: "REQ-001", label: "REQ-001 — Low Stock Replenishment" },
-  { id: "r2", reference: "REQ-002", label: "REQ-002 — Urgent Restocking" },
-  { id: "r3", reference: "REQ-004", label: "REQ-004 — Monthly Order" },
-]
-
-let nextPONum = 5
-
-export const INITIAL_POS: PurchaseOrder[] = [
-  {
-    id: "po1", reference: "PO-2026-001", supplierId: "s1", supplierName: "PharmaCo Ltd",
-    orderDate: "2026-09-16", expectedDeliveryDate: "2026-09-21", status: "AWAITING_DELIVERY",
-    requirementRef: "REQ-001",
-    notes: "Urgent delivery required before month-end.",
-    items: [
-      { id: "i1", product: "Paracetamol 500mg", requirementRef: "REQ-001", quantity: 100, unitCost: 120 },
-      { id: "i2", product: "Amoxicillin 500mg", requirementRef: "REQ-001", quantity: 50, unitCost: 85 },
-      { id: "i3", product: "Vitamin C 1000mg",  requirementRef: "REQ-001", quantity: 75, unitCost: 60 },
-    ],
-  },
-  {
-    id: "po2", reference: "PO-2026-002", supplierId: "s2", supplierName: "MediPharma",
-    orderDate: "2026-09-15", expectedDeliveryDate: "2026-09-19", status: "REGISTERED",
-    requirementRef: "REQ-002",
-    notes: "",
-    items: [
-      { id: "i4", product: "Ibuprofen 400mg", requirementRef: "REQ-002", quantity: 80, unitCost: 95 },
-      { id: "i5", product: "Metformin 850mg", requirementRef: "REQ-002", quantity: 60, unitCost: 75 },
-    ],
-  },
-  {
-    id: "po3", reference: "PO-2026-003", supplierId: "s3", supplierName: "GlobalMed Supply",
-    orderDate: "2026-09-10", expectedDeliveryDate: "2026-09-14", status: "RECEIVED",
-    requirementRef: "",
-    notes: "Manual purchase order for cold-chain products.",
-    items: [
-      { id: "i6", product: "Atorvastatin 20mg", requirementRef: "", quantity: 45, unitCost: 110 },
-    ],
-  },
-  {
-    id: "po4", reference: "PO-2026-004", supplierId: "s1", supplierName: "PharmaCo Ltd",
-    orderDate: "2026-09-05", expectedDeliveryDate: "2026-09-09", status: "CLOSED",
-    requirementRef: "REQ-004",
-    notes: "",
-    items: [
-      { id: "i7", product: "Omeprazole 20mg",  requirementRef: "REQ-004", quantity: 120, unitCost: 55 },
-      { id: "i8", product: "Cetirizine 10mg",  requirementRef: "REQ-004", quantity: 200, unitCost: 40 },
-      { id: "i9", product: "Losartan 50mg",    requirementRef: "REQ-004", quantity: 60, unitCost: 90 },
-    ],
-  },
-  {
-    id: "po5", reference: "PO-2026-005", supplierId: "s4", supplierName: "EthioHealth",
-    orderDate: "2026-09-12", expectedDeliveryDate: "2026-09-18", status: "CANCELLED",
-    requirementRef: "",
-    notes: "Supplier could not fulfill the order.",
-    items: [
-      { id: "i10", product: "Insulin Glargine", requirementRef: "", quantity: 20, unitCost: 850 },
-    ],
-  },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -109,7 +51,32 @@ export function fmtDate(d: string) {
 
 function fmtMoney(n: number) { return `${n.toLocaleString("en-ET")} ETB` }
 
-function poTotal(po: PurchaseOrder) { return po.items.reduce((s, i) => s + i.quantity * i.unitCost, 0) }
+function poTotal(po: PurchaseOrder) {
+  return po.totalAmount || po.items.reduce((s, i) => s + i.quantity * i.unitCost, 0)
+}
+
+/** Map an API purchase order onto the UI row shape. */
+export function toUiPO(dto: PurchaseOrderDto): PurchaseOrder {
+  return {
+    id: dto.id,
+    reference: dto.poNumber,
+    supplierId: dto.supplierId,
+    supplierName: dto.supplier?.name ?? "—",
+    orderDate: "",
+    expectedDeliveryDate: dto.expectedDeliveryDate ?? "",
+    status: (dto.status as POStatus) ?? "REGISTERED",
+    notes: dto.notes ?? "",
+    totalAmount: dto.totalAmount ?? 0,
+    items: (dto.items ?? []).map((it) => ({
+      id: it.id,
+      productId: it.productId,
+      product: "",
+      requirementLineId: it.requirementLineId ?? null,
+      quantity: it.quantityOrdered ?? 0,
+      unitCost: it.unitCost ?? 0,
+    })),
+  }
+}
 
 const STATUS_CFG: Record<POStatus, { label: string; cls: string }> = {
   REGISTERED:       { label: "Registered",       cls: "bg-blue-100 text-blue-700" },
@@ -120,7 +87,7 @@ const STATUS_CFG: Record<POStatus, { label: string; cls: string }> = {
 }
 
 export function StatusBadge({ status }: { status: POStatus }) {
-  const cfg = STATUS_CFG[status]
+  const cfg = STATUS_CFG[status] ?? STATUS_CFG.REGISTERED
   return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${cfg.cls}`}>{cfg.label}</span>
 }
 
@@ -170,8 +137,8 @@ function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onC
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
-function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass, cancelLabel = "Cancel", onClose, onConfirm }: {
-  open: boolean; title: string; message: string; detail?: string
+function ConfirmModal({ open, title, message, detail, error, confirmLabel, confirmClass, cancelLabel = "Cancel", onClose, onConfirm }: {
+  open: boolean; title: string; message: string; detail?: string; error?: string
   confirmLabel: string; confirmClass: string; cancelLabel?: string
   onClose: () => void; onConfirm: () => Promise<void> | void
 }) {
@@ -181,6 +148,7 @@ function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass
     <Modal open={open} title={title} onClose={onClose} size="sm">
       <p className="text-sm text-[#666666]">{message}</p>
       {detail && <p className="mt-2 text-xs text-[#999]">{detail}</p>}
+      {error && <p className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
       <div className="flex gap-3 justify-end mt-6">
         <Button variant="secondary" onClick={onClose}>{cancelLabel}</Button>
         <button onClick={go} disabled={loading} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 ${confirmClass}`}>
@@ -195,15 +163,46 @@ function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass
 
 export default function PurchaseOrdersPage() {
   const navigate = useNavigate()
-  const [orders, setOrders] = useState<PurchaseOrder[]>(INITIAL_POS)
+  const [orders, setOrders] = useState<PurchaseOrder[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [reloadTick, setReloadTick] = useState(0)
   const [suppFilter, setSuppFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [toast, setToast] = useState("")
+  const [actionError, setActionError] = useState("")
   const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "markDelivery" | "close" | "cancel" } | null>(null)
 
   const PAGE_SIZE = 10
+
+  // Real suppliers for the filter dropdown.
+  useEffect(() => {
+    let active = true
+    listSuppliers({ limit: 100, isActive: true })
+      .then((res) => { if (active) setSuppliers(res.data) })
+      .catch(() => { /* dropdown simply stays empty */ })
+    return () => { active = false }
+  }, [])
+
+  // Real purchase orders.
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError("")
+    listPurchaseOrders({ page: 1, limit: 100 })
+      .then((res) => { if (active) setOrders(res.data.map(toUiPO)) })
+      .catch((err) => {
+        if (!active) return
+        setError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to load purchase orders.")
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [reloadTick])
+
+  function refresh() { setReloadTick((t) => t + 1) }
 
   const filtered = orders.filter((o) => {
     if (suppFilter && o.supplierId !== suppFilter) return false
@@ -226,22 +225,27 @@ export default function PurchaseOrdersPage() {
     closed:   orders.filter((o) => o.status === "CLOSED").length,
   }
 
-  function updateStatus(id: string, status: POStatus) {
-    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status } : o))
-  }
-
-  function handleAction() {
+  /** Runs the confirmed status transition against the real endpoint. */
+  async function runStatusAction() {
     if (!actionTarget) return
     const { po, action } = actionTarget
-    const next: POStatus = action === "markDelivery" ? "AWAITING_DELIVERY" : action === "close" ? "CLOSED" : "CANCELLED"
-    const msgs: Record<string, string> = {
-      markDelivery: "Purchase order marked as awaiting delivery.",
-      close: "Purchase order closed.",
-      cancel: "Purchase order cancelled.",
+    setActionError("")
+    try {
+      if (action === "markDelivery") await markPurchaseOrderDelivered(po.id)
+      else if (action === "close") await closePurchaseOrder(po.id)
+      else await cancelPurchaseOrder(po.id)
+      setActionTarget(null)
+      setToast(
+        action === "markDelivery"
+          ? "Purchase order marked as awaiting delivery."
+          : action === "close"
+          ? "Purchase order closed."
+          : "Purchase order cancelled.",
+      )
+      refresh()
+    } catch (err) {
+      setActionError(err instanceof PurchaseOrdersApiError ? err.message : "The action failed. Please try again.")
     }
-    updateStatus(po.id, next)
-    setActionTarget(null)
-    setToast(msgs[action])
   }
 
   const confirmCfg = actionTarget ? {
@@ -286,7 +290,7 @@ export default function PurchaseOrdersPage() {
           <div className="flex flex-wrap gap-3 items-center">
             <select value={suppFilter} onChange={(e) => { setSuppFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
               <option value="">All Suppliers</option>
-              {MOCK_SUPPLIERS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
               <option value="">All Statuses</option>
@@ -306,7 +310,17 @@ export default function PurchaseOrdersPage() {
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <p className="text-sm text-[#666666]">Loading purchase orders...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 px-6">
+              <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{error}</p>
+              <Button onClick={refresh}>Retry</Button>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="h-14 w-14 rounded-2xl bg-[#DBEFF3] flex items-center justify-center">
                 <svg className="h-7 w-7 text-[#49B0C1]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
@@ -357,14 +371,14 @@ export default function PurchaseOrdersPage() {
                               { label: "View", onClick: () => navigate(`/purchasing/orders/${po.id}`) },
                               ...(po.status === "REGISTERED" ? [
                                 { label: "Edit", onClick: () => navigate(`/purchasing/orders/${po.id}?edit=1`) },
-                                { label: "Mark as Awaiting Delivery", onClick: () => setActionTarget({ po, action: "markDelivery" }) },
-                                { label: "Cancel Order", danger: true, onClick: () => setActionTarget({ po, action: "cancel" }) },
+                                { label: "Mark as Awaiting Delivery", onClick: () => { setActionError(""); setActionTarget({ po, action: "markDelivery" }) } },
+                                { label: "Cancel Order", danger: true, onClick: () => { setActionError(""); setActionTarget({ po, action: "cancel" }) } },
                               ] : []),
                               ...(po.status === "AWAITING_DELIVERY" ? [
-                                { label: "Cancel Order", danger: true, onClick: () => setActionTarget({ po, action: "cancel" }) },
+                                { label: "Cancel Order", danger: true, onClick: () => { setActionError(""); setActionTarget({ po, action: "cancel" }) } },
                               ] : []),
                               ...(po.status === "RECEIVED" ? [
-                                { label: "Close Purchase Order", onClick: () => setActionTarget({ po, action: "close" }) },
+                                { label: "Close Purchase Order", onClick: () => { setActionError(""); setActionTarget({ po, action: "close" }) } },
                               ] : []),
                             ]} />
                           </div>
@@ -399,8 +413,9 @@ export default function PurchaseOrdersPage() {
           confirmLabel={confirmCfg.confirmLabel}
           confirmClass={confirmCfg.confirmClass}
           cancelLabel={confirmCfg.cancelLabel}
-          onClose={() => setActionTarget(null)}
-          onConfirm={async () => { await new Promise((r) => setTimeout(r, 500)); handleAction() }}
+          error={actionError}
+          onClose={() => { setActionTarget(null); setActionError("") }}
+          onConfirm={runStatusAction}
         />
       )}
       {toast && <Toast message={toast} onDone={() => setToast("")} />}
