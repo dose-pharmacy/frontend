@@ -73,7 +73,7 @@ export default function SupplierPayablesPage() {
           </div>
         }
       />
-      <PurchasingSubNav />
+      
 
       <div className="flex-1 overflow-y-auto">
         {/* Stats */}

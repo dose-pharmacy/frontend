@@ -82,7 +82,7 @@ export default function CreateRequirementPage() {
           <span className="inline-flex items-center rounded-full bg-gray-500 px-3 py-1 text-xs font-semibold text-white">Draft</span>
         }
       />
-      <PurchasingSubNav />
+      
 
       <div className="flex-1 overflow-y-auto pb-24">
         {/* Requirement details form */}

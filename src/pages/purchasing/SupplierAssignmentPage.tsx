@@ -44,7 +44,7 @@ export default function SupplierAssignmentPage() {
     return (
       <div className="flex flex-col min-h-0 flex-1">
         <PageHeader title="Supplier Assignment" subtitle="Purchasing → Requirements → Assign Suppliers" />
-        <PurchasingSubNav />
+       
         <div className="flex-1 flex items-center justify-center text-[#666666]">Loading…</div>
       </div>
     );
@@ -54,7 +54,7 @@ export default function SupplierAssignmentPage() {
     return (
       <div className="flex flex-col min-h-0 flex-1">
         <PageHeader title="Supplier Assignment" subtitle="Purchasing → Requirements → Assign Suppliers" />
-        <PurchasingSubNav />
+        
         <div className="flex-1 flex items-center justify-center text-[#666666]">Requirement not found.</div>
       </div>
     );
@@ -78,7 +78,7 @@ export default function SupplierAssignmentPage() {
           </div>
         }
       />
-      <PurchasingSubNav />
+    
 
       <div className="flex-1 overflow-y-auto pb-24 relative">
         {/* Requirement info */}

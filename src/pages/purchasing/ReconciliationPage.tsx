@@ -78,7 +78,7 @@ export default function ReconciliationPage() {
     return (
       <div className="flex flex-col min-h-0 flex-1">
         <PageHeader title="Stock Intake Reconciliation" subtitle="Purchasing → Deliveries → Reconcile" />
-        <PurchasingSubNav />
+        
         <div className="flex-1 flex items-center justify-center text-[#666666]">Loading…</div>
       </div>
     );
@@ -102,7 +102,7 @@ export default function ReconciliationPage() {
           </div>
         }
       />
-      <PurchasingSubNav />
+     
 
       <div className="flex-1 overflow-y-auto pb-24">
         {/* Summary cards */}

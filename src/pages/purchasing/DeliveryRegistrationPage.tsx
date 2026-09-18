@@ -99,7 +99,7 @@ export default function DeliveryRegistrationPage() {
           </div>
         }
       />
-      <PurchasingSubNav />
+     
 
       <div className="flex-1 overflow-y-auto pb-24">
         {/* Delivery info */}

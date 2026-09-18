@@ -127,7 +127,7 @@ export default function CreatePurchaseOrderPage() {
     return (
       <div className="flex flex-col min-h-0 flex-1">
         <PageHeader title="Purchase Order" subtitle="Purchasing → Orders" />
-        <PurchasingSubNav />
+        
         <div className="flex-1 flex items-center justify-center text-[#666666]">Loading…</div>
       </div>
     );

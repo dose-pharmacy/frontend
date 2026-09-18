@@ -98,7 +98,7 @@ export default function PurchaseReturnPage() {
           </div>
         }
       />
-      <PurchasingSubNav />
+     
 
       <div className="flex-1 overflow-y-auto pb-24">
         {/* Return info form */}

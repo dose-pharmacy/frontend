@@ -77,7 +77,7 @@ export default function PurchaseRequirementsPage() {
           </button>
         }
       />
-      <PurchasingSubNav />
+      
 
       <div className="flex-1 overflow-y-auto">
         {/* Filters */}
