@@ -1,11 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import {
-  getProducts,
-  getAllTransactions,
-  fetchProductOptions,
-  type ProductOption,
-} from "../../features/inventory/inventoryService"
-import type { Product, Transaction } from "../../features/inventory/inventoryMock"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
+import { useSearchParams, useNavigate } from "react-router"
 import {
   getStock,
   getProductTransactions,
@@ -20,7 +14,7 @@ import {
 } from "../../features/inventory/stockApi"
 import { listLocations } from "../../features/inventory/locationsApi"
 import { listProductBatches, type BatchDto } from "../../features/inventory/batchesApi"
-import { getProduct as getProductDetail } from "../../features/inventory/productsApi"
+import { getProduct as getProductDetail, listInventoryProducts } from "../../features/inventory/productsApi"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Select from "../../components/ui/Select"
@@ -140,18 +134,21 @@ const isInType = (t: string) => IN_TYPES.includes(t.toLowerCase())
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function StockPage() {
-  const [tab, setTab] = useState<Tab>("stock")
+  const [params, setParams] = useSearchParams()
+  const productIdQuery = params.get("productId") || ""
+  const navigate = useNavigate()
 
-  // Real API: GET /inventory/stock (Current Stock tab)
+  const [search, setSearch] = useState("")
+  const [locationFilter, setLocationFilter] = useState("")
+  const [page, setPage] = useState(1)
+
   const [rows, setRows] = useState<StockRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [stockLoading, setStockLoading] = useState(true)
   const [stockError, setStockError] = useState<string | null>(null)
-
-  // Mock: movements tab — the stock API exposes transactions only per
-  // product/batch, so a global ledger still comes from mock data until the
-  // backend offers an "all transactions" endpoint.
-  const [products, setProducts] = useState<Product[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+  const requestSeq = useRef(0)
 
   // modals
   const [addStockOpen, setAddStockOpen] = useState(false)
@@ -159,40 +156,47 @@ export default function StockPage() {
   const [stockDetail, setStockDetail] = useState<StockRow | null>(null)
   const [txDetail, setTxDetail] = useState<TxDetail | null>(null)
 
-  async function loadStock() {
+  useEffect(() => {
+    listLocations({ limit: 100 }).then(res => setLocations(res.data)).catch(() => {})
+  }, [])
+
+  const loadStock = useCallback(async (searchTerm: string, locId: string, pageNum: number, pId: string) => {
+    const seq = ++requestSeq.current
     setStockLoading(true)
     setStockError(null)
     try {
-      // Walk the paginated endpoint so backend page-size caps can't hide rows.
-      const first = await getStock({ page: 1, limit: 100 })
-      const dtos = [...first.data]
-      const totalPages = Math.min(first.pagination?.totalPages ?? 1, 10)
-      for (let page = 2; page <= totalPages; page++) {
-        const next = await getStock({ page, limit: 100 })
-        dtos.push(...next.data)
-      }
-      setRows(dtos.map(adaptStockRow))
+      const res = await getStock({ 
+        page: pageNum, 
+        limit: PAGE_SIZE,
+        search: searchTerm.trim() || undefined,
+        locationId: locId || undefined,
+        productId: pId || undefined,
+      })
+      if (seq !== requestSeq.current) return
+      setRows(res.data.map(adaptStockRow))
+      setTotalPages(res.pagination?.totalPages ?? 1)
+      setTotal(res.pagination?.total ?? 0)
     } catch (err) {
-      setStockError(
-        err instanceof StockApiError || err instanceof Error
-          ? err.message
-          : "Failed to load stock. Please try again.",
-      )
+      if (seq !== requestSeq.current) return
+      setStockError(describeError(err))
     } finally {
-      setStockLoading(false)
+      if (seq === requestSeq.current) setStockLoading(false)
     }
-  }
-
-  useEffect(() => {
-    loadStock()
-    // Movements tab (mock)
-    Promise.all([getProducts(), getAllTransactions()]).then(([p, t]) => {
-      setProducts(p)
-      setTransactions(t)
-    })
   }, [])
 
-  function productById(id: string) { return products.find((p) => p.id === id) }
+  useEffect(() => {
+    const t = setTimeout(() => {
+      loadStock(search, locationFilter, page, productIdQuery)
+    }, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [loadStock, search, locationFilter, page, productIdQuery])
+
+  function reset() {
+    setSearch("")
+    setLocationFilter("")
+    setPage(1)
+    if (productIdQuery) setParams({})
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -218,60 +222,108 @@ export default function StockPage() {
         }
       />
 
-      {/* Tab bar */}
-      <div className="bg-white border-b border-[#DBEFF3] px-6 flex">
-        {([["stock", "Current Stock"], ["movements", "Stock Movements"]] as [Tab, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${tab === key ? "border-[#49B0C1] text-[#49B0C1]" : "border-transparent text-[#666666] hover:text-[#333333]"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {tab === "stock" ? (
-          <CurrentStockTab
-            loading={stockLoading}
-            loadError={stockError}
-            rows={rows}
-            onRetry={loadStock}
-            onViewDetail={setStockDetail}
-          />
-        ) : (
-          <MovementsTab
-            transactions={transactions}
-            productById={productById}
-            onViewDetail={(t) => setTxDetail(adaptMockTransaction(t, productById(t.productId)))}
-          />
-        )}
+        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
+          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search product, SKU or batch..." />
+          <div className="flex flex-wrap gap-3 items-center">
+            <Select value={locationFilter} onChange={(e) => { setLocationFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[150px]">
+              <option value="">All Locations</option>
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </Select>
+            {(search || locationFilter || productIdQuery) && (
+              <button onClick={reset} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+                Reset Filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+          {stockError ? (
+            <div className="p-6">
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3">
+                <span>{stockError}</span>
+                <button onClick={() => loadStock(search, locationFilter, page, productIdQuery)} className="text-xs font-semibold text-red-700 hover:underline whitespace-nowrap">Retry</button>
+              </div>
+            </div>
+          ) : stockLoading ? <LoadingSkeleton /> : rows.length === 0 ? (
+            <EmptyState title="No stock records found" description="Adjust your filters or add stock to products." />
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#DBEFF3] text-left">
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Location</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">Quantity</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] hidden md:table-cell">Unit</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">Expiry</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Status</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => {
+                      const s = StatusLabel({ status: deriveStatus(r) })
+                      return (
+                        <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-[#333333]">{r.productName}</p>
+                            {r.productSku && <p className="text-xs text-[#999] font-mono">{r.productSku}</p>}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-[#666666]">{r.batchNumber}</td>
+                          <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{r.locationName}</td>
+                          <td className="px-4 py-3 text-right">
+                            <p className="font-bold text-[#333333]">{r.quantity.toLocaleString()}</p>
+                            {r.reservedQuantity > 0 && (
+                              <p className="text-xs text-[#999]">{r.availableQuantity.toLocaleString()} available</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{r.unitName ? `${r.unitName}s` : "—"}</td>
+                          <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{fmtDate(r.expiryDate)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold rounded-full px-2.5 py-0.5 ${s.cls}`}>{s.label}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button onClick={() => setStockDetail(r)} className="text-xs font-semibold text-[#49B0C1] hover:underline">View</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+                <p className="text-xs text-[#666666]">
+                  Showing {total > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}–{Math.min(page * PAGE_SIZE, total)} of {total} stock records
+                </p>
+                {totalPages > 1 && (
+                  <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Modals */}
       <AddStockModal
         open={addStockOpen}
         onClose={() => setAddStockOpen(false)}
-        onCreated={() => { setAddStockOpen(false); loadStock() }}
+        onCreated={() => { setAddStockOpen(false); loadStock(search, locationFilter, page, productIdQuery) }}
       />
-            <AdjustStockModal
+      <AdjustStockModal
         open={adjustOpen}
         onClose={() => setAdjustOpen(false)}
-        onAdjusted={() => { setAdjustOpen(false); loadStock() }}
+        onAdjusted={() => { setAdjustOpen(false); loadStock(search, locationFilter, page, productIdQuery) }}
       />
       {stockDetail && (
         <StockDetailModal
           row={stockDetail}
           allRows={rows}
           onClose={() => setStockDetail(null)}
-          onOpenTransaction={(tx) => { setStockDetail(null); setTxDetail(adaptApiTransaction(tx)) }}
-        />
-      )}
-      {txDetail && (
-        <TxDetailModal
-          tx={txDetail}
-          onClose={() => setTxDetail(null)}
         />
       )}
     </div>
@@ -484,177 +536,16 @@ function CurrentStockTab({
   )
 }
 
-// ─── Stock Movements Tab (mock data — see note in StockPage) ──────────────────
-
-function MovementsTab({
-  transactions, productById, onViewDetail,
-}: {
-  transactions: Transaction[]
-  productById: (id: string) => Product | undefined
-  onViewDetail: (t: Transaction) => void
-}) {
-  const [search, setSearch] = useState("")
-  const [typeFilter, setTypeFilter] = useState("")
-  const [locationFilter, setLocationFilter] = useState("")
-  const [page, setPage] = useState(1)
-
-  const locations = useMemo(() => [...new Set(transactions.map((t) => t.location))], [transactions])
-
-  const filtered = useMemo(() => {
-    let rows = [...transactions].sort((a, b) => b.date.localeCompare(a.date))
-    if (search) {
-      const q = search.toLowerCase()
-      rows = rows.filter((t) => {
-        const p = productById(t.productId)
-        return p?.name.toLowerCase().includes(q) || t.reference.toLowerCase().includes(q)
-      })
-    }
-    if (typeFilter) rows = rows.filter((t) => t.type === typeFilter)
-    if (locationFilter) rows = rows.filter((t) => t.location === locationFilter)
-    return rows
-  }, [transactions, search, typeFilter, locationFilter, productById])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  const summary = useMemo(() => ({
-    total: filtered.length,
-    in: filtered.filter((t) => isInType(t.type)).reduce((a, t) => a + t.quantity, 0),
-    out: filtered.filter((t) => !isInType(t.type)).reduce((a, t) => a + t.quantity, 0),
-  }), [filtered])
-
-  return (
-    <>
-      <div className="grid grid-cols-3 gap-4">
-        <SmallCard label="Total Movements" value={summary.total.toLocaleString()} />
-        <SmallCard label="Stock In" value={`+${summary.in.toLocaleString()}`} accent="text-green-600" />
-        <SmallCard label="Stock Out" value={`−${summary.out.toLocaleString()}`} accent="text-red-600" />
-      </div>
-
-      <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
-        <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search product, batch or reference..." />
-        <div className="flex flex-wrap gap-3">
-          <Select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[150px]">
-            <option value="">All Types</option>
-            {["received","sale","transfer","adjustment","opening","disposal","return"].map((t) => (
-              <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
-          </Select>
-          <Select value={locationFilter} onChange={(e) => { setLocationFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[150px]">
-            <option value="">All Locations</option>
-            {locations.map((l) => <option key={l} value={l}>{l}</option>)}
-          </Select>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-        {filtered.length === 0 ? (
-          <EmptyState title="No movements found" description="Stock movements appear here as inventory is received, sold, or adjusted." />
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#DBEFF3] text-left">
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Date</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Type</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Location</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Qty In</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Qty Out</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] text-right hidden md:table-cell">Balance</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">Reference</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((t, i) => {
-                    const p = productById(t.productId)
-                    const unit = p?.baseUnit ?? ""
-                    const isIn = isInType(t.type)
-                    return (
-                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(t.date)}</td>
-                        <td className="px-4 py-3 font-medium text-[#333333]">{p?.name ?? t.productId}</td>
-                        <td className="px-4 py-3"><TxTypeBadge type={t.type} /></td>
-                        <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{t.location}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-green-700">
-                          {isIn ? `+${t.quantity.toLocaleString()} ${unit}s` : <span className="text-[#999] font-normal">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold text-red-600">
-                          {!isIn ? `−${t.quantity.toLocaleString()} ${unit}s` : <span className="text-[#999] font-normal">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right text-[#333333] font-semibold hidden md:table-cell">
-                          {t.balanceAfter.toLocaleString()} {unit}s
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-[#666666] hidden lg:table-cell">{t.reference}</td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => onViewDetail(t)} className="text-xs font-semibold text-[#49B0C1] hover:underline">View</button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
-              <p className="text-xs text-[#666666]">
-                Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} movements
-              </p>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  )
-}
-
-// ─── Stock Detail Modal (3 views: batch | tx | bincard) ──────────────────────
-
-type StockView = "batch" | "transactions" | "bincard"
-
 function StockDetailModal({
-  row, allRows, onClose, onOpenTransaction,
+  row, allRows, onClose,
 }: {
   row: StockRow
   allRows: StockRow[]
   onClose: () => void
-  onOpenTransaction: (tx: StockTransactionDto) => void
 }) {
-  const [view, setView] = useState<StockView>("batch")
-
   return (
-    <Modal
-      open
-      title={view === "batch" ? "Stock Detail" : view === "transactions" ? "Batch Transactions" : "Bin Card"}
-      onClose={onClose}
-      size={view === "bincard" ? "lg" : "md"}
-    >
-      {view === "batch" && (
-        <BatchDetailView
-          row={row}
-          allRows={allRows}
-          onViewTransactions={() => setView("transactions")}
-          onViewBinCard={() => setView("bincard")}
-        />
-      )}
-
-      {view === "transactions" && (
-        <BatchTransactionsView
-          row={row}
-          onBack={() => setView("batch")}
-          onViewTransaction={onOpenTransaction}
-          onViewBinCard={() => setView("bincard")}
-        />
-      )}
-
-      {view === "bincard" && (
-        <BinCardView
-          row={row}
-          onBack={() => setView("batch")}
-        />
-      )}
+    <Modal open title="Stock Detail" onClose={onClose} size="md">
+      <BatchDetailView row={row} allRows={allRows} />
     </Modal>
   )
 }
@@ -662,15 +553,14 @@ function StockDetailModal({
 // ─── VIEW 1: Batch Details ────────────────────────────────────────────────────
 
 function BatchDetailView({
-  row, allRows, onViewTransactions, onViewBinCard,
+  row, allRows,
 }: {
   row: StockRow
   allRows: StockRow[]
-  onViewTransactions: () => void
-  onViewBinCard: () => void
 }) {
   const status = deriveStatus(row)
   const s = StatusLabel({ status })
+  const navigate = useNavigate()
 
   // Stock of the same product+batch across all locations (from loaded rows)
   const locationsForBatch = useMemo(() => {
@@ -740,363 +630,8 @@ function BatchDetailView({
 
       {/* Actions */}
       <div className="flex flex-wrap gap-2 border-t border-[#DBEFF3] pt-4">
-        <Button variant="secondary" onClick={onViewTransactions}>View Transactions</Button>
-        <Button variant="secondary" onClick={onViewBinCard}>View Bin Card</Button>
+        <Button variant="secondary" onClick={() => navigate(`/inventory/bin-card?productId=${row.productId}&locationId=${row.locationId}&batchId=${row.batchId}`)}>View Bin Card</Button>
       </div>
-    </div>
-  )
-}
-
-// ─── VIEW 2: Batch Transactions (GET /inventory/batches/{id}/transactions) ────
-
-function BatchTransactionsView({
-  row, onBack, onViewTransaction, onViewBinCard,
-}: {
-  row: StockRow
-  onBack: () => void
-  onViewTransaction: (tx: StockTransactionDto) => void
-  onViewBinCard: () => void
-}) {
-  const [txs, setTxs] = useState<StockTransactionDto[]>([])
-  const [scopeNote, setScopeNote] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError("")
-    // Prefer the batch ledger; fall back to the product ledger when the
-    // batch itself has no movements yet.
-    getBatchTransactions(row.batchId, { limit: 100 })
-      .then(async (batchResult) => {
-        if (cancelled) return
-        if (batchResult.data.length > 0) {
-          setTxs(sortTxsDesc(batchResult.data))
-          setScopeNote(null)
-          return
-        }
-        const productResult = await getProductTransactions(row.productId, { limit: 100 })
-        if (cancelled) return
-        setTxs(sortTxsDesc(productResult.data))
-        setScopeNote("No movements for this batch yet — showing all transactions for the product.")
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load transactions.")
-      })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [row.batchId, row.productId])
-
-  const unit = row.unitName
-
-  return (
-    <div className="flex flex-col gap-4">
-      <button
-        onClick={onBack}
-        className="self-start text-xs font-semibold text-[#49B0C1] hover:underline"
-      >
-        ← Back to Batch
-      </button>
-
-      <div>
-        <p className="text-sm font-bold text-[#333333]">{row.productName}</p>
-        <p className="text-xs font-mono text-[#666666] mt-0.5">{row.batchNumber}</p>
-      </div>
-
-      {scopeNote && (
-        <p className="text-xs text-[#666666] bg-[#DBEFF3]/50 rounded-lg px-3 py-2">{scopeNote}</p>
-      )}
-
-      {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
-      ) : loading ? (
-        <LoadingSkeleton />
-      ) : txs.length === 0 ? (
-        <EmptyState title="No transactions" description="No stock movements recorded for this batch yet." />
-      ) : (
-        <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0">
-                <tr className="bg-[#DBEFF3] text-left">
-                  <th className="px-3 py-2.5 font-semibold text-[#333333]">Date</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333]">Type</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333] text-right">In</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333] text-right">Out</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333] text-right">Balance</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333]"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {txs.map((t, i) => {
-                  const isIn = t.direction === "IN"
-                  return (
-                    <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                      <td className="px-3 py-2.5 text-[#666666] whitespace-nowrap text-xs">{fmtDate(t.createdAt)}</td>
-                      <td className="px-3 py-2.5"><TxTypeBadge type={t.transactionType} /></td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-green-700">
-                        {isIn ? `+${t.quantity.toLocaleString()}` : <span className="text-[#999] font-normal">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-red-600">
-                        {!isIn ? `−${t.quantity.toLocaleString()}` : <span className="text-[#999] font-normal">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-[#333333]">
-                        {t.balanceAfter.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button
-                          onClick={() => onViewTransaction(t)}
-                          className="text-xs font-semibold text-[#49B0C1] hover:underline"
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-end border-t border-[#DBEFF3] pt-4">
-        <Button variant="secondary" onClick={onViewBinCard}>View Bin Card</Button>
-      </div>
-    </div>
-  )
-}
-
-function sortTxsDesc(txs: StockTransactionDto[]): StockTransactionDto[] {
-  return [...txs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-}
-
-// ─── VIEW 3: Bin Card (GET /inventory/bin-card) ───────────────────────────────
-
-function BinCardView({
-  row, onBack,
-}: {
-  row: StockRow
-  onBack: () => void
-}) {
-  const [card, setCard] = useState<BinCardResult | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-
-  const [fromDate, setFromDate] = useState("")
-  const [toDate, setToDate] = useState("")
-  const [typeFilter, setTypeFilter] = useState("")
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError("")
-    //getBinCard({ productId: row.productId, batchId: row.batchId })
-    getBinCard({ productId: row.productId, batchId: row.batchId, locationId: row.locationId })
-      .then((result) => { if (!cancelled) setCard(result) })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load the bin card.")
-      })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [row.productId, row.batchId])
-
-  const unit = useMemo(() => {
-    const name = nameOf(card?.baseUnit, "")
-    return name || row.unitName
-  }, [card, row.unitName])
-
-  const hasFilters = !!(fromDate || toDate || typeFilter)
-
-  // Server returns in/out/balance per transaction. When the user narrows the
-  // window client-side, recompute running balances from the server's opening.
-  const ledger = useMemo(() => {
-    const all = card?.transactions ?? []
-    const filtered = all.filter((t) => {
-      if (fromDate && t.date < fromDate) return false
-      if (toDate && t.date > toDate) return false
-      if (typeFilter && t.transactionType !== typeFilter) return false
-      return true
-    })
-    let running = card?.openingBalance ?? 0
-    return filtered.map((t) => {
-      running += t.in - t.out
-      return { ...t, runningBalance: running }
-    })
-  }, [card, fromDate, toDate, typeFilter])
-
-  const openingBalance = card?.openingBalance ?? 0
-  const closing = ledger.length ? ledger[ledger.length - 1].runningBalance : openingBalance
-
-  const totals = useMemo(() => ({
-    totalIn: ledger.reduce((a, t) => a + t.in, 0),
-    totalOut: ledger.reduce((a, t) => a + t.out, 0),
-  }), [ledger])
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="text-xs font-semibold text-[#49B0C1] hover:underline"
-        >
-          ← Back to Batch
-        </button>
-        <button
-          onClick={() => window.print()}
-          className="text-xs font-semibold text-[#666666] hover:text-[#333333]"
-        >
-          Print
-        </button>
-      </div>
-
-      {/* Header */}
-      <div className="rounded-xl bg-[#DBEFF3]/40 p-4">
-        <p className="text-lg font-bold text-[#333333]">{row.productName}</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
-          <div>
-            <p className="text-[#999]">Batch</p>
-            <p className="font-mono font-semibold text-[#333333]">{row.batchNumber}</p>
-          </div>
-          <div>
-            <p className="text-[#999]">Location</p>
-            <p className="font-semibold text-[#333333]">{row.locationName}</p>
-          </div>
-          <div>
-            <p className="text-[#999]">Unit</p>
-            <p className="font-semibold text-[#333333]">{unit ? `${unit}s` : "—"}</p>
-          </div>
-          <div>
-            <p className="text-[#999]">Expiry</p>
-            <p className="font-semibold text-[#333333]">{fmtDate(row.expiryDate)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Opening balance */}
-      <div className="rounded-xl border border-[#DBEFF3] p-4 flex items-center justify-between bg-white">
-        <span className="text-xs font-semibold text-[#666666] uppercase tracking-wide">Opening Balance</span>
-        <span className="text-xl font-bold text-[#333333]">
-          {openingBalance.toLocaleString()} {unit ? `${unit}s` : ""}
-        </span>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-[150px]">
-          <label className="text-xs font-medium text-[#666666] block mb-1">From</label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
-          />
-        </div>
-        <div className="flex-1 min-w-[150px]">
-          <label className="text-xs font-medium text-[#666666] block mb-1">To</label>
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
-          />
-        </div>
-        <div className="flex-1 min-w-[150px]">
-          <label className="text-xs font-medium text-[#666666] block mb-1">Movement Type</label>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
-          >
-            <option value="">All Movements</option>
-            {["RECEIPT","SALE","TRANSFER","ADJUSTMENT","OPENING","DISPOSAL","RETURN"].map((t) => (
-              <option key={t} value={t}>{prettyType(t)}</option>
-            ))}
-          </select>
-        </div>
-        {hasFilters && (
-          <button
-            onClick={() => { setFromDate(""); setToDate(""); setTypeFilter("") }}
-            className="text-xs font-semibold text-[#49B0C1] hover:underline pb-2"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* Body */}
-      {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
-      ) : loading ? (
-        <LoadingSkeleton />
-      ) : (
-        <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="overflow-x-auto max-h-[45vh] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-[#DBEFF3] text-left">
-                  <th className="px-3 py-2.5 font-semibold text-[#333333]">Date</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333]">Reference</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333]">Type</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333] text-right">IN</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333] text-right">OUT</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333] text-right">Balance</th>
-                  <th className="px-3 py-2.5 font-semibold text-[#333333] text-right hidden lg:table-cell">Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledger.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-sm text-[#999]">
-                      No movements in the selected range.
-                    </td>
-                  </tr>
-                ) : (
-                  ledger.map((t, i) => (
-                    <tr key={t.transactionId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                      <td className="px-3 py-2.5 text-[#666666] whitespace-nowrap text-xs">{fmtDate(t.date)}</td>
-                      <td className="px-3 py-2.5 font-mono text-xs text-[#666666]">{t.reference || "—"}</td>
-                      <td className="px-3 py-2.5"><TxTypeBadge type={t.transactionType} /></td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-green-700">
-                        {t.in > 0 ? t.in.toLocaleString() : <span className="text-[#999] font-normal">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-red-600">
-                        {t.out > 0 ? t.out.toLocaleString() : <span className="text-[#999] font-normal">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-[#333333]">
-                        {t.runningBalance.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-[#666666] hidden lg:table-cell">
-                        {t.costPrice != null ? `${t.costPrice.toLocaleString()} ETB` : "—"}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Totals / closing */}
-          <div className="border-t border-[#DBEFF3] bg-[#DBEFF3]/20">
-            <div className="grid grid-cols-3 px-4 py-3 text-sm">
-              <div>
-                <p className="text-xs text-[#999]">Total IN</p>
-                <p className="font-bold text-green-700">+{totals.totalIn.toLocaleString()} {unit ? `${unit}s` : ""}</p>
-              </div>
-              <div>
-                <p className="text-xs text-[#999]">Total OUT</p>
-                <p className="font-bold text-red-600">−{totals.totalOut.toLocaleString()} {unit ? `${unit}s` : ""}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-[#999]">Closing Balance</p>
-                <p className="font-bold text-[#333333]">{closing.toLocaleString()} {unit ? `${unit}s` : ""}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

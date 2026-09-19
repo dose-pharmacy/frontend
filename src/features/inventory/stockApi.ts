@@ -270,8 +270,22 @@ function buildQueryString(query: Record<string, string | number | undefined>) {
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
 /** GET /inventory/stock — paginated stock rows. */
-export async function getStock(query: { page?: number; limit?: number } = {}): Promise<StockListResult> {
-  const qs = buildQueryString({ page: query.page, limit: query.limit });
+export async function getStock(query: {
+  page?: number;
+  limit?: number;
+  productId?: string;
+  batchId?: string;
+  locationId?: string;
+  search?: string;
+} = {}): Promise<StockListResult> {
+  const qs = buildQueryString({
+    page: query.page,
+    limit: query.limit,
+    productId: query.productId,
+    batchId: query.batchId,
+    locationId: query.locationId,
+    search: query.search,
+  });
   const result = await stockRequest<StockListResult>(`/stock${qs}`);
   return (
     result ?? {
@@ -337,9 +351,17 @@ export async function getBatchTransactions(
  * batch the UI opened the card for.
  */
 export async function getBinCard(
-  query: { productId: string; batchId?: string } & Record<string, string | undefined>,
+  query: { 
+    productId: string; 
+    locationId: string;
+    batchId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  },
 ): Promise<BinCardResult> {
-  const qs = buildQueryString(query);
+  const qs = buildQueryString(query as Record<string, string | number | undefined>);
   const result = await stockRequest<BinCardResult>(`/bin-card${qs}`);
   return (
     result ?? {

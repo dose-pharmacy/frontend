@@ -12,7 +12,6 @@ import {
   type ProductGroupDto,
 } from "../../features/inventory/productGroupsApi";
 import { listUnits, type UnitDto } from "../../features/inventory/unitsApi";
-import MetricCard from "../../components/ui/MetricCard";
 import SearchInput from "../../components/ui/SearchInput";
 import Select from "../../components/ui/Select";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -22,13 +21,7 @@ import Button from "../../components/ui/Button";
 import PageHeader from "../../components/ui/PageHeader";
 import Modal from "../../components/ui/Modal";
 
-const PAGE_SIZE = 10;
-const PREVIEW_COUNT = 5;
-
-// Per-page size used when looping through pages in "View All" mode.
-// Set to whatever your API's maximum allowed `limit` is.
-const FETCH_ALL_PER_PAGE = 100;
-const FETCH_ALL_MAX_PAGES = 50;
+const PAGE_SIZE = 20;
 
 // ─────────────────────────────────────────────────────────────
 // Create form types
@@ -81,46 +74,7 @@ function apiErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ProductsApiError ? err.message : fallback;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Fetch ALL pages sequentially (used by "View All")
-// ─────────────────────────────────────────────────────────────
-async function fetchAllProducts(params: {
-  searchTerm: string;
-  status: string;
-  groupId: string;
-}): Promise<{ data: InventoryProductDto[]; meta: ListMeta }> {
-  const all: InventoryProductDto[] = [];
-  let pageNum = 1;
-  let lastMeta: ListMeta | null = null;
 
-  while (pageNum <= FETCH_ALL_MAX_PAGES) {
-    const res = await listInventoryProducts({
-      page: pageNum,
-      limit: FETCH_ALL_PER_PAGE,
-      search: params.searchTerm.trim() || undefined,
-      productGroupId: params.groupId || undefined,
-      stockStatus: params.status || undefined,
-    });
-
-    all.push(...res.data);
-    lastMeta = res.meta;
-
-    const total = res.meta?.total ?? all.length;
-    if (all.length >= total || res.data.length < FETCH_ALL_PER_PAGE) break;
-    pageNum += 1;
-  }
-
-  return {
-    data: all,
-    meta:
-      lastMeta ?? {
-        total: all.length,
-        page: 1,
-        limit: FETCH_ALL_PER_PAGE,
-        totalPages: Math.ceil(all.length / FETCH_ALL_PER_PAGE) || 1,
-      },
-  };
-}
 
 // ─────────────────────────────────────────────────────────────
 // Toggle Switch
@@ -178,7 +132,6 @@ export default function ProductsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [showAll, setShowAll] = useState(false);
   const requestSeq = useRef(0);
 
   // ── Create modal state ──
@@ -213,43 +166,26 @@ export default function ProductsPage() {
       status: string,
       groupId: string,
       pageNum: number,
-      all: boolean,
     ) => {
       const seq = ++requestSeq.current;
       setLoading(true);
       setLoadError(null);
       try {
-        if (all) {
-          // View All: loop through pages until we have everything.
-          const res = await fetchAllProducts({
-            searchTerm,
-            status,
-            groupId,
-          });
-          if (seq !== requestSeq.current) return;
-          setProducts(res.data);
-          setMeta(res.meta);
-        } else {
-          // Single page (preview / pagination).
-          const res = await listInventoryProducts({
-            page: pageNum,
-            limit: PAGE_SIZE,
-            search: searchTerm.trim() || undefined,
-            productGroupId: groupId || undefined,
-            stockStatus: status || undefined,
-          });
-          if (seq !== requestSeq.current) return;
-          setProducts(res.data);
-          setMeta(res.meta);
-        }
+        const res = await listInventoryProducts({
+          page: pageNum,
+          limit: PAGE_SIZE,
+          search: searchTerm.trim() || undefined,
+          productGroupId: groupId || undefined,
+          stockStatus: status || undefined,
+        });
+        if (seq !== requestSeq.current) return;
+        setProducts(res.data);
+        setMeta(res.meta);
       } catch (err) {
         if (seq !== requestSeq.current) return;
         setLoadError(
           apiErrorMessage(err, "Failed to load products. Please try again."),
         );
-        // If View All failed, fall back to preview so the user isn't
-        // stuck looking at an empty table.
-        if (all) setShowAll(false);
       } finally {
         if (seq === requestSeq.current) setLoading(false);
       }
@@ -259,36 +195,18 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const t = setTimeout(
-      () => void reload(search, statusFilter, groupFilter, page, showAll),
+      () => void reload(search, statusFilter, groupFilter, page),
       search ? 300 : 0,
     );
     return () => clearTimeout(t);
-  }, [reload, search, statusFilter, groupFilter, page, showAll]);
+  }, [reload, search, statusFilter, groupFilter, page]);
 
   const filtered = products;
   const totalPages = meta?.totalPages ?? 1;
 
-  const visibleProducts = showAll
-    ? filtered
-    : filtered.slice(0, PREVIEW_COUNT);
-
-  const hasMore = showAll ? false : (meta?.total ?? 0) > PREVIEW_COUNT;
-
-  const metrics = useMemo(
-    () => ({
-      total: meta?.total ?? products.length,
-      inStock: products.filter((p) => p.stockStatus === "IN_STOCK").length,
-      lowStock: products.filter((p) => p.stockStatus === "LOW_STOCK").length,
-      outOfStock: products.filter((p) => p.stockStatus === "OUT_OF_STOCK")
-        .length,
-    }),
-    [products, meta],
-  );
-
   function handleSearch(v: string) {
     setSearch(v);
     setPage(1);
-    setShowAll(false);
   }
 
   function formatExpiry(dateStr: string) {
@@ -440,8 +358,7 @@ export default function ProductsPage() {
       });
 
       setCreateOpen(false);
-      setShowAll(false);
-      await reload(search, statusFilter, groupFilter, 1, false);
+      await reload(search, statusFilter, groupFilter, 1);
       setPage(1);
     } catch (err) {
       setFormError(
@@ -481,31 +398,6 @@ export default function ProductsPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Metrics */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="Total Products"
-            value={loading ? "—" : metrics.total}
-            icon={<BoxIcon />}
-          />
-          <MetricCard
-            title="In Stock"
-            value={loading ? "—" : metrics.inStock}
-            icon={<CheckIcon />}
-          />
-          <MetricCard
-            title="Low Stock"
-            value={loading ? "—" : metrics.lowStock}
-            icon={<WarnIcon />}
-            subtitle="Needs attention"
-          />
-          <MetricCard
-            title="Out of Stock"
-            value={loading ? "—" : metrics.outOfStock}
-            icon={<AlertIcon />}
-            subtitle="Action required"
-          />
-        </div>
 
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-3">
@@ -513,7 +405,7 @@ export default function ProductsPage() {
             <button
               type="button"
               onClick={() =>
-                void reload(search, statusFilter, groupFilter, page, showAll)
+                void reload(search, statusFilter, groupFilter, page)
               }
               className="text-sm font-semibold text-red-700 hover:underline"
             >
@@ -537,7 +429,6 @@ export default function ProductsPage() {
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(1);
-                setShowAll(false);
               }}
               className="sm:w-44"
             >
@@ -551,7 +442,6 @@ export default function ProductsPage() {
               onChange={(e) => {
                 setGroupFilter(e.target.value);
                 setPage(1);
-                setShowAll(false);
               }}
               className="sm:w-48"
             >
@@ -567,58 +457,6 @@ export default function ProductsPage() {
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          {/* Toolbar: view-all toggle */}
-          {!loading && filtered.length > 0 && (
-            <div className="px-4 py-3 border-b border-[#DBEFF3] flex items-center justify-between gap-3">
-              <span className="text-xs text-[#666666]">
-                {showAll
-                  ? `Showing all ${filtered.length} product${filtered.length !== 1 ? "s" : ""}`
-                  : `Showing ${visibleProducts.length} of ${filtered.length}`}
-              </span>
-              {hasMore && (
-                <button
-                  type="button"
-                  onClick={() => setShowAll((v) => !v)}
-                  className="text-xs font-semibold text-[#49B0C1] hover:underline flex items-center gap-1"
-                >
-                  {showAll ? (
-                    <>
-                      Show Less
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </>
-                  ) : (
-                    <>
-                      View All ({filtered.length})
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          )}
-
           {loading ? (
             <LoadingSkeleton />
           ) : filtered.length === 0 ? (
@@ -628,15 +466,9 @@ export default function ProductsPage() {
             />
           ) : (
             <>
-              <div
-                className={`overflow-x-auto ${
-                  showAll ? "max-h-[70vh] overflow-y-auto" : ""
-                }`}
-              >
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead
-                    className={showAll ? "sticky top-0 z-10 bg-[#DBEFF3]" : ""}
-                  >
+                  <thead>
                     <tr className="bg-[#DBEFF3] text-left">
                       <th className="px-4 py-3 font-semibold text-[#333333]">
                         Product
@@ -665,7 +497,7 @@ export default function ProductsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleProducts.map((product, i) => (
+                    {filtered.map((product, i) => (
                       <tr
                         key={product.id}
                         className={
@@ -724,48 +556,21 @@ export default function ProductsPage() {
                 </table>
               </div>
 
-              {/* Footer */}
-              {showAll ? (
-                <div className="px-4 py-3 border-t border-[#DBEFF3] bg-[#DBEFF3]/20 flex items-center justify-between">
-                  <span className="text-xs text-[#666666]">
-                    All {filtered.length} product
-                    {filtered.length !== 1 ? "s" : ""} shown
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowAll(false)}
-                    className="text-xs font-semibold text-[#49B0C1] hover:underline"
-                  >
-                    Show Less
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {hasMore && (
-                    <div className="px-4 py-3 border-t border-[#DBEFF3] bg-[#DBEFF3]/20 flex items-center justify-between">
-                      <span className="text-xs text-[#666666]">
-                        {(meta?.total ?? 0) - PREVIEW_COUNT} more product
-                        {(meta?.total ?? 0) - PREVIEW_COUNT !== 1 ? "s" : ""}{" "}
-                        not shown
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowAll(true)}
-                        className="text-xs font-semibold text-[#49B0C1] hover:underline"
-                      >
-                        View All →
-                      </button>
-                    </div>
-                  )}
-                  {totalPages > 1 && (
-                    <Pagination
-                      page={page}
-                      totalPages={totalPages}
-                      onPageChange={setPage}
-                    />
-                  )}
-                </>
-              )}
+              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+                <p className="text-xs text-[#666666]">
+                  Showing {filtered.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}
+                  –
+                  {Math.min(page * PAGE_SIZE, meta?.total ?? 0)} of{" "}
+                  {meta?.total ?? 0} products
+                </p>
+                {totalPages > 1 && (
+                  <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                  />
+                )}
+              </div>
             </>
           )}
         </div>

@@ -533,12 +533,12 @@ export default function AppLayout() {
       />
 
       <div className="flex flex-col flex-1 min-w-0 min-h-0">
-        <TopBar
+        {/* <TopBar
           onToggleMobile={() => setMobileOpen(true)}
           onToggleCollapse={() => setCollapsed((v) => !v)}
-        />
+        /> */}
 
-        <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <main className="flex-1 flex flex-col min-h-0">
           <Outlet />
         </main>
       </div>

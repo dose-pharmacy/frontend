@@ -473,7 +473,13 @@ export default function ProductDetailPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    <Button variant="secondary" onClick={() => navigate(`/inventory/stock?productId=${product.id}`)}>
+                      View Stock →
+                    </Button>
+                    <Button variant="secondary" onClick={() => navigate(`/inventory/bin-card?productId=${product.id}`)}>
+                      View Bin Card →
+                    </Button>
                     <Button variant="secondary" onClick={openEdit}>
                       Edit
                     </Button>
