@@ -128,7 +128,9 @@ export default function PurchaseReturnDetailPage() {
             </div>
             <div>
               <p className="text-xs text-[#666666]">Batch</p>
-              <p className="font-semibold text-[#333333] font-mono text-xs">{returnRecord.batchId ?? "—"}</p>
+              <p className="font-semibold text-[#333333] font-mono text-xs">
+                {returnRecord.batch ? `${returnRecord.batch.batchNumber} · Exp: ${fmtDate(returnRecord.batch.expiryDate)}` : "—"}
+              </p>
             </div>
             <div>
               <p className="text-xs text-[#666666]">Location</p>
@@ -149,16 +151,12 @@ export default function PurchaseReturnDetailPage() {
               <p className="text-lg font-bold text-[#333333]">{fmtMoney(returnRecord.unitCost)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#666666]">Total Value</p>
-              <p className="text-lg font-bold text-red-600">{fmtMoney(returnRecord.totalValue)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#666666]">Debit Note</p>
-              <p className="font-semibold text-[#333333]">{returnRecord.debitNoteNumber ?? "—"}</p>
+              <p className="text-xs text-[#666666]">Debit Note Amount</p>
+              <p className="text-lg font-bold text-red-600">{fmtMoney(returnRecord.debitNoteAmount)}</p>
             </div>
             <div>
               <p className="text-xs text-[#666666]">Returned Date</p>
-              <p className="font-semibold text-[#333333]">{fmtDate(returnRecord.returnDate)}</p>
+              <p className="font-semibold text-[#333333]">{fmtDate(returnRecord.returnedDate)}</p>
             </div>
             <div>
               <p className="text-xs text-[#666666]">Recorded By</p>

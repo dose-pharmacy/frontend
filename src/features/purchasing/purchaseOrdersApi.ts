@@ -30,6 +30,8 @@ export interface POItemDto {
   quantityOrdered: number;
   unitCost: number;
   requirementLineId: string | null;
+  /** Embedded on detail responses (and from-requirement creates). */
+  product?: { id: string; name: string; sku: string } | null;
 }
 
 export interface POSupplierRefDto {
@@ -48,11 +50,16 @@ export interface PurchaseOrderDto {
   poNumber: string;
   supplierId: string;
   status: POStatus;
+  /** ISO8601 datetime — stamped by the backend on creation. */
+  orderDate?: string;
   expectedDeliveryDate: string | null;
   notes: string | null;
-  totalAmount: number;
+  createdById?: string;
   supplier?: POSupplierRefDto | null;
-  items: POItemDto[];
+  createdBy?: { id: string; name: string } | null;
+  /** List rows carry `_count.items` instead of a full items array. */
+  _count?: { items?: number };
+  items?: POItemDto[];
 }
 
 export interface POListMeta {
@@ -64,7 +71,8 @@ export interface POListMeta {
 
 export interface PurchaseOrderListResult {
   data: PurchaseOrderDto[];
-  pagination: POListMeta;
+  /** The backend returns the page meta under `meta`. */
+  meta: POListMeta;
 }
 
 export interface PurchaseOrdersQuery {
@@ -160,6 +168,10 @@ function friendlyStatusMessage(status: number, code?: string): string {
         return "This purchase order can no longer be cancelled in its current state.";
       if (code === "REQUIREMENT_QUANTITY_EXCEEDED")
         return "The available quantity for this requirement changed because another purchase order was created. Refresh the requirement and review the remaining quantity.";
+      if (code === "REQUIREMENT_CLOSED")
+        return "The linked requirement line is closed and can no longer be ordered.";
+      if (code === "INACTIVE_SUPPLIER")
+        return "This supplier is inactive and cannot receive new purchase orders.";
       if (code === "PO_STATUS_TRANSITION_INVALID")
         return "This status transition is not allowed for the current purchase order state.";
       if (code === "PO_CANNOT_CANCEL")
@@ -251,24 +263,41 @@ export async function listPurchaseOrders(
   }
   const qs = params.toString();
   const result = await poRequest<{
-    data?: PurchaseOrderDto[];
-    pagination?: POListMeta;
-    /** Some envelopes use `meta` instead of `pagination`. */
+    data?: PurchaseOrderDto[] | null;
     meta?: POListMeta;
+    pagination?: POListMeta;
   }>(qs ? `?${qs}` : "");
   return {
-    data: result?.data ?? [],
-    pagination:
-      result?.pagination ??
-      result?.meta ?? { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
+    data: Array.isArray(result?.data) ? result.data : [],
+    meta:
+      result?.meta ??
+      result?.pagination ?? { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
   };
+}
+
+/**
+ * Build a POST /purchase-orders items array. `requirementLineId` is omitted
+ * when absent — the backend's validator rejects explicit nulls with 422.
+ */
+function toCreateItems(items: CreatePurchaseOrderItemInput[]) {
+  return items.map((it) => ({
+    productId: it.productId,
+    quantityOrdered: it.quantityOrdered,
+    unitCost: it.unitCost,
+    ...(it.requirementLineId ? { requirementLineId: it.requirementLineId } : {}),
+  }));
 }
 
 /** POST /purchase-orders — create a PO; the backend starts it as REGISTERED. */
 export async function createPurchaseOrder(input: CreatePurchaseOrderInput): Promise<PurchaseOrderDto> {
   const raw = await poRequest<unknown>("", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      supplierId: input.supplierId,
+      ...(input.expectedDeliveryDate ? { expectedDeliveryDate: input.expectedDeliveryDate } : {}),
+      ...(input.notes ? { notes: input.notes } : {}),
+      items: toCreateItems(input.items),
+    }),
   });
   const data = unwrapEnvelope<PurchaseOrderDto>(raw, null as unknown as PurchaseOrderDto);
   if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");
@@ -345,7 +374,12 @@ export async function createPurchaseOrderFromRequirement(
 ): Promise<PurchaseOrderDto> {
   const raw = await poRequest<unknown>("/from-requirement", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      supplierId: input.supplierId,
+      ...(input.expectedDeliveryDate ? { expectedDeliveryDate: input.expectedDeliveryDate } : {}),
+      ...(input.notes ? { notes: input.notes } : {}),
+      items: input.items,
+    }),
   });
   const data = unwrapEnvelope<PurchaseOrderDto>(raw, null as unknown as PurchaseOrderDto);
   if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");

@@ -129,9 +129,10 @@ const NAV: NavItem[] = [
     children: [
       { to: "/purchasing", label: "Requirements" },
       { to: "/purchasing/orders", label: "Purchase Orders" },
-      { to: "/purchasing/deliveries/new", label: "Deliveries" },
+      { to: "/purchasing/deliveries", label: "Deliveries" },
+      { to: "/purchasing/invoices", label: "Supplier Invoices" },
       { to: "/purchasing/payables", label: "Supplier Payables" },
-      { to: "/purchasing/returns/new", label: "Returns" },
+      { to: "/purchasing/returns", label: "Returns" },
     ],
   },
   {
@@ -140,11 +141,9 @@ const NAV: NavItem[] = [
     icon: <IconChart />,
     children: [
       { to: "/reports", label: "Overview" },
-      { to: "/reports/sales", label: "Sales Report" },
+      { to: "/reports/sales", label: "Sales" },
       { to: "/reports/profitability", label: "Profitability" },
-      { to: "/reports/stock-performance", label: "Stock Performance" },
-      { to: "/reports/margins", label: "Profit Margins" },
-      { to: "/reports/audit-trail", label: "Audit Trail" },
+      { to: "/reports/slow-moving", label: "Slow Moving" },
     ],
   },
   {

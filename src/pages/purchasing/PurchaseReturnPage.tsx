@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
 import {
   createPurchaseReturn,
@@ -11,12 +11,17 @@ import {
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
 import { listBatches, type BatchDto } from "../../features/inventory/batchesApi";
-import { listLocations, type LocationDto } from "../../features/inventory/locationsApi";
 
 const REASON_LABELS: Record<PurchaseReturnReason, string> = {
   EXPIRED: "Expired",
   DAMAGED: "Damaged",
   INCORRECT_DELIVERY: "Incorrect Delivery",
+};
+
+const REASON_BADGE: Record<PurchaseReturnReason, string> = {
+  EXPIRED: "bg-red-100 text-red-700",
+  DAMAGED: "bg-orange-100 text-orange-700",
+  INCORRECT_DELIVERY: "bg-blue-100 text-blue-700",
 };
 
 function fmtDate(d: string | null | undefined) {
@@ -29,16 +34,13 @@ function fmtMoney(n: number | null | undefined) {
 }
 
 export default function PurchaseReturnPage() {
-  const navigate = useNavigate();
-
   // Form state
   const [supplierId, setSupplierId] = useState("");
   const [productId, setProductId] = useState("");
   const [batchId, setBatchId] = useState("");
-  const [locationId, setLocationId] = useState("");
   const [reason, setReason] = useState<PurchaseReturnReason>("EXPIRED");
   const [quantity, setQuantity] = useState(1);
-  const [unitCost, setUnitCost] = useState(0);
+  const [unitCost, setUnitCost] = useState("");
   const [debitNoteAmount, setDebitNoteAmount] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -46,11 +48,13 @@ export default function PurchaseReturnPage() {
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [batches, setBatches] = useState<BatchDto[]>([]);
-  const [locations, setLocations] = useState<LocationDto[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
 
   // History
   const [returns, setReturns] = useState<PurchaseReturnDto[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(true);
+  const [returnsError, setReturnsError] = useState("");
+  const [totalCount, setTotalCount] = useState(0);
 
   // UI
   const [saving, setSaving] = useState(false);
@@ -58,59 +62,81 @@ export default function PurchaseReturnPage() {
   const [success, setSuccess] = useState("");
   const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => {
-    listSuppliers({ limit: 100, isActive: true }).then((r) => setSuppliers(r.data)).catch(() => {});
-    listProducts({ limit: 200, isActive: true }).then((r) => setProducts(r.data)).catch(() => {});
-    listLocations({ limit: 100, isActive: true }).then((r) => setLocations(r.data)).catch(() => {});
-    loadReturns();
-  }, []);
-
-  async function loadReturns() {
+  const loadReturns = useCallback(async () => {
     setReturnsLoading(true);
+    setReturnsError("");
     try {
-      const r = await listPurchaseReturns({ limit: 50 });
+      // GET /purchase-returns — supplierId/productId/reason filters supported.
+      const r = await listPurchaseReturns({ page: 1, limit: 50 });
       setReturns(r.data);
-    } catch {
-      // silent
+      setTotalCount(r.meta.total ?? r.data.length);
+    } catch (e) {
+      setReturnsError(e instanceof PurchaseReturnsApiError ? e.message : "Failed to fetch return list.");
     } finally {
       setReturnsLoading(false);
     }
-  }
+  }, []);
 
+  useEffect(() => {
+    listSuppliers({ limit: 100, isActive: true })
+      .then((r) => setSuppliers(r.data))
+      .catch(() => {})
+    listProducts({ limit: 200, isActive: true })
+      .then((r) => setProducts(r.data))
+      .catch((e) => { console.error('Failed to load products:', e) })
+    void loadReturns()
+  }, [])
+
+  // Product selection drives the batch list: batches are fetched per product
+  // (GET /inventory/products/{productId}/batches or ?productId= on /batches).
   async function handleProductChange(newProductId: string) {
     setProductId(newProductId);
     setBatchId("");
     setBatches([]);
-    // Set default unit cost to 0 since ProductDto doesn't have units
-    setUnitCost(0);
     if (!newProductId) return;
+    setBatchesLoading(true);
     try {
-      const result = await listBatches({ productId: newProductId, limit: 50 });
+      const result = await listBatches({ productId: newProductId, limit: 100 });
       setBatches(result.data);
     } catch {
-      // silent
+      setBatches([]);
+    } finally {
+      setBatchesLoading(false);
     }
   }
 
-  // Get available stock for a batch at a location (simplified - shows total batch stock)
-  function getAvailableStock(batchId: string): number {
-    const batch = batches.find((b) => b.id === batchId);
-    return batch?.totalQuantity ?? 0;
+  function getAvailableStock(id: string | null): number {
+    if (!id) return 0;
+    return batches.find((b) => b.id === id)?.totalQuantity ?? 0;
   }
+
+  const selectedBatch = batches.find((b) => b.id === batchId) ?? null;
+  const selectedProduct = products.find((p) => p.id === productId) ?? null;
+  const parsedUnitCost = parseFloat(unitCost) || 0;
+  const parsedDebit = parseFloat(debitNoteAmount) || 0;
+  const estimatedValue = Number(quantity) * parsedUnitCost;
+  const batchQuantityUsed = batchId && parsedUnitCost === 0;
+
+  const canSubmit =
+    !!supplierId &&
+    !!productId &&
+    quantity > 0 &&
+    parsedUnitCost > 0 &&
+    (!batchId || getAvailableStock(batchId) >= quantity);
 
   async function handleSubmit() {
-    if (!supplierId || !productId || !locationId) {
-      setError("Supplier, Product, and Location are required.");
+    if (!supplierId || !productId) {
+      setError("Supplier and Product are required.");
       return;
     }
-    if (quantity <= 0 || unitCost <= 0) {
+    if (quantity <= 0 || parsedUnitCost <= 0) {
       setError("Quantity and Unit Cost must be greater than zero.");
       return;
     }
     if (batchId) {
       const available = getAvailableStock(batchId);
       if (quantity > available) {
-        setError(`Insufficient stock. Available: ${available}, Requested: ${quantity}`);
+        setError(`Insufficient stock for the selected batch. Available: ${available}, Requested: ${quantity}`);
         return;
       }
     }
@@ -118,43 +144,39 @@ export default function PurchaseReturnPage() {
     setSuccess("");
     setSaving(true);
     try {
+      // POST /purchase-returns — batchId/unitCost/debitNoteAmount/notes are
+      // optional; the backend derives the location and stamps the return
+      // number + returnedDate itself.
       await createPurchaseReturn({
         supplierId,
         productId,
-        batchId: batchId || undefined,
-        locationId,
+        batchId: batchId || null,
         reason,
         quantity: Number(quantity),
-        unitCost: Number(unitCost),
-        debitNoteAmount: debitNoteAmount ? Number(debitNoteAmount) : undefined,
-        notes: notes || undefined,
+        unitCost: parsedUnitCost,
+        debitNoteAmount: debitNoteAmount ? parsedDebit : undefined,
+        notes: notes || null,
       });
       setSuccess("Purchase return recorded successfully.");
-      // Reset form
+      setShowForm(false);
       setSupplierId("");
       setProductId("");
       setBatchId("");
-      setLocationId("");
+      setBatches([]);
       setReason("EXPIRED");
       setQuantity(1);
-      setUnitCost(0);
+      setUnitCost("");
       setDebitNoteAmount("");
       setNotes("");
-      setShowForm(false);
       void loadReturns();
     } catch (e) {
       setError(e instanceof PurchaseReturnsApiError ? e.message : "Failed to create purchase return.");
-      setSaving(false);
     } finally {
       setSaving(false);
     }
   }
 
-  const selectedProduct = products.find((p) => p.id === productId);
-  const selectedBatch = batches.find((b) => b.id === batchId);
-  const estimatedValue = Number(quantity) * Number(unitCost);
-
-  const inputClass = "w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none";
+  const inputClass = "w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none disabled:bg-[#DBEFF3]/40 disabled:text-[#999]";
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -162,12 +184,14 @@ export default function PurchaseReturnPage() {
         title="Purchase Returns"
         subtitle="Purchasing → Returns"
         actions={
-          <button
-            onClick={() => setShowForm(true)}
-            className="rounded-lg bg-white/20 border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
-          >
-            + New Return
-          </button>
+          !showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="rounded-lg bg-white/20 border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
+            >
+              + New Return
+            </button>
+          )
         }
       />
 
@@ -203,34 +227,49 @@ export default function PurchaseReturnPage() {
                   <label className="block text-sm text-[#666666] mb-1">Product *</label>
                   <select value={productId} onChange={(e) => handleProductChange(e.target.value)} className={inputClass}>
                     <option value="">— Select Product —</option>
-                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {products.length === 0 && (
+                      <option value="" disabled>Loading products…</option>
+                    )}
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Batch</label>
-                  <select value={batchId} onChange={(e) => setBatchId(e.target.value)} className={inputClass} disabled={batches.length === 0}>
-                    <option value="">— No specific batch —</option>
-                    {batches.map((b) => {
-                      const available = getAvailableStock(b.id);
-                      return (
-                        <option key={b.id} value={b.id}>
-                          {b.batchNumber} · Exp: {fmtDate(b.expiryDate)} · Stock: {available}
-                        </option>
-                      );
-                    })}
+                  <label className="block text-sm text-[#666666] mb-1">Batch <span className="text-xs font-normal">(optional)</span></label>
+                  <select
+                    value={batchId}
+                    onChange={(e) => setBatchId(e.target.value)}
+                    className={inputClass}
+                    disabled={!productId || batchesLoading}
+                  >
+                    <option value="">
+                      {!productId
+                        ? "— Select a product first —"
+                        : batchesLoading
+                        ? "Loading batches…"
+                        : batches.length === 0
+                        ? "— No batches for this product —"
+                        : "— No specific batch —"}
+                    </option>
+                    {batches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.batchNumber} · Exp: {fmtDate(b.expiryDate)} · Stock: {b.totalQuantity}
+                      </option>
+                    ))}
                   </select>
-                  {batchId && (
+                  {batches.length === 0 && productId && !batchesLoading && (
                     <p className="mt-1 text-xs text-[#666666]">
-                      Available at location: {getAvailableStock(batchId)}
+                      This product has no batches yet.{" "}
+                      <Link to="/inventory/batches-expiry" className="text-[#49B0C1] hover:underline">Create a batch first</Link>{" "}
+                      to return stock against it.
                     </p>
                   )}
-                </div>
-                <div>
-                  <label className="block text-sm text-[#666666] mb-1">Location *</label>
-                  <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputClass}>
-                    <option value="">— Select Location —</option>
-                    {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                  </select>
+                  {batchId && (
+                    <p className="mt-1 text-xs text-[#666666]">
+                      Available in selected batch: <strong>{getAvailableStock(batchId)}</strong>
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Return Reason *</label>
@@ -245,8 +284,10 @@ export default function PurchaseReturnPage() {
                   <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Unit Cost *</label>
-                  <input type="number" min={0.01} step="0.01" value={unitCost} onChange={(e) => setUnitCost(Number(e.target.value))} className={inputClass} />
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Unit Cost * <span className="text-xs font-normal">(defaults to the batch cost when left empty)</span>
+                  </label>
+                  <input type="number" min={0.01} step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0.00" className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Debit Note Amount</label>
@@ -258,7 +299,7 @@ export default function PurchaseReturnPage() {
                 </div>
               </div>
 
-              {productId && quantity > 0 && unitCost > 0 && (
+              {productId && quantity > 0 && parsedUnitCost > 0 && (
                 <div className="mt-4 p-3 rounded-lg bg-[#DBEFF3] text-sm text-[#333333]">
                   <strong>Summary:</strong> Return {quantity} × {selectedProduct?.name ?? "?"} — Total Value: <strong>{fmtMoney(estimatedValue)}</strong>
                   {selectedBatch && ` · Batch: ${selectedBatch.batchNumber}`}
@@ -271,11 +312,15 @@ export default function PurchaseReturnPage() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={saving}
+                  disabled={saving || !canSubmit}
+                  title={!canSubmit ? "Select a supplier and product, and enter a quantity and unit cost greater than zero." : undefined}
                   className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saving ? "Recording…" : "Record Return"}
                 </button>
+                {batchQuantityUsed && !saving && canSubmit && (
+                  <span className="text-xs text-[#666666]">Unit cost will be taken from the selected batch.</span>
+                )}
               </div>
             </div>
           </div>
@@ -286,10 +331,17 @@ export default function PurchaseReturnPage() {
           <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
             <div className="px-4 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
               <h3 className="font-bold text-[#333333]">Return History</h3>
-              <span className="text-sm text-[#666666]">{returns.length} records</span>
+              <span className="text-sm text-[#666666]">{totalCount} records</span>
             </div>
             {returnsLoading ? (
               <div className="py-8 text-center text-[#666666] text-sm">Loading…</div>
+            ) : returnsError ? (
+              <div className="py-8 text-center">
+                <p className="text-sm text-red-600 mb-3">{returnsError}</p>
+                <button onClick={() => void loadReturns()} className="text-sm font-semibold text-[#49B0C1] hover:underline">
+                  Retry
+                </button>
+              </div>
             ) : returns.length === 0 ? (
               <div className="py-8 text-center text-[#666666] text-sm">
                 No purchase returns recorded yet.
@@ -297,10 +349,10 @@ export default function PurchaseReturnPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[700px]">
+                <table className="w-full text-sm min-w-[760px]">
                   <thead>
                     <tr className="bg-[#DBEFF3]/50">
-                      {["Return #", "Supplier", "Product", "Reason", "Qty", "Unit Cost", "Total Value", "Date"].map((h) => (
+                      {["Return #", "Supplier", "Product", "Reason", "Qty", "Unit Cost", "Debit Note", "Returned", ""].map((h) => (
                         <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -312,14 +364,19 @@ export default function PurchaseReturnPage() {
                         <td className="px-4 py-3 text-[#333333]">{ret.supplier?.name ?? "—"}</td>
                         <td className="px-4 py-3 font-medium text-[#333333]">{ret.product?.name ?? "—"}</td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${REASON_BADGE[ret.reason] ?? "bg-gray-100 text-gray-600"}`}>
                             {REASON_LABELS[ret.reason] ?? ret.reason}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right text-[#333333]">{ret.quantity}</td>
                         <td className="px-4 py-3 text-right text-[#333333]">{fmtMoney(ret.unitCost)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(ret.totalValue)}</td>
-                        <td className="px-4 py-3 text-[#666666]">{fmtDate(ret.createdAt)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(ret.debitNoteAmount)}</td>
+                        <td className="px-4 py-3 text-[#666666]">{fmtDate(ret.returnedDate)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <Link to={`/purchasing/returns/${ret.id}`} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+                            View →
+                          </Link>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

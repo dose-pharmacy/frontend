@@ -4,7 +4,7 @@ import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
 import Modal from "../../components/ui/Modal"
-import { listSupplierInvoices, deleteSupplierInvoice, recordInvoicePayment, type SupplierInvoiceDto, type SupplierInvoiceStatus, SupplierInvoicesApiError } from "../../features/purchasing/supplierInvoicesApi"
+import { listSupplierInvoices, deleteSupplierInvoice, recordInvoicePayment, invoiceOutstanding, type SupplierInvoiceDto, type SupplierInvoiceStatus, SupplierInvoicesApiError } from "../../features/purchasing/supplierInvoicesApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 
 function fmtDate(d: string | null | undefined) {
@@ -231,11 +231,11 @@ export default function SupplierInvoicesPage() {
                           <button onClick={() => navigate(`/purchasing/invoices/${inv.id}`)} className="font-semibold text-[#49B0C1] hover:underline">{inv.invoiceNumber}</button>
                         </td>
                         <td className="px-4 py-3 text-[#333333]">{inv.supplier?.name ?? "—"}</td>
-                        <td className="px-4 py-3 text-[#666666]">{inv.purchaseOrderId ?? "—"}</td>
+                        <td className="px-4 py-3 text-[#666666]">{inv.purchaseOrder?.poNumber ?? inv.purchaseOrderId ?? "—"}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(inv.invoiceDate)}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(inv.dueDate)}</td>
                         <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(inv.invoiceAmount)}</td>
-                        <td className="px-4 py-3 text-right text-red-600 font-semibold">{fmtMoney(inv.balanceDue ?? inv.invoiceAmount)}</td>
+                        <td className="px-4 py-3 text-right text-red-600 font-semibold">{fmtMoney(invoiceOutstanding(inv))}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_BADGE[inv.status] ?? "bg-gray-100 text-gray-600"}`}>
                             {inv.status}
@@ -245,7 +245,7 @@ export default function SupplierInvoicesPage() {
                           <div className="flex items-center gap-2">
                             <button onClick={() => navigate(`/purchasing/invoices/${inv.id}`)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">View →</button>
                             {inv.status !== "PAID" && (
-                              <button onClick={() => openPayModal(inv.id, inv.balanceDue ?? inv.invoiceAmount)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">Pay</button>
+                              <button onClick={() => openPayModal(inv.id, invoiceOutstanding(inv))} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">Pay</button>
                             )}
                             {(inv.status !== "PAID" && (inv.payments?.length ?? 0) === 0) && (
                               <button onClick={() => handleDelete(inv.id)} className="text-xs text-red-500 hover:underline whitespace-nowrap">Delete</button>

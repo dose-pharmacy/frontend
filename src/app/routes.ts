@@ -37,11 +37,9 @@ import PurchaseOrdersPage from "../pages/purchasing/PurchaseOrdersPage";
 import CreatePurchaseOrderPage from "../pages/purchasing/CreatePurchaseOrderPage";
 import DeliveryRegistrationPage from "../pages/purchasing/DeliveryRegistrationPage";
 import ReportsDashboardPage from "../pages/reports/ReportsDashboardPage";
-import ProfitMarginConfigPage from "../pages/reports/ProfitMarginConfigPage";
 import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardPage";
-import StockPerformancePage from "../pages/reports/StockPerformancePage";
 import SalesReportPage from "../pages/reports/SalesReportPage";
-import AuditTrailPage from "../pages/reports/AuditTrailPage";
+import SlowMovingPage from "../pages/reports/SlowMovingPage";
 
 export const router = createBrowserRouter([
   {
@@ -107,11 +105,9 @@ export const router = createBrowserRouter([
           { path: "/purchasing/returns/:id", Component: PurchaseReturnDetailPage },
           // Reports
           { path: "/reports", Component: ReportsDashboardPage },
-          { path: "/reports/margins", Component: ProfitMarginConfigPage },
-          { path: "/reports/profitability", Component: ProfitabilityDashboardPage },
-          { path: "/reports/stock-performance", Component: StockPerformancePage },
           { path: "/reports/sales", Component: SalesReportPage },
-          { path: "/reports/audit-trail", Component: AuditTrailPage },
+          { path: "/reports/profitability", Component: ProfitabilityDashboardPage },
+          { path: "/reports/slow-moving", Component: SlowMovingPage },
         ],
       },
     ],

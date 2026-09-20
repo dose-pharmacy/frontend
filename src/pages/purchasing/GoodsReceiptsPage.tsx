@@ -194,7 +194,7 @@ export default function GoodsReceiptsPage() {
                             {r.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-[#666666]">{r.items.length} item{r.items.length !== 1 ? "s" : ""}</td>
+                        <td className="px-4 py-3 text-[#666666]">{r.items?.length ?? 0} item{(r.items?.length ?? 0) !== 1 ? "s" : ""}</td>
                         <td className="px-4 py-3 text-[#666666]">{r.createdBy?.name ?? "—"}</td>
                         <td className="px-4 py-3 text-[#666666]">{r.confirmedAt ? "Yes" : "No"}</td>
                         <td className="px-4 py-3">

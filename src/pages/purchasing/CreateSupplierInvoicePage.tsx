@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
-import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
-import { listPurchaseOrders, type PurchaseOrderDto } from "../../features/purchasing/purchaseOrdersApi"
+import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto } from "../../features/purchasing/purchaseOrdersApi"
+import { listGoodsReceipts, type GoodsReceiptDto } from "../../features/purchasing/goodsReceiptsApi"
 import {
   createSupplierInvoice,
   type CreateSupplierInvoiceInput,
@@ -14,6 +14,18 @@ import {
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+function fmtMoney(n: number) {
+  return `${n.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`
+}
+
+const PO_STATUS_BADGE: Record<string, string> = {
+  REGISTERED: "bg-blue-100 text-blue-700",
+  AWAITING_DELIVERY: "bg-yellow-100 text-yellow-700",
+  RECEIVED: "bg-green-100 text-green-700",
+  CLOSED: "bg-gray-100 text-gray-600",
+  CANCELLED: "bg-red-100 text-red-700",
 }
 
 export default function CreateSupplierInvoicePage() {
@@ -36,6 +48,9 @@ export default function CreateSupplierInvoicePage() {
   // Reference data
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderDto[]>([])
+  const [selectedPO, setSelectedPO] = useState<PurchaseOrderDto | null>(null)
+  const [poLoading, setPoLoading] = useState(false)
+  const [goodsReceipts, setGoodsReceipts] = useState<GoodsReceiptDto[]>([])
 
   // UI state
   const [saving, setSaving] = useState(false)
@@ -46,10 +61,52 @@ export default function CreateSupplierInvoicePage() {
     listSuppliers({ limit: 100, isActive: true })
       .then((r) => setSuppliers(r.data))
       .catch(() => {})
-    listPurchaseOrders({ limit: 100, status: "RECEIVED" })
-      .then((r) => setPurchaseOrders(r.data))
-      .catch(() => {})
   }, [])
+
+  // When supplier changes, reload POs filtered by that supplier
+  useEffect(() => {
+    if (!supplierId) {
+      setPurchaseOrders([])
+      return
+    }
+    const controller = new AbortController()
+    listPurchaseOrders({ limit: 100, supplierId, status: "RECEIVED" })
+      .then((r) => { if (!controller.signal.aborted) setPurchaseOrders(r.data) })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [supplierId])
+
+  // Load selected PO detail + goods receipts for context
+  useEffect(() => {
+    if (!purchaseOrderId) {
+      setSelectedPO(null)
+      setGoodsReceipts([])
+      return
+    }
+    setPoLoading(true)
+    getPurchaseOrder(purchaseOrderId)
+      .then((po) => setSelectedPO(po))
+      .catch(() => setSelectedPO(null))
+    listGoodsReceipts({ limit: 50, purchaseOrderId })
+      .then((r) => setGoodsReceipts(r.data))
+      .catch(() => setGoodsReceipts([]))
+      .finally(() => setPoLoading(false))
+  }, [purchaseOrderId])
+
+  // Suggest the invoice amount from the selected PO items when unchanged
+  const poTotal = selectedPO?.items?.reduce((sum, it) => sum + (it.quantityOrdered ?? 0) * (it.unitCost ?? 0), 0) ?? 0
+  const amountManuallyEdited = invoiceAmount !== "" && invoiceAmount !== (poTotal > 0 ? poTotal.toString() : "")
+
+  function handlePOChange(id: string) {
+    setPurchaseOrderId(id)
+    if (id) {
+      const po = purchaseOrders.find((p) => p.id === id)
+      if (po) {
+        const total = (po.items ?? []).reduce((sum, it) => sum + (it.quantityOrdered ?? 0) * (it.unitCost ?? 0), 0)
+        if (total > 0) setInvoiceAmount(total.toString())
+      }
+    }
+  }
 
   // Filter POs by selected supplier
   const filteredPOs = purchaseOrders.filter(
@@ -110,50 +167,130 @@ export default function CreateSupplierInvoicePage() {
           </div>
         )}
 
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
-                <select value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setPurchaseOrderId("") }} className={SC}>
-                  <option value="">Select supplier...</option>
-                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+        <div className="max-w-4xl mx-auto grid lg:grid-cols-5 gap-5 items-start">
+          {/* Invoice form */}
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
+                  <select value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setPurchaseOrderId("") }} className={SC}>
+                    <option value="">Select supplier...</option>
+                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
+                  <select value={purchaseOrderId} onChange={(e) => handlePOChange(e.target.value)} className={SC} disabled={!supplierId || filteredPOs.length === 0}>
+                    <option value="">No PO linked</option>
+                    {filteredPOs.map((po) => <option key={po.id} value={po.id}>{po.poNumber}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Invoice Number *</label>
+                  <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-001" className={SC} />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Invoice Date</label>
+                  <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={SC} />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Due Date</label>
+                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={SC} />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Invoice Amount (ETB) *</label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step="0.01"
+                    value={invoiceAmount}
+                    onChange={(e) => setInvoiceAmount(e.target.value)}
+                    placeholder={poTotal > 0 ? poTotal.toString() : "0.00"}
+                    className={SC}
+                  />
+                  {poTotal > 0 && !amountManuallyEdited && (
+                    <p className="text-[11px] text-[#49B0C1] mt-1">Suggested from PO total: {fmtMoney(poTotal)}</p>
+                  )}
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm text-[#666666] mb-1">Payment Terms</label>
+                  <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="e.g., Net 30" className={SC} />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
-                <select value={purchaseOrderId} onChange={(e) => setPurchaseOrderId(e.target.value)} className={SC} disabled={!supplierId || filteredPOs.length === 0}>
-                  <option value="">No PO linked</option>
-                  {filteredPOs.map((po) => <option key={po.id} value={po.id}>{po.poNumber}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Invoice Number *</label>
-                <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-001" className={SC} />
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Invoice Date</label>
-                <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={SC} />
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Due Date</label>
-                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={SC} />
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Invoice Amount (ETB) *</label>
-                <input type="number" min={0.01} step="0.01" value={invoiceAmount} onChange={(e) => setInvoiceAmount(e.target.value)} placeholder="0.00" className={SC} />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm text-[#666666] mb-1">Payment Terms</label>
-                <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="e.g., Net 30" className={SC} />
+
+              <div className="flex items-center gap-3 mt-6 pt-4 border-t border-[#DBEFF3]">
+                <Button variant="secondary" onClick={() => navigate("/purchasing/invoices")}>Cancel</Button>
+                <Button onClick={handleSubmit} loading={saving} disabled={!supplierId || !invoiceNumber || !invoiceAmount}>
+                  {saving ? "Creating…" : "Create Invoice"}
+                </Button>
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-3 mt-6 pt-4 border-t border-[#DBEFF3]">
-              <Button variant="secondary" onClick={() => navigate("/purchasing/invoices")}>Cancel</Button>
-              <Button onClick={handleSubmit} loading={saving} disabled={!supplierId || !invoiceNumber || !invoiceAmount}>
-                {saving ? "Creating…" : "Create Invoice"}
-              </Button>
+          {/* PO context panel */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+              <div className="px-4 py-3 bg-[#DBEFF3]/50 border-b border-[#DBEFF3]">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Linked Purchase Order</p>
+              </div>
+              {purchaseOrderId && selectedPO ? (
+                <div className="p-4 flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-[#333333]">{selectedPO.poNumber}</p>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${PO_STATUS_BADGE[selectedPO.status] ?? "bg-gray-100 text-gray-600"}`}>
+                      {selectedPO.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#666666] mb-1.5">Items</p>
+                    {selectedPO.items && selectedPO.items.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {selectedPO.items.map((it) => (
+                          <div key={it.id} className="flex items-center justify-between text-sm">
+                            <span className="text-[#333333]">{it.product?.name ?? "Product"}</span>
+                            <span className="text-[#666666] whitespace-nowrap">{it.quantityOrdered} × {fmtMoney(it.unitCost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#999]">No items available.</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#666666] mb-1.5">Goods Receipts</p>
+                    {goodsReceipts.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {goodsReceipts.map((gr) => (
+                          <span key={gr.id} className="inline-flex items-center rounded-full border border-[#ABDBE3] bg-[#DBEFF3]/40 px-2.5 py-0.5 text-xs font-semibold text-[#333333]">
+                            {gr.receiptNumber}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#999]">No goods receipts yet.</p>
+                    )}
+                  </div>
+                  <div className="border-t border-[#DBEFF3] pt-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-[#666666]">PO Total</span>
+                      <span className="font-semibold text-[#333333]">{fmtMoney(poTotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span className="text-[#666666]">Expected</span>
+                      <span className="font-semibold text-[#333333]">{fmtDate(selectedPO.orderDate)}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4">
+                  {poLoading ? (
+                    <p className="text-sm text-[#666666]">Loading purchase order...</p>
+                  ) : (
+                    <p className="text-sm text-[#999]">Select a purchase order to see its items, goods receipts, and total.</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

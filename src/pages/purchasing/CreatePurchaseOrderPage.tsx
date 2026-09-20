@@ -17,6 +17,7 @@ import {
   PurchaseOrdersApiError,
   type POItemDto,
   type PurchaseOrderDto,
+  type CreatePurchaseOrderItemInput,
   type CreatePurchaseOrderFromRequirementInput,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
@@ -333,13 +334,17 @@ export default function CreatePurchaseOrderPage() {
   const total = orderTotal(items)
   const isReadOnly = !editMode || status === "CLOSED" || status === "CANCELLED"
 
-  function itemsToDto(): POItemDto[] {
+  /**
+   * Build the create/update items payload. `requirementLineId` is omitted
+   * when empty — the backend's validator rejects explicit nulls with 422 —
+   * and client-side draft ids are stripped so they never reach the API.
+   */
+  function itemsToDto(): CreatePurchaseOrderItemInput[] {
     return items.map((it) => ({
-      id: it.id,
       productId: it.productId,
       quantityOrdered: it.quantity,
       unitCost: it.unitCost,
-      requirementLineId: it.requirementLineId ?? null,
+      ...(it.requirementLineId ? { requirementLineId: it.requirementLineId } : {}),
     }))
   }
 
@@ -370,9 +375,7 @@ export default function CreatePurchaseOrderPage() {
             supplierId: suppId,
             expectedDeliveryDate: delivDate || null,
             notes: notes || null,
-            items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
-              productId, quantityOrdered, unitCost, requirementLineId,
-            })),
+            items: itemsToDto(),
           })
         }
       } else {
@@ -380,9 +383,7 @@ export default function CreatePurchaseOrderPage() {
           supplierId: suppId,
           expectedDeliveryDate: delivDate || null,
           notes: notes || null,
-          items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
-            productId, quantityOrdered, unitCost, requirementLineId,
-          })),
+          items: itemsToDto(),
         })
       }
       setToast("Purchase order created successfully.")
@@ -403,9 +404,7 @@ export default function CreatePurchaseOrderPage() {
         supplierId: suppId,
         expectedDeliveryDate: delivDate || null,
         notes: notes || null,
-        items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
-          productId, quantityOrdered, unitCost, requirementLineId,
-        })),
+        items: itemsToDto(),
       })
       setPOState(updated)
       setEditMode(false)
@@ -545,7 +544,7 @@ export default function CreatePurchaseOrderPage() {
                 <div>
                   <label className="text-sm font-medium text-[#333333] block mb-1.5">Order Date</label>
                   {isReadOnly ? (
-                    <div className={ROC}>{poState ? "—" : fmtDate(orderDate)}</div>
+                    <div className={ROC}>{fmtDate(poState?.orderDate ?? orderDate)}</div>
                   ) : (
                     <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className={SC} />
                   )}

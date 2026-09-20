@@ -869,7 +869,6 @@ function NewRequirementModal({ open, onClose, onCreated }: {
   }
 
   async function handleCreate() {
-    if (!requiredBy) { setError("Required By date is required."); return }
     if (lines.length === 0) { setError("Add at least one product."); return }
     for (const l of lines) {
       if (!l.productId) { setError("Select a product for each row."); return }
@@ -880,16 +879,19 @@ function NewRequirementModal({ open, onClose, onCreated }: {
     setError("")
     setLoading(true)
     try {
+      // POST /requirements — requiredBy and notes are optional; per-line
+      // reasonCode/notes are omitted (never sent as null) to satisfy the
+      // backend's request validator.
       await createRequirement({
-        requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString(),
-        notes: notes || null,
+        ...(requiredBy ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
         lines: lines.map((l) => ({
           productId: l.productId,
           quantityNeeded: parseInt(l.quantity),
-          reasonCode: reasonCode(l.reason),
-          notes: l.notes || null,
+          ...(reasonCode(l.reason) ? { reasonCode: reasonCode(l.reason)! } : {}),
+          ...(l.notes.trim() ? { notes: l.notes.trim() } : {}),
         })),
-      })
+      } as Parameters<typeof createRequirement>[0])
       setRequiredBy(""); setNotes(""); setLines([{ productId: "", product: null, quantity: "", reason: "Low Stock", notes: "" }])
       onCreated()
     } catch (e) {

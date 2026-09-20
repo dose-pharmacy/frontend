@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
@@ -7,11 +7,16 @@ import {
   getSupplierInvoice,
   recordInvoicePayment,
   deleteSupplierInvoice,
+  updateSupplierInvoice,
+  invoiceOutstanding,
+  invoicePaid,
   type SupplierInvoiceDto,
   type InvoicePaymentDto,
   type SupplierInvoiceStatus,
   SupplierInvoicesApiError,
 } from "../../features/purchasing/supplierInvoicesApi"
+import { getPurchaseOrder, type PurchaseOrderDto } from "../../features/purchasing/purchaseOrdersApi"
+import { listGoodsReceipts, type GoodsReceiptDto } from "../../features/purchasing/goodsReceiptsApi"
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
@@ -28,6 +33,14 @@ const STATUS_BADGE: Record<SupplierInvoiceStatus, string> = {
   PAID: "bg-green-100 text-green-700",
 }
 
+const PO_STATUS_BADGE: Record<string, string> = {
+  REGISTERED: "bg-blue-100 text-blue-700",
+  AWAITING_DELIVERY: "bg-yellow-100 text-yellow-700",
+  RECEIVED: "bg-green-100 text-green-700",
+  CLOSED: "bg-gray-100 text-gray-600",
+  CANCELLED: "bg-red-100 text-red-700",
+}
+
 export default function SupplierInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -36,6 +49,10 @@ export default function SupplierInvoiceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
+  const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrderDto | null>(null)
+  const [poLoading, setPoLoading] = useState(false)
+  const [goodsReceipts, setGoodsReceipts] = useState<GoodsReceiptDto[]>([])
+
   const [payModalOpen, setPayModalOpen] = useState(false)
   const [payAmount, setPayAmount] = useState("")
   const [payDate, setPayDate] = useState(new Date().toISOString().split("T")[0])
@@ -43,13 +60,19 @@ export default function SupplierInvoiceDetailPage() {
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState("")
 
+  const [editOpen, setEditOpen] = useState(false)
+  const [editDueDate, setEditDueDate] = useState("")
+  const [editTerms, setEditTerms] = useState("")
+  const [editing, setEditing] = useState(false)
+  const [editError, setEditError] = useState("")
+
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
 
   const [successMsg, setSuccessMsg] = useState("")
 
-  useEffect(() => {
+  const loadInvoice = useCallback(() => {
     if (!id) return
     setLoading(true)
     setError("")
@@ -59,6 +82,28 @@ export default function SupplierInvoiceDetailPage() {
       .finally(() => setLoading(false))
   }, [id])
 
+  useEffect(() => {
+    loadInvoice()
+  }, [loadInvoice])
+
+  // Load linked PO context + goods receipts
+  useEffect(() => {
+    if (!invoice?.purchaseOrderId) {
+      setPurchaseOrder(null)
+      setGoodsReceipts([])
+      setPoLoading(false)
+      return
+    }
+    setPoLoading(true)
+    getPurchaseOrder(invoice.purchaseOrderId)
+      .then((po) => setPurchaseOrder(po))
+      .catch(() => setPurchaseOrder(null))
+    listGoodsReceipts({ limit: 50, purchaseOrderId: invoice.purchaseOrderId })
+      .then((r) => setGoodsReceipts(r.data))
+      .catch(() => setGoodsReceipts([]))
+      .finally(() => setPoLoading(false))
+  }, [invoice?.purchaseOrderId])
+
   async function handleRecordPayment() {
     if (!invoice) return
     const amount = parseFloat(payAmount)
@@ -66,7 +111,7 @@ export default function SupplierInvoiceDetailPage() {
       setPayError("Enter a valid payment amount.")
       return
     }
-    if (amount > (invoice.balanceDue ?? invoice.invoiceAmount)) {
+    if (amount > invoiceOutstanding(invoice)) {
       setPayError("Payment amount cannot exceed outstanding balance.")
       return
     }
@@ -80,13 +125,32 @@ export default function SupplierInvoiceDetailPage() {
       })
       setPayModalOpen(false)
       setSuccessMsg("Payment recorded successfully.")
-      // Refresh invoice
-      const updated = await getSupplierInvoice(id!)
-      setInvoice(updated)
+      await getSupplierInvoice(id!)
+        .then((updated) => setInvoice(updated))
+        .catch(() => {})
     } catch (e) {
       setPayError(e instanceof SupplierInvoicesApiError ? e.message : "Failed to record payment.")
     } finally {
       setPaying(false)
+    }
+  }
+
+  async function handleEdit() {
+    if (!invoice) return
+    setEditing(true)
+    setEditError("")
+    try {
+      const updated = await updateSupplierInvoice(invoice.id, {
+        dueDate: editDueDate || null,
+        paymentTerms: editTerms || null,
+      })
+      setInvoice(updated)
+      setEditOpen(false)
+      setSuccessMsg("Invoice updated successfully.")
+    } catch (e) {
+      setEditError(e instanceof SupplierInvoicesApiError ? e.message : "Failed to update invoice.")
+    } finally {
+      setEditing(false)
     }
   }
 
@@ -104,6 +168,15 @@ export default function SupplierInvoiceDetailPage() {
       setDeleting(false)
       setDeleteOpen(false)
     }
+  }
+
+  function openPayModal() {
+    if (!invoice) return
+    setPayAmount(invoiceOutstanding(invoice).toString())
+    setPayDate(new Date().toISOString().split("T")[0])
+    setPayNotes("")
+    setPayError("")
+    setPayModalOpen(true)
   }
 
   if (loading) {
@@ -133,6 +206,7 @@ export default function SupplierInvoiceDetailPage() {
 
   const canPay = invoice.status !== "PAID"
   const canDelete = invoice.status !== "PAID" && (invoice.payments?.length ?? 0) === 0
+  const canEdit = invoice.status !== "PAID"
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -145,8 +219,13 @@ export default function SupplierInvoiceDetailPage() {
             <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${STATUS_BADGE[invoice.status] ?? "bg-gray-100 text-gray-600"}`}>
               {invoice.status}
             </span>
+            {canEdit && (
+              <Button variant="secondary" onClick={() => { setEditDueDate(invoice.dueDate ?? ""); setEditTerms(invoice.paymentTerms ?? ""); setEditError(""); setEditOpen(true) }}>
+                Edit
+              </Button>
+            )}
             {canPay && (
-              <Button onClick={() => { setPayAmount((invoice.balanceDue ?? invoice.invoiceAmount).toString()); setPayModalOpen(true) }}>
+              <Button onClick={openPayModal}>
                 Record Payment
               </Button>
             )}
@@ -166,81 +245,153 @@ export default function SupplierInvoiceDetailPage() {
           </div>
         )}
 
-        {/* Header info */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-5 mb-5">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <p className="text-xs text-[#666666]">Supplier</p>
-              <p className="font-semibold text-[#333333]">{invoice.supplier?.name ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#666666]">Purchase Order</p>
-              <p className="font-semibold text-[#333333]">{invoice.purchaseOrderId ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#666666]">Invoice Date</p>
-              <p className="font-semibold text-[#333333]">{fmtDate(invoice.invoiceDate)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#666666]">Due Date</p>
-              <p className="font-semibold text-[#333333]">{fmtDate(invoice.dueDate)}</p>
-            </div>
-            <div className="sm:col-span-2 lg:col-span-2">
-              <p className="text-xs text-[#666666]">Payment Terms</p>
-              <p className="font-semibold text-[#333333]">{invoice.paymentTerms ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#666666]">Invoice Amount</p>
-              <p className="text-lg font-bold text-[#333333]">{fmtMoney(invoice.invoiceAmount)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#666666]">Paid Amount</p>
-              <p className="text-lg font-bold text-green-600">{fmtMoney(invoice.paidAmount)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#666666]">Outstanding Balance</p>
-              <p className="text-lg font-bold text-red-600">{fmtMoney(invoice.balanceDue ?? invoice.invoiceAmount)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Payments history */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
-            <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Payment History</p>
-            {canPay && (
-              <Button onClick={() => { setPayAmount((invoice.balanceDue ?? invoice.invoiceAmount).toString()); setPayModalOpen(true) }}>
-                Record Payment
-              </Button>
-            )}
-          </div>
-          <div className="p-5">
-            {invoice.payments && invoice.payments.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
-                      {["#", "Date", "Amount", "Recorded By", "Notes"].map((h) => (
-                        <th key={h} className="px-4 py-2.5 font-semibold text-[#333333]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice.payments.map((payment, i) => (
-                      <tr key={payment.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                        <td className="px-4 py-2.5 text-[#666666]">{i + 1}</td>
-                        <td className="px-4 py-2.5 text-[#333333]">{fmtDate(payment.paymentDate)}</td>
-                        <td className="px-4 py-2.5 font-semibold text-[#333333]">{fmtMoney(payment.amount)}</td>
-                        <td className="px-4 py-2.5 text-[#666666]">{payment.createdBy?.name ?? "—"}</td>
-                        <td className="px-4 py-2.5 text-[#666666]">{payment.notes ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <div className="grid lg:grid-cols-5 gap-5 items-start">
+          {/* Financial summary */}
+          <div className="lg:col-span-3 flex flex-col gap-5">
+            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-[#666666]">Supplier</p>
+                  <p className="font-semibold text-[#333333]">{invoice.supplier?.name ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[#666666]">Purchase Order</p>
+                  <p className="font-semibold text-[#333333]">{invoice.purchaseOrder?.poNumber ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[#666666]">Invoice Date</p>
+                  <p className="font-semibold text-[#333333]">{fmtDate(invoice.invoiceDate)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[#666666]">Due Date</p>
+                  <p className="font-semibold text-[#333333]">{fmtDate(invoice.dueDate)}</p>
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-[#999] text-center py-8">No payments recorded yet.</p>
-            )}
+              <div className="mt-4 pt-4 border-t border-[#DBEFF3] grid sm:grid-cols-3 gap-4">
+                <div className="bg-[#DBEFF3]/30 rounded-xl p-3">
+                  <p className="text-[11px] text-[#666666] font-semibold uppercase tracking-wide">Invoice Amount</p>
+                  <p className="text-lg font-bold text-[#333333] mt-0.5">{fmtMoney(invoice.invoiceAmount)}</p>
+                </div>
+                <div className="bg-green-50 rounded-xl p-3">
+                  <p className="text-[11px] text-green-700 font-semibold uppercase tracking-wide">Paid</p>
+                  <p className="text-lg font-bold text-green-700 mt-0.5">{fmtMoney(invoicePaid(invoice))}</p>
+                </div>
+                <div className="bg-red-50 rounded-xl p-3">
+                  <p className="text-[11px] text-red-600 font-semibold uppercase tracking-wide">Outstanding</p>
+                  <p className="text-lg font-bold text-red-600 mt-0.5">{fmtMoney(invoiceOutstanding(invoice))}</p>
+                </div>
+              </div>
+              {(invoice.paymentTerms || invoice.createdBy) && (
+                <p className="text-xs text-[#999] mt-3">
+                  {invoice.paymentTerms ? `Terms: ${invoice.paymentTerms}` : ""}
+                  {invoice.paymentTerms && invoice.createdBy ? " · " : ""}
+                  {invoice.createdBy ? `Recorded by ${invoice.createdBy.name}` : ""}
+                </p>
+              )}
+            </div>
+
+            {/* Payments history */}
+            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+              <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Payment History</p>
+                {canPay && (
+                  <Button onClick={openPayModal}>
+                    Record Payment
+                  </Button>
+                )}
+              </div>
+              <div className="p-5">
+                {invoice.payments && invoice.payments.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-[#DBEFF3] text-left">
+                          {["Date", "Amount", "Recorded By", "Notes"].map((h) => (
+                            <th key={h} className="px-4 py-2.5 font-semibold text-[#333333]">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoice.payments.map((payment: InvoicePaymentDto, i: number) => (
+                          <tr key={payment.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                            <td className="px-4 py-2.5 text-[#333333]">{fmtDate(payment.paymentDate)}</td>
+                            <td className="px-4 py-2.5 font-semibold text-[#333333]">{fmtMoney(payment.amount)}</td>
+                            <td className="px-4 py-2.5 text-[#666666]">{payment.recordedBy?.name ?? payment.createdBy?.name ?? "—"}</td>
+                            <td className="px-4 py-2.5 text-[#666666]">{payment.notes ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#999] text-center py-8">No payments recorded yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* PO context panel */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+              <div className="px-4 py-3 bg-[#DBEFF3]/50 border-b border-[#DBEFF3]">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Linked Purchase Order</p>
+              </div>
+              {purchaseOrder ? (
+                <div className="p-4 flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-[#333333]">{purchaseOrder.poNumber}</p>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${PO_STATUS_BADGE[purchaseOrder.status] ?? "bg-gray-100 text-gray-600"}`}>
+                      {purchaseOrder.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#666666] mb-1.5">Items</p>
+                    {purchaseOrder.items && purchaseOrder.items.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {purchaseOrder.items.map((it) => (
+                          <div key={it.id} className="flex items-center justify-between text-sm">
+                            <span className="text-[#333333]">{it.product?.name ?? "Product"}</span>
+                            <span className="text-[#666666] whitespace-nowrap">{it.quantityOrdered} × {fmtMoney(it.unitCost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#999]">No items available.</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#666666] mb-1.5">Goods Receipts</p>
+                    {goodsReceipts.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {goodsReceipts.map((gr) => (
+                          <span key={gr.id} className="inline-flex items-center rounded-full border border-[#ABDBE3] bg-[#DBEFF3]/40 px-2.5 py-0.5 text-xs font-semibold text-[#333333]">
+                            {gr.receiptNumber}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#999]">No goods receipts.</p>
+                    )}
+                  </div>
+                  <div className="border-t border-[#DBEFF3] pt-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-[#666666]">PO Total</span>
+                      <span className="font-semibold text-[#333333]">
+                        {fmtMoney((purchaseOrder.items ?? []).reduce((s, it) => s + (it.quantityOrdered ?? 0) * (it.unitCost ?? 0), 0))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4">
+                  {poLoading ? (
+                    <p className="text-sm text-[#666666]">Loading purchase order...</p>
+                  ) : (
+                    <p className="text-sm text-[#999]">No purchase order linked to this invoice.</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -251,8 +402,8 @@ export default function SupplierInvoiceDetailPage() {
           {payError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{payError}</p>}
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-xs text-green-800">Invoice Total: <span className="font-semibold">{fmtMoney(invoice.invoiceAmount)}</span></p>
-            <p className="text-xs text-green-800">Paid: <span className="font-semibold">{fmtMoney(invoice.paidAmount)}</span></p>
-            <p className="text-xs text-green-800">Outstanding: <span className="font-semibold">{fmtMoney(invoice.balanceDue ?? invoice.invoiceAmount)}</span></p>
+            <p className="text-xs text-green-800">Paid: <span className="font-semibold">{fmtMoney(invoicePaid(invoice))}</span></p>
+            <p className="text-xs text-green-800">Outstanding: <span className="font-semibold">{fmtMoney(invoiceOutstanding(invoice))}</span></p>
           </div>
           <div>
             <label className="block text-sm text-[#666666] mb-1">Payment Amount *</label>
@@ -269,6 +420,25 @@ export default function SupplierInvoiceDetailPage() {
           <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
             <Button variant="secondary" onClick={() => { setPayModalOpen(false); setPayAmount(""); setPayError("") }}>Cancel</Button>
             <Button onClick={handleRecordPayment} loading={paying}>Record Payment</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Modal (PATCH dueDate / paymentTerms) */}
+      <Modal open={editOpen} title="Edit Invoice" onClose={() => { setEditOpen(false); setEditError("") }} size="sm">
+        <div className="flex flex-col gap-4">
+          {editError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{editError}</p>}
+          <div>
+            <label className="block text-sm text-[#666666] mb-1">Due Date</label>
+            <input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm text-[#666666] mb-1">Payment Terms</label>
+            <input value={editTerms} onChange={(e) => setEditTerms(e.target.value)} placeholder="e.g., Net 30" className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" />
+          </div>
+          <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+            <Button variant="secondary" onClick={() => { setEditOpen(false); setEditError("") }}>Cancel</Button>
+            <Button onClick={handleEdit} loading={editing}>Save Changes</Button>
           </div>
         </div>
       </Modal>

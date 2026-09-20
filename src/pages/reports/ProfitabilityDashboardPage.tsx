@@ -1,231 +1,490 @@
-import { useState } from "react";
-import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
+import { useState, useEffect, useCallback } from "react";
 import ReportsSubNav from "./ReportsSubNav";
 import PageHeader from "../../components/ui/PageHeader";
+import Button from "../../components/ui/Button";
+import ReportFilterBar from "./ReportFilterBar";
+import { fmtMoney, fmtNumber, fmtPercent, defaultDateRange } from "./reportHelpers";
+import { listProductGroups } from "../../features/inventory/productGroupsApi";
 import {
-  MOCK_BRAND_PERF,
-  MOCK_GROUP_PERF,
-  MARGIN_TREND_DATA,
-  REVENUE_BY_GROUP,
-} from "../../features/reports/reportsMock";
+  getProfitabilitySummary,
+  getProfitability,
+  getProfitMarginSummary,
+  getProfitMargin,
+  ReportsApiError,
+  type ProfitabilityGroupBy,
+  type ProfitabilitySortBy,
+  type ProfitMarginSortBy,
+  type SortOrder,
+  type ProfitabilityRowDto,
+  type ProfitMarginRowDto,
+} from "../../features/reports/reportsApi";
 
-const fmtMoney = (n: number) =>
-  `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
+const PAGE_SIZE = 20;
 
-const PIE_COLORS = ["#49B0C1", "#ABDBE3", "#28A745", "#FFC107", "#6F42C1"];
+const GROUP_BY_OPTIONS: { value: ProfitabilityGroupBy; label: string }[] = [
+  { value: "BRAND", label: "Brand" },
+  { value: "MANUFACTURER", label: "Manufacturer" },
+  { value: "PRODUCT_GROUP", label: "Product Group" },
+  { value: "PRODUCT", label: "Product" },
+];
 
-const PERF_BADGE: Record<string, string> = {
-  top: "text-green-600",
-  growing: "text-yellow-600",
-  stable: "text-[#49B0C1]",
-  review: "text-red-500",
-};
-const PERF_LABEL: Record<string, string> = {
-  top: "⭐ Top Performer",
-  growing: "📈 Growing",
-  stable: "📊 Stable",
-  review: "⚠️ Needs Review",
-};
+function SortHeader<T extends string>({
+  active,
+  order,
+  onClick,
+  align,
+  children,
+}: {
+  active: boolean;
+  order: SortOrder;
+  onClick: () => void;
+  align?: "right";
+  children: React.ReactNode;
+}) {
+  return (
+    <th className={`px-4 py-3 font-semibold text-[#333333] ${align === "right" ? "text-right" : ""}`}>
+      <button onClick={onClick} className={`inline-flex items-center gap-1.5 hover:text-[#49B0C1] ${align === "right" ? "flex-row-reverse" : ""}`}>
+        {children}
+        <span className={active ? "text-[#49B0C1]" : "text-[#ABDBE3]"}>{active ? (order === "asc" ? "↑" : "↓") : "↕"}</span>
+      </button>
+    </th>
+  );
+}
 
-export default function ProfitabilityDashboardPage() {
-  const [analysisLevel, setAnalysisLevel] = useState("By Brand");
-  const [compareOn, setCompareOn] = useState(false);
-  const [fromDate, setFromDate] = useState("2026-02-01");
-  const [toDate, setToDate] = useState("2026-02-28");
+function PageNav({ page, totalPages, onPage }: { page: number; totalPages: number; onPage: (p: number) => void }) {
+  return (
+    <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-end gap-1">
+      <button disabled={page === 1} onClick={() => onPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+        <button key={p} onClick={() => onPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+      ))}
+      <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+    </div>
+  );
+}
+
+function LoadingState({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+      <p className="text-sm text-[#666666]">{label}</p>
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4 px-6">
+      <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{message}</p>
+      <Button onClick={onRetry}>Retry</Button>
+    </div>
+  );
+}
+
+// ─── Profitability tab ────────────────────────────────────────────────────────
+
+function ProfitabilitySection({
+  productGroups,
+}: {
+  productGroups: { id: string; name: string }[];
+}) {
+  const range = defaultDateRange();
+  const [dateFrom, setDateFrom] = useState(range.from);
+  const [dateTo, setDateTo] = useState(range.to);
+  const [groupBy, setGroupBy] = useState<ProfitabilityGroupBy>("BRAND");
+  const [productGroupId, setProductGroupId] = useState("");
+
+  const [summary, setSummary] = useState<{ value: number; label: string; kind: "money" | "count" | "percent" }[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const [rows, setRows] = useState<ProfitabilityRowDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sortBy, setSortBy] = useState<ProfitabilitySortBy>("profit");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+
+  const query = {
+    groupBy,
+    productGroupId: productGroupId || undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  };
+
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const s = await getProfitabilitySummary(query);
+      setSummary([
+        { label: "Revenue", value: s.revenue, kind: "money" },
+        { label: "Cost", value: s.cost, kind: "money" },
+        { label: "Profit", value: s.profit, kind: "money" },
+        { label: "Margin", value: s.margin, kind: "percent" },
+        { label: "Quantity Sold", value: s.quantity, kind: "count" },
+        { label: "Products", value: s.productCount, kind: "count" },
+      ]);
+    } catch (e) {
+      setSummaryError(e instanceof ReportsApiError ? e.message : "Failed to load summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [groupBy, productGroupId, dateFrom, dateTo]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getProfitability({ ...query, page, limit: PAGE_SIZE, sortBy, sortOrder });
+      setRows(res.data);
+      setTotalPages(res.meta.totalPages);
+      setTotalCount(res.meta.total);
+    } catch (e) {
+      setError(e instanceof ReportsApiError ? e.message : "Failed to load profitability.");
+    } finally {
+      setLoading(false);
+    }
+  }, [groupBy, productGroupId, dateFrom, dateTo, page, sortBy, sortOrder]);
+
+  useEffect(() => {
+    loadSummary();
+    loadRows();
+  }, [loadSummary, loadRows]);
 
   return (
-    <div className="flex flex-col min-h-0 flex-1">
-      <PageHeader
-        title="Profitability Report"
-        subtitle="Reports → Profitability"
-        actions={
-          <div className="flex items-center gap-2">
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm text-white placeholder-white/60 focus:outline-none" />
-            <span className="text-white/60 text-sm">→</span>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm text-white focus:outline-none" />
-            <button className="rounded-lg bg-white/10 border border-white/20 px-4 py-2 text-sm font-medium text-white/80 hover:bg-white/20 transition-colors">Export</button>
-            <button className="rounded-lg bg-white/10 border border-white/20 px-4 py-2 text-sm text-white/80 hover:bg-white/20 transition-colors">🖨 Print</button>
-          </div>
+    <div className="flex flex-col gap-5">
+      <ReportFilterBar
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        showLocation={false}
+        onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+        onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+        extra={
+          <>
+            <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+              <label className="text-sm font-medium text-[#333333]">Group By</label>
+              <select value={groupBy} onChange={(e) => { setGroupBy(e.target.value as ProfitabilityGroupBy); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all">
+                {GROUP_BY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+              <label className="text-sm font-medium text-[#333333]">Product Group</label>
+              <select value={productGroupId} onChange={(e) => { setProductGroupId(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all">
+                <option value="">All Product Groups</option>
+                {productGroups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          </>
         }
       />
-      <ReportsSubNav />
 
-      <div className="flex-1 overflow-y-auto">
-        {/* Filters */}
-        <div className="bg-[#DBEFF3] px-4 sm:px-6 py-3 flex flex-wrap items-center gap-4 border-b border-[#ABDBE3]">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-[#666666] uppercase tracking-wide">Analysis Level</span>
-            <select value={analysisLevel} onChange={(e) => setAnalysisLevel(e.target.value)} className="rounded-md border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none">
-              {["Overall", "By Brand", "By Product Group", "By Product"].map((o) => <option key={o}>{o}</option>)}
-            </select>
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        {summaryLoading
+          ? Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                <div className="h-3 w-20 rounded bg-[#DBEFF3]/60 animate-pulse" />
+                <div className="h-6 w-24 rounded bg-[#DBEFF3]/40 animate-pulse mt-3" />
+              </div>
+            ))
+          : summaryError && !summary.length
+            ? null
+            : summary.map((s) => (
+                <div key={s.label} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                  <p className="text-xs font-medium text-[#666666]">{s.label}</p>
+                  <p className="text-lg font-bold text-[#333333] mt-0.5 leading-tight">
+                    {s.kind === "money" ? fmtMoney(s.value) : s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
+                  </p>
+                </div>
+              ))}
+      </div>
+      {summaryError && !summary.length && (
+        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-center">{summaryError}</p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        {loading ? (
+          <LoadingState label={`Loading ${groupBy.replace(/_/g, " ").toLowerCase()} profitability...`} />
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadRows} />
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <p className="font-semibold text-[#333333]">No profitability data found</p>
+            <p className="text-sm text-[#666666]">No data matches the selected filters.</p>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <div
-              onClick={() => setCompareOn((v) => !v)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${compareOn ? "bg-[#49B0C1]" : "bg-gray-300"}`}
-            >
-              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${compareOn ? "translate-x-4" : "translate-x-0.5"}`} />
-            </div>
-            <span className="text-sm text-[#333333]">Compare to Previous Period</span>
-          </label>
-          <button className="ml-auto rounded-md bg-white border border-[#ABDBE3] px-3 py-1.5 text-sm text-[#666666] hover:bg-[#ABDBE3] transition-colors">⟳ Refresh</button>
-        </div>
-
-        {/* KPI cards */}
-        <div className="bg-white px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-[#DBEFF3]">
-          {[
-            { label: "Total Revenue", value: "1,245,750.00 ETB", change: "+12.5% from last month", up: true, icon: "💰" },
-            { label: "Total Cost", value: "892,340.00 ETB", change: "+8.3% from last month", up: false, icon: "🪙" },
-            { label: "Gross Profit", value: "353,410.00 ETB", change: "+15.2% from last month", up: true, icon: "📈" },
-            { label: "Average Margin", value: "28.4%", change: "+2.1% from last month", up: true, icon: "%" },
-          ].map(({ label, value, change, up, icon }) => (
-            <div key={label} className="bg-[#DBEFF3] rounded-xl p-4 border border-[#ABDBE3]/30 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xl" aria-hidden>{icon}</span>
-                <p className="text-xs text-[#666666]">{label}</p>
-              </div>
-              <p className="text-lg font-bold text-[#333333] leading-tight">{value}</p>
-              <p className={`text-xs mt-1 font-medium ${up ? "text-green-600" : "text-red-500"}`}>{up ? "↑" : "↓"} {change}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Brand analysis */}
-        <div className="px-4 sm:px-6 py-4">
-          <div className="bg-[#DBEFF3] rounded-xl p-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#ABDBE3] mb-3">
-              <div>
-                <p className="font-bold text-[#333333]">Brand Analysis</p>
-                <p className="text-xs text-[#666666]">Top 5 brands by profitability</p>
-              </div>
-              <button className="text-sm text-[#49B0C1] hover:underline">View All →</button>
-            </div>
-            <div className="grid lg:grid-cols-2 gap-4">
-              <div className="rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-[#ABDBE3]">
-                      {["Brand", "Revenue", "Cost", "Profit", "Margin", "Trend"].map((h) => (
-                        <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {MOCK_BRAND_PERF.map((b, i) => (
-                      <tr key={b.brand} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
-                        <td className="px-3 py-2 font-semibold text-[#333333]">{b.brand}</td>
-                        <td className="px-3 py-2 text-[#333333]">{fmtMoney(b.revenue)}</td>
-                        <td className="px-3 py-2 text-[#333333]">{fmtMoney(b.cost)}</td>
-                        <td className="px-3 py-2 font-medium text-green-600">{fmtMoney(b.profit)}</td>
-                        <td className={`px-3 py-2 font-bold ${b.margin > 25 ? "text-green-600" : "text-yellow-500"}`}>{b.margin}%</td>
-                        <td className={`px-3 py-2 font-medium ${b.trend > 0 ? "text-green-600" : "text-red-500"}`}>
-                          {b.trend > 0 ? "📈" : "📉"} {b.trend > 0 ? "+" : ""}{b.trend}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="bg-[#ABDBE3] rounded-xl p-3">
-                <p className="text-sm font-semibold text-[#333333] mb-2">Margin % by Brand</p>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={MOCK_BRAND_PERF} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff60" />
-                    <XAxis dataKey="brand" tick={{ fontSize: 11, fill: "#333333" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "#666666" }} unit="%" />
-                    <Tooltip formatter={(v: any) => [`${v}%`, "Margin"]} contentStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="margin" fill="#49B0C1" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Product group analysis */}
-        <div className="px-4 sm:px-6">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#DBEFF3] mb-3">
-              <div>
-                <p className="font-bold text-[#333333]">Product Group Analysis</p>
-                <p className="text-xs text-[#666666]">Performance by category</p>
-              </div>
-              <button className="text-sm text-[#49B0C1] hover:underline">View All →</button>
-            </div>
-            <div className="rounded-xl overflow-hidden">
+        ) : (
+          <>
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#ABDBE3]">
-                    {["Product Group", "Sales", "Profit", "Margin %", "Performance"].map((h) => (
-                      <th key={h} className="px-4 py-2.5 text-left font-semibold text-[#333333]">{h}</th>
+                  <tr className="bg-[#DBEFF3] text-left">
+                    <SortHeader<ProfitabilitySortBy> active={sortBy === "value"} order={sortOrder} onClick={() => { setSortBy("value"); if (sortBy === "value") setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>{groupBy.replace(/_/g, " ")}</SortHeader>
+                    <SortHeader<ProfitabilitySortBy> active={sortBy === "value"} order={sortOrder} align="right" onClick={() => { setSortBy("value"); if (sortBy === "value") setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>Value</SortHeader>
+                    {(["revenue", "cost", "profit", "quantity", "productCount"] as ProfitabilitySortBy[]).map((col) => (
+                      <SortHeader<ProfitabilitySortBy> key={col} active={sortBy === col} order={sortOrder} align="right" onClick={() => { setSortBy(col); if (sortBy === col) setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>
+                        {col === "revenue" ? "Revenue" : col === "cost" ? "Cost" : col === "profit" ? "Profit" : col === "quantity" ? "Qty Sold" : "Products"}
+                      </SortHeader>
                     ))}
+                    <SortHeader<ProfitabilitySortBy> active={sortBy === "margin"} order={sortOrder} align="right" onClick={() => { setSortBy("margin"); if (sortBy === "margin") setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>Margin</SortHeader>
                   </tr>
                 </thead>
                 <tbody>
-                  {MOCK_GROUP_PERF.map((g, i) => (
-                    <tr key={g.group} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                      <td className="px-4 py-2.5 font-semibold text-[#333333]">{g.group}</td>
-                      <td className="px-4 py-2.5 text-[#333333]">{fmtMoney(g.sales)}</td>
-                      <td className="px-4 py-2.5 font-medium text-green-600">{fmtMoney(g.profit)}</td>
-                      <td className={`px-4 py-2.5 font-bold ${g.margin > 20 ? "text-green-600" : g.margin > 16 ? "text-yellow-500" : "text-red-500"}`}>{g.margin}%</td>
-                      <td className={`px-4 py-2.5 font-medium ${PERF_BADGE[g.performance]}`}>{PERF_LABEL[g.performance]}</td>
+                  {rows.map((row, i) => (
+                    <tr key={`${row.dimension}-${i}`} className={`${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"} hover:bg-[#DBEFF3]/30 transition-colors`}>
+                      <td className="px-4 py-3 font-semibold text-[#333333]">{row.dimension}</td>
+                      <td className="px-4 py-3 text-right text-[#666666]">{String(row.value)}</td>
+                      <td className="px-4 py-3 text-right text-[#333333]">{fmtMoney(row.revenue)}</td>
+                      <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(row.cost)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(row.profit)}</td>
+                      <td className="px-4 py-3 text-right text-[#666666]">{fmtNumber(row.quantity)}</td>
+                      <td className="px-4 py-3 text-right text-[#666666]">{fmtNumber(row.productCount)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#49B0C1]">{fmtPercent(row.margin)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-
-        {/* Charts */}
-        <div className="px-4 sm:px-6 py-4 pb-6">
-          <div className="bg-[#DBEFF3] rounded-xl p-4 grid lg:grid-cols-2 gap-4">
-            {/* Line chart: margin trends */}
-            <div className="bg-[#ABDBE3] rounded-xl p-4">
-              <p className="text-sm font-bold text-[#333333] mb-3">Profit Margin Trends (Monthly)</p>
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={MARGIN_TREND_DATA} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff60" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#333333" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "#666666" }} unit="%" />
-                  <Tooltip formatter={(v: any) => [`${v}%`]} contentStyle={{ fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line type="monotone" dataKey="overall" name="Overall" stroke="#49B0C1" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="painkillers" name="Painkillers" stroke="#28A745" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="antibiotics" name="Antibiotics" stroke="#FFC107" strokeWidth={2} strokeDasharray="3 3" dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="vitamins" name="Vitamins" stroke="#6F42C1" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs text-[#666666]">Showing {totalCount === 0 ? 0 : Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {fmtNumber(totalCount)} rows</p>
+              <PageNav page={page} totalPages={totalPages} onPage={setPage} />
             </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
-            {/* Pie chart: revenue by group */}
-            <div className="bg-[#ABDBE3] rounded-xl p-4">
-              <p className="text-sm font-bold text-[#333333] mb-3">Revenue by Product Group</p>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={REVENUE_BY_GROUP}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    dataKey="pct"
-                    nameKey="name"
-                    label={({ name, value }) => `${name}: ${value}%`}
-                    labelLine={false}
-                  >
-                    {REVENUE_BY_GROUP.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+// ─── Profit Margin tab ────────────────────────────────────────────────────────
+
+function ProfitMarginSection({
+  productGroups,
+}: {
+  productGroups: { id: string; name: string }[];
+}) {
+  const range = defaultDateRange();
+  const [dateFrom, setDateFrom] = useState(range.from);
+  const [dateTo, setDateTo] = useState(range.to);
+  const [productGroupId, setProductGroupId] = useState("");
+
+  const [summary, setSummary] = useState<{ value: number; label: string; kind: "count" | "percent" }[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const [rows, setRows] = useState<ProfitMarginRowDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sortBy, setSortBy] = useState<ProfitMarginSortBy>("productName");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const s = await getProfitMarginSummary({
+        productGroupId: productGroupId || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+      setSummary([
+        { label: "Products", value: s.productCount, kind: "count" },
+        { label: "Below Target", value: s.belowTargetCount, kind: "count" },
+        { label: "Avg Target Margin", value: s.averageTargetMargin, kind: "percent" },
+        { label: "Avg Actual Margin", value: s.averageActualMargin, kind: "percent" },
+      ]);
+    } catch (e) {
+      setSummaryError(e instanceof ReportsApiError ? e.message : "Failed to load profit margin summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [productGroupId, dateFrom, dateTo]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getProfitMargin({
+        productGroupId: productGroupId || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        page,
+        limit: PAGE_SIZE,
+        sortBy,
+        sortOrder,
+      });
+      setRows(res.data);
+      setTotalPages(res.meta.totalPages);
+      setTotalCount(res.meta.total);
+    } catch (e) {
+      setError(e instanceof ReportsApiError ? e.message : "Failed to load profit margins.");
+    } finally {
+      setLoading(false);
+    }
+  }, [productGroupId, dateFrom, dateTo, page, sortBy, sortOrder]);
+
+  useEffect(() => {
+    loadSummary();
+    loadRows();
+  }, [loadSummary, loadRows]);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <ReportFilterBar
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        showLocation={false}
+        onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+        onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+        extra={
+          <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+            <label className="text-sm font-medium text-[#333333]">Product Group</label>
+            <select value={productGroupId} onChange={(e) => { setProductGroupId(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all">
+              <option value="">All Product Groups</option>
+              {productGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+        }
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {summaryLoading
+          ? Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                <div className="h-3 w-20 rounded bg-[#DBEFF3]/60 animate-pulse" />
+                <div className="h-6 w-24 rounded bg-[#DBEFF3]/40 animate-pulse mt-3" />
+              </div>
+            ))
+          : summaryError && !summary.length
+            ? null
+            : summary.map((s) => (
+                <div key={s.label} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                  <p className="text-xs font-medium text-[#666666]">{s.label}</p>
+                  <p className={`text-lg font-bold mt-0.5 leading-tight ${s.label === "Below Target" ? "text-orange-600" : "text-[#333333]"}`}>
+                    {s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
+                  </p>
+                </div>
+              ))}
+      </div>
+      {summaryError && !summary.length && (
+        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-center">{summaryError}</p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        {loading ? (
+          <LoadingState label="Loading profit margins..." />
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadRows} />
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <p className="font-semibold text-[#333333]">No profit margin data found</p>
+            <p className="text-sm text-[#666666]">No data matches the selected filters.</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#DBEFF3] text-left">
+                    {([
+                      ["productName", "Product"],
+                      ["actualMargin", "Actual Margin"],
+                      ["targetMargin", "Target Margin"],
+                    ] as [ProfitMarginSortBy, string][]).map(([col, label]) => (
+                      <SortHeader<ProfitMarginSortBy> key={col} active={sortBy === col} order={sortOrder} onClick={() => { setSortBy(col); if (sortBy === col) setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>
+                        {label}
+                      </SortHeader>
                     ))}
-                  </Pie>
-                  <Tooltip formatter={(v: any, name: any) => [`${v}%`, name]} contentStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
+                    <th className="px-4 py-3 font-semibold text-[#333333]">SKU</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333]">Group</th>
+                    <SortHeader<ProfitMarginSortBy> active={sortBy === "sellingPrice"} order={sortOrder} align="right" onClick={() => { setSortBy("sellingPrice"); if (sortBy === "sellingPrice") setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>Sell Price</SortHeader>
+                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Cost</th>
+                    {(["revenue", "cost", "quantitySold"] as ProfitMarginSortBy[]).filter((c) => c !== "sellingPrice").map((col) => (
+                      <SortHeader<ProfitMarginSortBy> key={col} active={sortBy === col} order={sortOrder} align="right" onClick={() => { setSortBy(col); if (sortBy === col) setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>
+                        {col === "revenue" ? "Revenue" : col === "cost" ? "Cost" : "Qty Sold"}
+                      </SortHeader>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={row.productId} className={`${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"} hover:bg-[#DBEFF3]/30 transition-colors`}>
+                      <td className="px-4 py-3 font-semibold text-[#333333]">{row.productName}</td>
+                      <td className="px-4 py-3 font-semibold text-[#49B0C1]">{fmtPercent(row.actualMargin)}</td>
+                      <td className="px-4 py-3 text-[#666666]">{fmtPercent(row.targetMargin)}</td>
+                      <td className="px-4 py-3 text-[#666666]">{row.sku}</td>
+                      <td className="px-4 py-3 text-[#666666]">{row.productGroupName}</td>
+                      <td className="px-4 py-3 text-right text-[#333333]">{fmtMoney(row.sellingPrice)}</td>
+                      <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(row.costPrice)}</td>
+                      <td className="px-4 py-3 text-right text-[#333333]">{fmtMoney(row.revenue)}</td>
+                      <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(row.cost)}</td>
+                      <td className="px-4 py-3 text-right text-[#666666]">{fmtNumber(row.quantitySold)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
+            <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs text-[#666666]">Showing {totalCount === 0 ? 0 : Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {fmtNumber(totalCount)} products</p>
+              <PageNav page={page} totalPages={totalPages} onPage={setPage} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function ProfitabilityDashboardPage() {
+  const [tab, setTab] = useState<"profitability" | "margin">("profitability");
+  const [productGroups, setProductGroups] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    listProductGroups({ limit: 100, isActive: true })
+      .then((r) => setProductGroups(r.data))
+      .catch(() => setProductGroups([]));
+  }, []);
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <PageHeader
+        breadcrumb="Reports / Profitability"
+        title="Profitability"
+        subtitle="Profit, margins, and per-product group performance."
+      />
+      <ReportsSubNav />
+
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        <div className="flex rounded-lg border border-[#ABDBE3] w-fit overflow-hidden">
+          <button onClick={() => setTab("profitability")} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === "profitability" ? "bg-[#49B0C1] text-white" : "bg-white text-[#666666] hover:bg-[#DBEFF3]"}`}>
+            Profitability
+          </button>
+          <button onClick={() => setTab("margin")} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === "margin" ? "bg-[#49B0C1] text-white" : "bg-white text-[#666666] hover:bg-[#DBEFF3]"}`}>
+            Profit Margin
+          </button>
         </div>
+
+        {tab === "profitability" ? (
+          <ProfitabilitySection productGroups={productGroups} />
+        ) : (
+          <ProfitMarginSection productGroups={productGroups} />
+        )}
       </div>
     </div>
   );

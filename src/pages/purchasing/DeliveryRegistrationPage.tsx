@@ -4,6 +4,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto, PurchaseOrdersApiError } from "../../features/purchasing/purchaseOrdersApi";
 import { createGoodsReceipt, type CreateGoodsReceiptInput, GoodsReceiptsApiError } from "../../features/purchasing/goodsReceiptsApi";
 import { listLocations, type LocationDto } from "../../features/inventory/locationsApi";
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
 
 interface GRItemRow {
   purchaseOrderItemId: string;
@@ -27,6 +28,8 @@ export default function DeliveryRegistrationPage() {
   const [orders, setOrders] = useState<PurchaseOrderDto[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [selectedPoId, setSelectedPoId] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrderDto | null>(null);
   const [poLoading, setPoLoading] = useState(false);
   const [locations, setLocations] = useState<LocationDto[]>([]);
@@ -41,7 +44,21 @@ export default function DeliveryRegistrationPage() {
       .then((r) => setOrders(r.data))
       .catch(() => {})
       .finally(() => setOrdersLoading(false));
+  }, []);
 
+  // Reload POs filtered by selected supplier
+  useEffect(() => {
+    const controller = new AbortController()
+    listPurchaseOrders({ status: "AWAITING_DELIVERY", limit: 100, supplierId: supplierFilter || undefined })
+      .then((r) => { if (!controller.signal.aborted) setOrders(r.data) })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [supplierFilter]);
+
+  useEffect(() => {
+    listSuppliers({ limit: 100, isActive: true })
+      .then((r) => setSuppliers(r.data))
+      .catch(() => {});
     listLocations({ isActive: true, limit: 100 })
       .then((r) => setLocations(r.data))
       .catch(() => {});
@@ -59,7 +76,7 @@ export default function DeliveryRegistrationPage() {
       const po = await getPurchaseOrder(poId);
       setSelectedPo(po);
       setItems(
-        po.items.map((item: POItemDto) => ({
+        (po.items ?? []).map((item: POItemDto) => ({
           purchaseOrderItemId: item.id,
           productName: (item as any).product?.name ?? `Product (${item.productId.slice(0, 8)})`,
           quantityOrdered: item.quantityOrdered,
@@ -157,6 +174,19 @@ export default function DeliveryRegistrationPage() {
           <div className="bg-[#DBEFF3] rounded-xl p-5">
             <h2 className="text-base font-bold text-[#333333] mb-4">Delivery Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-[#666666] mb-1">Supplier</label>
+                <select
+                  value={supplierFilter}
+                  onChange={(e) => { setSupplierFilter(e.target.value); setSelectedPoId(""); setSelectedPo(null); setItems([]); }}
+                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+                >
+                  <option value="">All Suppliers</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
                 <select

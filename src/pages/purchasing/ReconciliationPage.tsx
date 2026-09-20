@@ -57,7 +57,7 @@ export default function ReconciliationPage() {
       setReceipt(r);
       if (r.status === "DISCREPANCY") {
         setResolveItems(
-          r.items.map((item) => ({
+          (          (r.items ?? []) ?? []).map((item) => ({
             id: item.id,
             deliveredQty: item.deliveredQty,
             actualQty: item.actualQty,

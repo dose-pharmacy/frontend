@@ -33,13 +33,14 @@ export interface PurchaseOrder {
   reference: string
   supplierId: string
   supplierName: string
-  /** The API does not return an order date — kept for display (renders "—"). */
+  /** ISO8601 — stamped by the backend on creation (GET /purchase-orders). */
   orderDate: string
   expectedDeliveryDate: string
   status: POStatus
   items: POItem[]
+  /** Item count as reported by the backend `_count.items` (list rows). */
+  itemsCount: number
   notes: string
-  totalAmount: number
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,30 +52,27 @@ export function fmtDate(d: string) {
 
 function fmtMoney(n: number) { return `${n.toLocaleString("en-ET")} ETB` }
 
-function poTotal(po: PurchaseOrder) {
-  return po.totalAmount || po.items.reduce((s, i) => s + i.quantity * i.unitCost, 0)
-}
-
 /** Map an API purchase order onto the UI row shape. */
 export function toUiPO(dto: PurchaseOrderDto): PurchaseOrder {
+  const items: POItem[] = (dto.items ?? []).map((it) => ({
+    id: it.id,
+    productId: it.productId,
+    product: it.product?.name ?? "",
+    requirementLineId: it.requirementLineId ?? null,
+    quantity: it.quantityOrdered ?? 0,
+    unitCost: it.unitCost ?? 0,
+  }))
   return {
     id: dto.id,
     reference: dto.poNumber,
     supplierId: dto.supplierId,
     supplierName: dto.supplier?.name ?? "—",
-    orderDate: "",
+    orderDate: dto.orderDate ?? "",
     expectedDeliveryDate: dto.expectedDeliveryDate ?? "",
     status: (dto.status as POStatus) ?? "REGISTERED",
     notes: dto.notes ?? "",
-    totalAmount: dto.totalAmount ?? 0,
-    items: (dto.items ?? []).map((it) => ({
-      id: it.id,
-      productId: it.productId,
-      product: "",
-      requirementLineId: it.requirementLineId ?? null,
-      quantity: it.quantityOrdered ?? 0,
-      unitCost: it.unitCost ?? 0,
-    })),
+    itemsCount: dto._count?.items ?? items.length,
+    items,
   }
 }
 
@@ -202,8 +200,8 @@ export default function PurchaseOrdersPage() {
       .then((res) => {
         if (!active) return
         setOrders(res.data.map(toUiPO))
-        setTotalPages(res.pagination.totalPages)
-        setTotalCount(res.pagination.total)
+        setTotalPages(res.meta.totalPages)
+        setTotalCount(res.meta.total)
       })
       .catch((err) => {
         if (!active) return
@@ -349,7 +347,7 @@ export default function PurchaseOrdersPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#DBEFF3] text-left">
-                      {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Items", "Total Amount", "Status", "Actions"].map((h) => (
+                      {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Items", "Status", "Actions"].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
                     </tr>
@@ -363,8 +361,7 @@ export default function PurchaseOrdersPage() {
                         <td className="px-4 py-3 text-[#333333]">{po.supplierName}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.orderDate)}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.expectedDeliveryDate)}</td>
-                        <td className="px-4 py-3 text-[#666666]">{po.items.length} item{po.items.length !== 1 ? "s" : ""}</td>
-                        <td className="px-4 py-3 font-semibold text-[#333333]">{fmtMoney(poTotal(po))}</td>
+                        <td className="px-4 py-3 text-[#666666]">{po.itemsCount} item{po.itemsCount !== 1 ? "s" : ""}</td>
                         <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">

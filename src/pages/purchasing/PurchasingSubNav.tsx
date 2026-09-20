@@ -4,7 +4,7 @@ const SUB_LINKS = [
   { to: "/purchasing", label: "Requirements", end: true },
   { to: "/purchasing/orders", label: "Orders" },
   { to: "/purchasing/deliveries", label: "Deliveries" },
-  { to: "/purchasing/invoices", label: "Invoices" },
+  { to: "/purchasing/invoices", label: "Supplier Invoices" },
   { to: "/purchasing/returns", label: "Returns" },
 ];
 

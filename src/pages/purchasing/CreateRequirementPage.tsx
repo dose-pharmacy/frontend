@@ -92,24 +92,35 @@ export default function CreateRequirementPage() {
       setError("Please add at least one product.");
       return;
     }
+    const duplicate = products.some(
+      (p, i) => products.findIndex((x) => x.productId === p.productId) !== i,
+    );
+    if (duplicate) {
+      setError("Duplicate products are not allowed — each product can appear once.");
+      return;
+    }
     setError("");
     setSaving(true);
-    
+
     try {
-      const input: CreateRequirementInput = {
-        requiredBy: new Date(requiredBy || new Date().toISOString().split("T")[0]).toISOString(),
-        notes: notes || undefined,
+      // POST /requirements — requiredBy and notes are optional on the backend
+      // contract; reasonCode/notes are omitted (not sent as null) per line.
+      const body = {
+        ...(requiredBy ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
         lines: products.map((p) => ({
           productId: p.productId,
           quantityNeeded: p.quantityNeeded,
-          reasonCode: p.reasonCode,
-          notes: p.notes || undefined,
+          ...(p.reasonCode ? { reasonCode: p.reasonCode } : {}),
+          ...(p.notes?.trim() ? { notes: p.notes.trim() } : {}),
         })),
       };
-      await createRequirement(input);
+      await createRequirement(body as CreateRequirementInput);
       navigate("/purchasing");
-    } catch (err: any) {
-      setError(err.message || "Failed to create requirement.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create requirement.");
+      setSaving(false);
+    } finally {
       setSaving(false);
     }
   }

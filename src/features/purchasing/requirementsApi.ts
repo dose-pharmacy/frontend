@@ -112,7 +112,8 @@ export interface CreateRequirementLineInput {
 }
 
 export interface CreateRequirementInput {
-  requiredBy: string;
+  /** Optional per the backend contract (ISO8601 datetime|null). */
+  requiredBy?: string | null;
   notes?: string | null;
   lines: CreateRequirementLineInput[];
 }
@@ -217,7 +218,7 @@ async function requirementsRequest<T>(path: string, init: RequestInit = {}): Pro
     let code: string | undefined;
     try {
       const body = (await res.json()) as {
-        error?: { code?: string; message?: string };
+        error?: { code?: string; message?: string; details?: unknown };
         message?: string;
       } | null;
       if (body?.error?.code) {
@@ -226,6 +227,13 @@ async function requirementsRequest<T>(path: string, init: RequestInit = {}): Pro
       }
       if (body?.error?.message) message = body.error.message;
       else if (body?.message) message = body.message;
+      // Surface per-field validation details (e.g. from 422 responses) so the
+      // user can see exactly which field the backend rejected.
+      const details = body?.error?.details;
+      if (details != null) {
+        const text = typeof details === "string" ? details : JSON.stringify(details);
+        if (text && text !== "{}" && text !== "[]") message += ` — ${text}`;
+      }
     } catch {
       // Non-JSON error body — keep the generic message.
     }

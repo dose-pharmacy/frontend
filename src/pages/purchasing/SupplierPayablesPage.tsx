@@ -705,8 +705,6 @@ export default function SupplierPayablesPage() {
                     "Supplier",
                     "Contact",
                     "Phone",
-                    "Payment Terms",
-                    "Outstanding",
                     "Invoices",
                     "Status",
                     "Actions",
@@ -779,19 +777,7 @@ export default function SupplierPayablesPage() {
                         {supplier.phone ?? "—"}
                       </td>
 
-                      <td className="px-4 py-3 text-[#333333]">
-                        {supplier.paymentTerms ?? "—"}
-                      </td>
-
-                      <td
-                        className={`px-4 py-3 font-semibold ${
-                          Number(supplier.totalOutstanding ?? 0) > 0
-                            ? "text-red-500"
-                            : "text-green-600"
-                        }`}
-                      >
-                        {fmtMoney(supplier.totalOutstanding)}
-                      </td>
+                     
 
                       <td className="px-4 py-3 text-[#333333]">
                         {supplier._count?.supplierInvoices ?? 0}
