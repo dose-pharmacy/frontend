@@ -1,39 +1,43 @@
 import { useState, useCallback } from "react";
 import type { POSProduct, POSUnit } from "./posMock";
-import { TAX_RATE } from "./posMock";
 
 export interface CartItem {
-  id: string; // unique per line
+  id: string;         // unique per line (product+unit+timestamp)
   product: POSProduct;
   unit: POSUnit;
   quantity: number;
-  unitPrice: number;
-  discount: number; // 0–100 percentage
+  unitPrice: number;  // always from unit.price (backend sell price)
+}
+
+export type DiscountType = "PERCENTAGE" | "FIXED_AMOUNT";
+
+export interface BillDiscount {
+  type: DiscountType;
+  value: number;
 }
 
 export interface CartState {
   items: CartItem[];
-  billDiscount: number; // 0–100 percentage applied to whole bill
+  billDiscount: BillDiscount | null;
 }
 
-function lineTotal(item: CartItem): number {
-  const subtotal = item.unitPrice * item.quantity;
-  return subtotal * (1 - item.discount / 100);
+export function lineTotal(item: CartItem): number {
+  return item.unitPrice * item.quantity;
 }
 
 export function useCart() {
-  const [cart, setCart] = useState<CartState>({ items: [], billDiscount: 0 });
+  const [cart, setCart] = useState<CartState>({ items: [], billDiscount: null });
 
   const addItem = useCallback((product: POSProduct, unit: POSUnit, quantity: number) => {
     setCart((prev) => {
-      const existing = prev.items.findIndex(
+      const existingIdx = prev.items.findIndex(
         (i) => i.product.id === product.id && i.unit.id === unit.id
       );
-      if (existing >= 0) {
+      if (existingIdx >= 0) {
         return {
           ...prev,
           items: prev.items.map((item, idx) =>
-            idx === existing
+            idx === existingIdx
               ? { ...item, quantity: item.quantity + quantity }
               : item
           ),
@@ -45,7 +49,6 @@ export function useCart() {
         unit,
         quantity,
         unitPrice: unit.price,
-        discount: 0,
       };
       return { ...prev, items: [...prev.items, newItem] };
     });
@@ -66,39 +69,36 @@ export function useCart() {
     setCart((prev) => ({ ...prev, items: prev.items.filter((i) => i.id !== id) }));
   }, []);
 
-  const applyItemDiscount = useCallback((id: string, discount: number) => {
-    setCart((prev) => ({
-      ...prev,
-      items: prev.items.map((i) => (i.id === id ? { ...i, discount } : i)),
-    }));
-  }, []);
-
-  const applyBillDiscount = useCallback((pct: number) => {
-    setCart((prev) => ({ ...prev, billDiscount: pct }));
+  const setBillDiscount = useCallback((discount: BillDiscount | null) => {
+    setCart((prev) => ({ ...prev, billDiscount: discount }));
   }, []);
 
   const clearCart = useCallback(() => {
-    setCart({ items: [], billDiscount: 0 });
+    setCart({ items: [], billDiscount: null });
   }, []);
 
-  // Derived totals
+  // Derived totals — NO TAX (backend Sale schema has no tax field)
   const subtotal = cart.items.reduce((sum, item) => sum + lineTotal(item), 0);
-  const discountAmount = subtotal * (cart.billDiscount / 100);
-  const afterDiscount = subtotal - discountAmount;
-  const tax = afterDiscount * TAX_RATE;
-  const total = afterDiscount + tax;
+
+  let discountAmount = 0;
+  if (cart.billDiscount && cart.billDiscount.value > 0) {
+    if (cart.billDiscount.type === "PERCENTAGE") {
+      discountAmount = subtotal * (cart.billDiscount.value / 100);
+    } else {
+      discountAmount = Math.min(cart.billDiscount.value, subtotal);
+    }
+  }
+  const total = Math.max(0, subtotal - discountAmount);
 
   return {
     cart,
     addItem,
     updateQuantity,
     removeItem,
-    applyItemDiscount,
-    applyBillDiscount,
+    setBillDiscount,
     clearCart,
     subtotal,
     discountAmount,
-    tax,
     total,
     lineTotal,
   };

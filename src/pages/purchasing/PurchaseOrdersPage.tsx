@@ -6,7 +6,7 @@ import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import {
   listPurchaseOrders,
-  markPurchaseOrderDelivered,
+  markPurchaseOrderAwaitingDelivery,
   cancelPurchaseOrder,
   closePurchaseOrder,
   PurchaseOrdersApiError,
@@ -172,11 +172,13 @@ export default function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [toast, setToast] = useState("")
   const [actionError, setActionError] = useState("")
   const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "markDelivery" | "close" | "cancel" } | null>(null)
 
-  const PAGE_SIZE = 10
+  const PAGE_SIZE = 20
 
   // Real suppliers for the filter dropdown.
   useEffect(() => {
@@ -187,43 +189,43 @@ export default function PurchaseOrdersPage() {
     return () => { active = false }
   }, [])
 
-  // Real purchase orders.
+  // Real purchase orders with backend pagination.
   useEffect(() => {
     let active = true
     setLoading(true)
     setError("")
-    listPurchaseOrders({ page: 1, limit: 100 })
-      .then((res) => { if (active) setOrders(res.data.map(toUiPO)) })
+    const params: any = { page, limit: PAGE_SIZE }
+    if (search) params.search = search
+    if (suppFilter) params.supplierId = suppFilter
+    if (statusFilter) params.status = statusFilter
+    listPurchaseOrders(params)
+      .then((res) => {
+        if (!active) return
+        setOrders(res.data.map(toUiPO))
+        setTotalPages(res.pagination.totalPages)
+        setTotalCount(res.pagination.total)
+      })
       .catch((err) => {
         if (!active) return
         setError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to load purchase orders.")
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [reloadTick])
+  }, [reloadTick, page, search, suppFilter, statusFilter])
 
   function refresh() { setReloadTick((t) => t + 1) }
 
-  const filtered = orders.filter((o) => {
-    if (suppFilter && o.supplierId !== suppFilter) return false
-    if (statusFilter && o.status !== statusFilter) return false
-    if (search) {
-      const q = search.toLowerCase()
-      if (!o.reference.toLowerCase().includes(q) && !o.supplierName.toLowerCase().includes(q)) return false
-    }
-    return true
-  })
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
   const summary = {
-    total:    orders.length,
+    total:    totalCount,
     registered:    orders.filter((o) => o.status === "REGISTERED").length,
     awaiting: orders.filter((o) => o.status === "AWAITING_DELIVERY").length,
     received: orders.filter((o) => o.status === "RECEIVED").length,
     closed:   orders.filter((o) => o.status === "CLOSED").length,
   }
+
+  // For backward compatibility with table rendering
+  const filtered = orders
+  const paginated = orders
 
   /** Runs the confirmed status transition against the real endpoint. */
   async function runStatusAction() {
@@ -231,7 +233,7 @@ export default function PurchaseOrdersPage() {
     const { po, action } = actionTarget
     setActionError("")
     try {
-      if (action === "markDelivery") await markPurchaseOrderDelivered(po.id)
+      if (action === "markDelivery") await markPurchaseOrderAwaitingDelivery(po.id)
       else if (action === "close") await closePurchaseOrder(po.id)
       else await cancelPurchaseOrder(po.id)
       setActionTarget(null)
@@ -390,14 +392,18 @@ export default function PurchaseOrdersPage() {
               </div>
               <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} orders
+                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
                 </p>
                 <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
-                  ))}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Prev</button>
+                  {(() => {
+                    const pages: number[] = []
+                    for (let i = 1; i <= totalPages; i++) pages.push(i)
+                    return pages.map((p: number) => (
+                      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+                    ))
+                  })()}
+                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Next</button>
                 </div>
               </div>
             </>

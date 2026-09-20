@@ -36,6 +36,21 @@ type Tab = "stock" | "movements"
 
 const PAGE_SIZE = 10
 
+interface ProductOption {
+  id: string
+  name: string
+  baseUnit: string | null
+}
+
+async function fetchProductOptions(): Promise<ProductOption[]> {
+  const res = await listInventoryProducts({ limit: 1000 })
+  return res.data.map(p => ({
+    id: p.id,
+    name: p.name,
+    baseUnit: p.baseUnit?.name ?? null
+  }))
+}
+
 // ─── Adapted stock row (UI shape from GET /inventory/stock) ───────────────────
 
 interface StockRow {
@@ -348,23 +363,7 @@ interface TxDetail {
   userName: string
 }
 
-function adaptMockTransaction(t: Transaction, product?: Product): TxDetail {
-  return {
-    id: t.id,
-    type: t.type,
-    direction: isInType(t.type) ? "IN" : "OUT",
-    quantity: t.quantity,
-    balanceAfter: t.balanceAfter,
-    date: t.date,
-    reference: t.reference,
-    notes: t.notes ?? "",
-    productName: product?.name ?? t.productId,
-    batchNumber: t.batchNumber ?? "—",
-    locationName: t.location,
-    unitName: t.unit,
-    userName: t.user,
-  }
-}
+
 
 function nameOf(ref: unknown, fallback: string): string {
   if (ref && typeof ref === "object" && "name" in (ref as Record<string, unknown>)) {
@@ -746,8 +745,8 @@ function AddStockModal({
         setProductOptions(opts)
         setLocations(
           locs.data
-            .filter((l) => l.isActive)
-            .map((l) => ({ id: l.id, name: l.name })),
+            .filter((l: any) => l.isActive)
+            .map((l: any) => ({ id: l.id, name: l.name })),
         )
       })
       .catch((err) => {
@@ -929,7 +928,7 @@ function AdjustStockModal({
     Promise.all([fetchProductOptions(), listLocations({ limit: 100 })])
       .then(([opts, locs]) => {
         setProductOptions(opts)
-        setLocations(locs.data.filter((l) => l.isActive).map((l) => ({ id: l.id, name: l.name })))
+        setLocations(locs.data.filter((l: any) => l.isActive).map((l: any) => ({ id: l.id, name: l.name })))
       })
       .catch(() => {})
       .finally(() => setOptionsLoading(false))

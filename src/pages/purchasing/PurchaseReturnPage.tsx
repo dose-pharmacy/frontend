@@ -1,272 +1,333 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
-import { getPurchaseOrders, fmtMoney } from "../../features/purchasing/purchasingService";
-import type { PurchaseOrder, ReturnReason } from "../../features/purchasing/purchasingMock";
-import { RETURN_REASONS } from "../../features/purchasing/purchasingMock";
+import {
+  createPurchaseReturn,
+  listPurchaseReturns,
+  type PurchaseReturnDto,
+  type PurchaseReturnReason,
+  PurchaseReturnsApiError,
+} from "../../features/purchasing/purchaseReturnsApi";
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
+import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
+import { listBatches, type BatchDto } from "../../features/inventory/batchesApi";
+import { listLocations, type LocationDto } from "../../features/inventory/locationsApi";
 
-const RETURN_REF = `RET-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`;
+const REASON_LABELS: Record<PurchaseReturnReason, string> = {
+  EXPIRED: "Expired",
+  DAMAGED: "Damaged",
+  INCORRECT_DELIVERY: "Incorrect Delivery",
+};
 
-interface ReturnRow {
-  id: string;
-  productName: string;
-  brand: string;
-  originalQty: number;
-  returnQty: number;
-  unit: string;
-  batch: string;
-  reason: ReturnReason;
+function fmtDate(d: string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtMoney(n: number | null | undefined) {
+  return `${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
 }
 
 export default function PurchaseReturnPage() {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [selectedPoId, setSelectedPoId] = useState("");
-  const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
-  const [returnReason, setReturnReason] = useState<ReturnReason>("expired");
-  const [returnType, setReturnType] = useState<ReturnReason>("expired");
-  const [rows, setRows] = useState<ReturnRow[]>([]);
-  const [generateDebitNote, setGenerateDebitNote] = useState(true);
-  const [debitNotes, setDebitNotes] = useState("Return due to expiry");
-  const [processing, setProcessing] = useState(false);
+
+  // Form state
+  const [supplierId, setSupplierId] = useState("");
+  const [productId, setProductId] = useState("");
+  const [batchId, setBatchId] = useState("");
+  const [locationId, setLocationId] = useState("");
+  const [reason, setReason] = useState<PurchaseReturnReason>("EXPIRED");
+  const [quantity, setQuantity] = useState(1);
+  const [unitCost, setUnitCost] = useState(0);
+  const [debitNoteAmount, setDebitNoteAmount] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Reference data
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
+  const [products, setProducts] = useState<ProductDto[]>([]);
+  const [batches, setBatches] = useState<BatchDto[]>([]);
+  const [locations, setLocations] = useState<LocationDto[]>([]);
+
+  // History
+  const [returns, setReturns] = useState<PurchaseReturnDto[]>([]);
+  const [returnsLoading, setReturnsLoading] = useState(true);
+
+  // UI
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    getPurchaseOrders().then(setOrders);
+    listSuppliers({ limit: 100, isActive: true }).then((r) => setSuppliers(r.data)).catch(() => {});
+    listProducts({ limit: 200, isActive: true }).then((r) => setProducts(r.data)).catch(() => {});
+    listLocations({ limit: 100, isActive: true }).then((r) => setLocations(r.data)).catch(() => {});
+    loadReturns();
   }, []);
 
-  const selectedPo = orders.find((o) => o.id === selectedPoId);
-
-  useEffect(() => {
-    if (selectedPo) {
-      setRows(
-        selectedPo.items.map((item) => ({
-          id: item.id,
-          productName: item.productName,
-          brand: item.brand,
-          originalQty: item.quantity,
-          returnQty: 0,
-          unit: item.unit,
-          batch: `BATCH-001`,
-          reason: returnReason,
-        }))
-      );
-    } else {
-      setRows([]);
+  async function loadReturns() {
+    setReturnsLoading(true);
+    try {
+      const r = await listPurchaseReturns({ limit: 50 });
+      setReturns(r.data);
+    } catch {
+      // silent
+    } finally {
+      setReturnsLoading(false);
     }
-  }, [selectedPoId]);
-
-  function updateRow(rowId: string, field: keyof ReturnRow, value: string | number) {
-    setRows((prev) => prev.map((r) => r.id === rowId ? { ...r, [field]: value } : r));
   }
 
-  const returnItems = rows.filter((r) => r.returnQty > 0);
-  const totalReturnValue = returnItems.reduce((s, r) => {
-    const poItem = selectedPo?.items.find((i) => i.id === r.id);
-    return s + r.returnQty * (poItem?.price ?? 0);
-  }, 0);
-
-  async function handleProcess() {
-    setProcessing(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setProcessing(false);
-    navigate("/purchasing");
+  async function handleProductChange(newProductId: string) {
+    setProductId(newProductId);
+    setBatchId("");
+    setBatches([]);
+    // Set default unit cost to 0 since ProductDto doesn't have units
+    setUnitCost(0);
+    if (!newProductId) return;
+    try {
+      const result = await listBatches({ productId: newProductId, limit: 50 });
+      setBatches(result.data);
+    } catch {
+      // silent
+    }
   }
 
-  const RETURN_TYPE_OPTIONS: { value: ReturnReason; label: string; icon: string }[] = [
-    { value: "expired", label: "Expired", icon: "📅" },
-    { value: "damaged", label: "Damaged", icon: "💥" },
-    { value: "incorrect_delivery", label: "Incorrect", icon: "❌" },
-    { value: "quality_issue", label: "Quality Issue", icon: "🔬" },
-  ];
+  // Get available stock for a batch at a location (simplified - shows total batch stock)
+  function getAvailableStock(batchId: string): number {
+    const batch = batches.find((b) => b.id === batchId);
+    return batch?.totalQuantity ?? 0;
+  }
+
+  async function handleSubmit() {
+    if (!supplierId || !productId || !locationId) {
+      setError("Supplier, Product, and Location are required.");
+      return;
+    }
+    if (quantity <= 0 || unitCost <= 0) {
+      setError("Quantity and Unit Cost must be greater than zero.");
+      return;
+    }
+    if (batchId) {
+      const available = getAvailableStock(batchId);
+      if (quantity > available) {
+        setError(`Insufficient stock. Available: ${available}, Requested: ${quantity}`);
+        return;
+      }
+    }
+    setError("");
+    setSuccess("");
+    setSaving(true);
+    try {
+      await createPurchaseReturn({
+        supplierId,
+        productId,
+        batchId: batchId || undefined,
+        locationId,
+        reason,
+        quantity: Number(quantity),
+        unitCost: Number(unitCost),
+        debitNoteAmount: debitNoteAmount ? Number(debitNoteAmount) : undefined,
+        notes: notes || undefined,
+      });
+      setSuccess("Purchase return recorded successfully.");
+      // Reset form
+      setSupplierId("");
+      setProductId("");
+      setBatchId("");
+      setLocationId("");
+      setReason("EXPIRED");
+      setQuantity(1);
+      setUnitCost(0);
+      setDebitNoteAmount("");
+      setNotes("");
+      setShowForm(false);
+      void loadReturns();
+    } catch (e) {
+      setError(e instanceof PurchaseReturnsApiError ? e.message : "Failed to create purchase return.");
+      setSaving(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const selectedProduct = products.find((p) => p.id === productId);
+  const selectedBatch = batches.find((b) => b.id === batchId);
+  const estimatedValue = Number(quantity) * Number(unitCost);
+
+  const inputClass = "w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none";
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <PageHeader
-        title="Purchase Return"
-        subtitle="Purchasing → Returns → New"
+        title="Purchase Returns"
+        subtitle="Purchasing → Returns"
         actions={
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-white/80">Return Reference: {RETURN_REF}</span>
-            <button
-              onClick={handleProcess}
-              disabled={returnItems.length === 0 || processing}
-              className="rounded-lg bg-white/20 border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {processing ? "Processing…" : "Process Return →"}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowForm(true)}
+            className="rounded-lg bg-white/20 border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
+          >
+            + New Return
+          </button>
         }
       />
-     
 
-      <div className="flex-1 overflow-y-auto pb-24">
-        {/* Return info form */}
-        <div className="px-4 sm:px-6 py-4">
-          <div className="bg-[#DBEFF3] rounded-xl p-5">
-            <h2 className="text-base font-bold text-[#333333] mb-4">Return Details</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Return Date</label>
-                <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Return Reference</label>
-                <input readOnly value={RETURN_REF} className="w-full rounded-lg border border-[#ABDBE3] bg-[#DBEFF3] px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
-                <select value={selectedPoId} onChange={(e) => setSelectedPoId(e.target.value)} className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none">
-                  <option value="">— Select PO —</option>
-                  {orders.map((o) => <option key={o.id} value={o.id}>{o.reference} — {o.supplierName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Supplier</label>
-                <input readOnly value={selectedPo?.supplierName ?? ""} placeholder="Auto-filled from PO" className="w-full rounded-lg border border-[#ABDBE3] bg-[#DBEFF3] px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-1">Reason for Return</label>
-                <select value={returnReason} onChange={(e) => setReturnReason(e.target.value as ReturnReason)} className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none">
-                  {RETURN_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-[#666666] mb-2">Return Type</label>
-                <div className="flex flex-wrap gap-3">
-                  {RETURN_TYPE_OPTIONS.map((opt) => (
-                    <label key={opt.value} className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 cursor-pointer transition-all ${returnType === opt.value ? "border-[#49B0C1] bg-[#DBEFF3]" : "border-[#ABDBE3] bg-white"}`}>
-                      <input type="radio" name="returnType" value={opt.value} checked={returnType === opt.value} onChange={() => setReturnType(opt.value)} className="sr-only" />
-                      <span aria-hidden>{opt.icon}</span>
-                      <span className="text-sm font-medium text-[#333333]">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Return items table */}
-        {rows.length > 0 && (
-          <div className="px-4 sm:px-6">
-            <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#ABDBE3]">
-                    {["#", "Product", "Original Qty", "Return Qty", "Batch", "Reason", "Status"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, i) => (
-                    <tr key={row.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                      <td className="px-4 py-3 text-[#666666]">{i + 1}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-[#333333]">{row.productName}</p>
-                        <p className="text-xs text-[#666666]">{row.brand}</p>
-                      </td>
-                      <td className="px-4 py-3 text-[#333333]">{row.originalQty} {row.unit}s</td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          value={row.returnQty}
-                          min={0}
-                          max={row.originalQty}
-                          onChange={(e) => updateRow(row.id, "returnQty", Number(e.target.value))}
-                          className="w-16 rounded border border-[#ABDBE3] bg-white px-2 py-1 text-sm focus:border-[#49B0C1] focus:outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-[#333333] text-xs">{row.batch}</td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={row.reason}
-                          onChange={(e) => updateRow(row.id, "reason", e.target.value)}
-                          className="rounded border border-[#ABDBE3] bg-white px-2 py-1 text-xs focus:border-[#49B0C1] focus:outline-none"
-                        >
-                          {RETURN_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${row.returnQty > 0 ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-500"}`}>
-                          {row.returnQty > 0 ? "🔄 Pending" : "—"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      <div className="flex-1 overflow-y-auto pb-8">
+        {success && (
+          <div className="mx-4 sm:mx-6 mt-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm border border-green-200">
+            {success}
           </div>
         )}
 
-        {rows.length === 0 && (
+        {/* New Return Form */}
+        {showForm && (
           <div className="px-4 sm:px-6 py-4">
-            <div className="rounded-xl bg-[#DBEFF3] border-2 border-dashed border-[#ABDBE3] py-10 text-center text-[#666666] text-sm">
-              Select a Purchase Order above to load items for return.
-            </div>
-          </div>
-        )}
-
-        {/* Debit note section */}
-        <div className="px-4 sm:px-6 py-4">
-          <div className="bg-[#DBEFF3] rounded-xl p-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex-1">
-                <p className="font-bold text-[#333333] mb-1">Debit Note</p>
-                <label className="flex items-center gap-2 cursor-pointer mb-1">
-                  <div
-                    onClick={() => setGenerateDebitNote((v) => !v)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${generateDebitNote ? "bg-[#49B0C1]" : "bg-gray-300"}`}
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${generateDebitNote ? "translate-x-4.5" : "translate-x-0.5"}`} />
-                  </div>
-                  <span className="text-sm text-[#333333]">Generate Debit Note</span>
-                </label>
-                <p className="text-xs text-[#666666]">A debit note will be created for this return</p>
+            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-[#333333]">New Purchase Return</h2>
+                <button onClick={() => setShowForm(false)} className="text-sm text-gray-400 hover:text-gray-600">✕ Cancel</button>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-[#666666]">Total Return Value</p>
-                <p className="text-2xl font-bold text-[#49B0C1]">{fmtMoney(totalReturnValue)}</p>
-                <p className="text-xs text-[#666666]">{returnItems.length} items returned</p>
-              </div>
-            </div>
 
-            {generateDebitNote && (
-              <div className="mt-4 bg-white rounded-xl p-4 border border-[#ABDBE3]/30 flex flex-col gap-3">
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-[#666666] mb-1">Debit Note Number</label>
-                    <input readOnly value={`DN-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`} className="w-full rounded-lg border border-[#ABDBE3] bg-[#DBEFF3] px-3 py-2 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-[#666666] mb-1">Amount (ETB)</label>
-                    <input readOnly value={fmtMoney(totalReturnValue)} className="w-full rounded-lg border border-[#ABDBE3] bg-[#DBEFF3] px-3 py-2 text-sm font-semibold text-[#49B0C1]" />
-                  </div>
+              {error && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
+                  <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={inputClass}>
+                    <option value="">— Select Supplier —</option>
+                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-[#666666] mb-1">Notes</label>
-                  <textarea rows={2} value={debitNotes} onChange={(e) => setDebitNotes(e.target.value)} className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" />
+                  <label className="block text-sm text-[#666666] mb-1">Product *</label>
+                  <select value={productId} onChange={(e) => handleProductChange(e.target.value)} className={inputClass}>
+                    <option value="">— Select Product —</option>
+                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 </div>
-                <button className="self-start rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3a9baf] transition-colors">Generate Debit Note</button>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Batch</label>
+                  <select value={batchId} onChange={(e) => setBatchId(e.target.value)} className={inputClass} disabled={batches.length === 0}>
+                    <option value="">— No specific batch —</option>
+                    {batches.map((b) => {
+                      const available = getAvailableStock(b.id);
+                      return (
+                        <option key={b.id} value={b.id}>
+                          {b.batchNumber} · Exp: {fmtDate(b.expiryDate)} · Stock: {available}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {batchId && (
+                    <p className="mt-1 text-xs text-[#666666]">
+                      Available at location: {getAvailableStock(batchId)}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Location *</label>
+                  <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputClass}>
+                    <option value="">— Select Location —</option>
+                    {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Return Reason *</label>
+                  <select value={reason} onChange={(e) => setReason(e.target.value as PurchaseReturnReason)} className={inputClass}>
+                    {Object.entries(REASON_LABELS).map(([v, l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Quantity *</label>
+                  <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Unit Cost *</label>
+                  <input type="number" min={0.01} step="0.01" value={unitCost} onChange={(e) => setUnitCost(Number(e.target.value))} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Debit Note Amount</label>
+                  <input type="number" min={0} step="0.01" value={debitNoteAmount} onChange={(e) => setDebitNoteAmount(e.target.value)} placeholder="Optional" className={inputClass} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm text-[#666666] mb-1">Notes</label>
+                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." className={`${inputClass} resize-none`} />
+                </div>
+              </div>
+
+              {productId && quantity > 0 && unitCost > 0 && (
+                <div className="mt-4 p-3 rounded-lg bg-[#DBEFF3] text-sm text-[#333333]">
+                  <strong>Summary:</strong> Return {quantity} × {selectedProduct?.name ?? "?"} — Total Value: <strong>{fmtMoney(estimatedValue)}</strong>
+                  {selectedBatch && ` · Batch: ${selectedBatch.batchNumber}`}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[#DBEFF3]">
+                <button onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={saving}
+                  className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {saving ? "Recording…" : "Record Return"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Returns history */}
+        <div className="px-4 sm:px-6 py-4">
+          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+              <h3 className="font-bold text-[#333333]">Return History</h3>
+              <span className="text-sm text-[#666666]">{returns.length} records</span>
+            </div>
+            {returnsLoading ? (
+              <div className="py-8 text-center text-[#666666] text-sm">Loading…</div>
+            ) : returns.length === 0 ? (
+              <div className="py-8 text-center text-[#666666] text-sm">
+                No purchase returns recorded yet.
+                <button onClick={() => setShowForm(true)} className="ml-2 text-[#49B0C1] hover:underline">+ Record a return</button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[700px]">
+                  <thead>
+                    <tr className="bg-[#DBEFF3]/50">
+                      {["Return #", "Supplier", "Product", "Reason", "Qty", "Unit Cost", "Total Value", "Date"].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {returns.map((ret, i) => (
+                      <tr key={ret.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                        <td className="px-4 py-3 font-mono text-xs text-[#666666]">{ret.returnNumber}</td>
+                        <td className="px-4 py-3 text-[#333333]">{ret.supplier?.name ?? "—"}</td>
+                        <td className="px-4 py-3 font-medium text-[#333333]">{ret.product?.name ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700">
+                            {REASON_LABELS[ret.reason] ?? ret.reason}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-[#333333]">{ret.quantity}</td>
+                        <td className="px-4 py-3 text-right text-[#333333]">{fmtMoney(ret.unitCost)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(ret.totalValue)}</td>
+                        <td className="px-4 py-3 text-[#666666]">{fmtDate(ret.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#DBEFF3] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
-        <button onClick={() => navigate("/purchasing")} className="rounded-lg bg-red-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">Cancel</button>
-        <button className="rounded-lg bg-[#ABDBE3] px-5 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#9acbd5] transition-colors">Save as Draft</button>
-        <button
-          onClick={handleProcess}
-          disabled={returnItems.length === 0 || processing}
-          className="rounded-lg bg-[#49B0C1] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {processing ? "Processing…" : "Process Return →"}
-        </button>
       </div>
     </div>
   );

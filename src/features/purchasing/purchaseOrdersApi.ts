@@ -4,7 +4,7 @@
 //   POST   /api/v1/purchasing/purchase-orders                     (create)
 //   GET    /api/v1/purchasing/purchase-orders/{id}                (detail)
 //   PATCH  /api/v1/purchasing/purchase-orders/{id}                (update)
-//   POST   /api/v1/purchasing/purchase-orders/{id}/mark-delivered (→ AWAITING_DELIVERY)
+//   POST   /api/v1/purchasing/purchase-orders/{id}/mark-awaiting-delivery (→ AWAITING_DELIVERY)
 //   POST   /api/v1/purchasing/purchase-orders/{id}/cancel         (→ CANCELLED)
 //   POST   /api/v1/purchasing/purchase-orders/{id}/close          (→ CLOSED)
 //
@@ -12,6 +12,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import type { RequirementProductRefDto } from "./requirementsApi";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
@@ -97,6 +98,35 @@ export interface UpdatePurchaseOrderInput {
   items?: CreatePurchaseOrderItemInput[];
 }
 
+/** Body for POST /purchase-orders/from-requirement — create PO from requirement lines. */
+export interface CreatePurchaseOrderFromRequirementInput {
+  supplierId: string;
+  expectedDeliveryDate?: string | null;
+  notes?: string | null;
+  items: {
+    requirementLineId: string;
+    quantityOrdered: number;
+    unitCost: number;
+  }[];
+}
+
+/** Response for PO item operations. */
+export interface POItemDto {
+  id: string;
+  productId: string;
+  quantityOrdered: number;
+  unitCost: number;
+  requirementLineId: string | null;
+  product?: RequirementProductRefDto | null;
+  requirementLine?: {
+    id: string;
+    requirementId: string;
+    productId: string;
+    quantityNeeded: number;
+    quantityRemaining: number;
+  } | null;
+}
+
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 export class PurchaseOrdersApiError extends Error {
@@ -128,6 +158,12 @@ function friendlyStatusMessage(status: number, code?: string): string {
       if (code === "PO_ALREADY_CANCELLED") return "This purchase order is already cancelled.";
       if (code === "PO_NOT_CANCELLABLE")
         return "This purchase order can no longer be cancelled in its current state.";
+      if (code === "REQUIREMENT_QUANTITY_EXCEEDED")
+        return "The available quantity for this requirement changed because another purchase order was created. Refresh the requirement and review the remaining quantity.";
+      if (code === "PO_STATUS_TRANSITION_INVALID")
+        return "This status transition is not allowed for the current purchase order state.";
+      if (code === "PO_CANNOT_CANCEL")
+        return "This purchase order cannot be cancelled in its current state.";
       return "This conflicts with the current state of the purchase order.";
     case 422:
       return "The purchase order details are invalid — please check the fields.";
@@ -262,11 +298,11 @@ export async function updatePurchaseOrder(
 }
 
 /**
- * POST /purchase-orders/{id}/mark-delivered — move a REGISTERED PO to
+ * POST /purchase-orders/{id}/mark-awaiting-delivery — move a REGISTERED PO to
  * AWAITING_DELIVERY. Physical receiving happens through Deliveries.
  */
-export async function markPurchaseOrderDelivered(id: string): Promise<PurchaseOrderDto> {
-  const raw = await poRequest<unknown>(`/${encodeURIComponent(id)}/mark-delivered`, {
+export async function markPurchaseOrderAwaitingDelivery(id: string): Promise<PurchaseOrderDto> {
+  const raw = await poRequest<unknown>(`/${encodeURIComponent(id)}/mark-awaiting-delivery`, {
     method: "POST",
     body: JSON.stringify({}),
   });
@@ -298,4 +334,46 @@ export async function closePurchaseOrder(id: string): Promise<PurchaseOrderDto> 
   const data = unwrapEnvelope<PurchaseOrderDto>(raw, null as unknown as PurchaseOrderDto);
   if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");
   return data;
+}
+
+/**
+ * POST /purchase-orders/from-requirement — create a PO from one or more requirement lines.
+ * The backend derives the product from requirementLineId.
+ */
+export async function createPurchaseOrderFromRequirement(
+  input: CreatePurchaseOrderFromRequirementInput,
+): Promise<PurchaseOrderDto> {
+  const raw = await poRequest<unknown>("/from-requirement", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  const data = unwrapEnvelope<PurchaseOrderDto>(raw, null as unknown as PurchaseOrderDto);
+  if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");
+  return data;
+}
+
+/**
+ * PATCH /purchase-orders/items/{itemId} — update a PO item (quantity, unit cost).
+ */
+export async function updatePurchaseOrderItem(
+  itemId: string,
+  patch: { quantityOrdered?: number; unitCost?: number },
+): Promise<POItemDto> {
+  const raw = await poRequest<unknown>(`/items/${encodeURIComponent(itemId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  const data = unwrapEnvelope<POItemDto>(raw, null as unknown as POItemDto);
+  if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");
+  return data;
+}
+
+/**
+ * DELETE /purchase-orders/items/{itemId} — remove a PO item.
+ * Only available for REGISTERED orders.
+ */
+export async function deletePurchaseOrderItem(itemId: string): Promise<void> {
+  await poRequest<{ success: boolean; data: null }>(`/items/${encodeURIComponent(itemId)}`, {
+    method: "DELETE",
+  });
 }

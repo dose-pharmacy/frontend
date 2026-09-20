@@ -9,13 +9,15 @@ import {
 import {
   getPurchaseOrder,
   createPurchaseOrder,
+  createPurchaseOrderFromRequirement,
   updatePurchaseOrder,
-  markPurchaseOrderDelivered,
+  markPurchaseOrderAwaitingDelivery,
   cancelPurchaseOrder,
   closePurchaseOrder,
   PurchaseOrdersApiError,
   type POItemDto,
   type PurchaseOrderDto,
+  type CreatePurchaseOrderFromRequirementInput,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
@@ -204,6 +206,19 @@ export default function CreatePurchaseOrderPage() {
   const isNew = !id || id === "new"
   const wantsEdit = searchParams.get("edit") === "1"
 
+  // Check if we're creating from a requirement (Order Remaining flow)
+  const requirementLineId = searchParams.get("requirementLineId")
+  const prefilledQuantity = searchParams.get("quantity")
+  const prefilledUnitCost = searchParams.get("unitCost")
+  const prefilledDelivDate = searchParams.get("expectedDeliveryDate")
+  const prefilledNotes = searchParams.get("notes")
+  const requirementReference = searchParams.get("requirementReference")
+  const productName = searchParams.get("productName")
+  const productSku = searchParams.get("productSku")
+
+  // Track if we're in from-requirement mode
+  const isFromRequirement = isNew && !!requirementLineId
+
   // Real data
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
   const [products, setProducts] = useState<ProductDto[]>([])
@@ -220,8 +235,8 @@ export default function CreatePurchaseOrderPage() {
   // Form state
   const [suppId, setSuppId]         = useState("")
   const [orderDate, setOrderDate]   = useState(new Date().toISOString().slice(0, 10))
-  const [delivDate, setDelivDate]   = useState("")
-  const [notes, setNotes]           = useState("")
+  const [delivDate, setDelivDate]   = useState(prefilledDelivDate ?? "")
+  const [notes, setNotes]           = useState(prefilledNotes ?? "")
   const [items, setItems]           = useState<POItem[]>([])
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState("")
@@ -258,6 +273,24 @@ export default function CreatePurchaseOrderPage() {
       .catch(() => { /* requirement-line select simply stays empty */ })
     return () => { active = false }
   }, [])
+
+  // Handle from-requirement prefill: add the requirement line as an item
+  useEffect(() => {
+    if (isFromRequirement && requirementLineId && prefilledQuantity && prefilledUnitCost && items.length === 0) {
+      const product = products.find((p) => p.name === productName)
+      const productId = product?.id ?? ""
+      setItems([{
+        id: `draft-${requirementLineId}`,
+        productId,
+        product: productName ?? "",
+        requirementLineId,
+        quantity: parseFloat(prefilledQuantity),
+        unitCost: parseFloat(prefilledUnitCost),
+      }])
+      if (prefilledDelivDate) setDelivDate(prefilledDelivDate)
+      if (prefilledNotes) setNotes(prefilledNotes)
+    }
+  }, [isFromRequirement, requirementLineId, prefilledQuantity, prefilledUnitCost, prefilledDelivDate, prefilledNotes, productName, products, items.length])
 
   // Load the PO from the real endpoint when editing/viewing.
   useEffect(() => {
@@ -315,14 +348,43 @@ export default function CreatePurchaseOrderPage() {
     setSaving(true)
     setSaveError("")
     try {
-      await createPurchaseOrder({
-        supplierId: suppId,
-        expectedDeliveryDate: delivDate || null,
-        notes: notes || null,
-        items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
-          productId, quantityOrdered, unitCost, requirementLineId,
-        })),
-      })
+      if (isFromRequirement) {
+        // Use from-requirement endpoint for requirement-linked items
+        const requirementItems = items
+          .filter((it) => it.requirementLineId)
+          .map((it) => ({
+            requirementLineId: it.requirementLineId!,
+            quantityOrdered: it.quantity,
+            unitCost: it.unitCost,
+          }))
+        if (requirementItems.length > 0) {
+          await createPurchaseOrderFromRequirement({
+            supplierId: suppId,
+            expectedDeliveryDate: delivDate || null,
+            notes: notes || null,
+            items: requirementItems,
+          })
+        } else {
+          // Fallback to regular create if no requirement-linked items
+          await createPurchaseOrder({
+            supplierId: suppId,
+            expectedDeliveryDate: delivDate || null,
+            notes: notes || null,
+            items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
+              productId, quantityOrdered, unitCost, requirementLineId,
+            })),
+          })
+        }
+      } else {
+        await createPurchaseOrder({
+          supplierId: suppId,
+          expectedDeliveryDate: delivDate || null,
+          notes: notes || null,
+          items: itemsToDto().map(({ id: _id, productId, quantityOrdered, unitCost, requirementLineId }) => ({
+            productId, quantityOrdered, unitCost, requirementLineId,
+          })),
+        })
+      }
       setToast("Purchase order created successfully.")
       setTimeout(() => navigate("/purchasing/orders"), 1200)
     } catch (err) {
@@ -360,9 +422,9 @@ export default function CreatePurchaseOrderPage() {
     if (!poState) return
     setActionError("")
     try {
-      if (action === "markDelivery") await markPurchaseOrderDelivered(poState.id)
+      if (action === "cancel") await cancelPurchaseOrder(poState.id)
+      else if (action === "markDelivery") await markPurchaseOrderAwaitingDelivery(poState.id)
       else if (action === "close") await closePurchaseOrder(poState.id)
-      else await cancelPurchaseOrder(poState.id)
       setPOState({ ...poState, status: action === "markDelivery" ? "AWAITING_DELIVERY" : action === "close" ? "CLOSED" : "CANCELLED" })
       setMarkDeliveryOpen(false)
       setCloseOpen(false)
@@ -632,6 +694,43 @@ export default function CreatePurchaseOrderPage() {
                       : <p className="text-sm text-[#666666]">Manual Purchase Order</p>
                     }
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Requirement Allocation Display (detail only) */}
+            {!isNew && items.some((it) => it.requirementLineId) && (
+              <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Requirement Allocations</p>
+                <div className="space-y-3">
+                  {items.filter((it) => it.requirementLineId).map((item) => {
+                    const reqLine = reqLines.find((r) => r.lineId === item.requirementLineId)
+                    const product = products.find((p) => p.id === item.productId)
+                    return (
+                      <div key={item.id} className="rounded-lg border border-[#DBEFF3] p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="font-semibold text-[#333333]">{product?.name ?? item.product ?? "—"}</span>
+                          <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                            {reqLine?.label ?? item.requirementLineId?.slice(0, 8)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div>
+                            <p className="text-[#999]">Allocated Qty</p>
+                            <p className="font-semibold text-[#333333]">{item.quantity}</p>
+                          </div>
+                          <div>
+                            <p className="text-[#999]">Unit Cost</p>
+                            <p className="font-semibold text-[#333333]">{fmtMoney(item.unitCost)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[#999]">Line Total</p>
+                            <p className="font-semibold text-[#333333]">{fmtMoney(itemTotal(item))}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

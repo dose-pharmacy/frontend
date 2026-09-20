@@ -6,17 +6,19 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import type { POSProduct, POSUnit } from "./posMock";
 
-// ─── Types (mirror the Swagger response shapes) ──────────────────────────────
+// ─── Types (mirror the backend response) ─────────────────────────────────────
 
 export interface PosUnitDto {
-  /** Product-unit row id (unique per product). */
+  /** ProductUnit row id — this is the `unitId` the sale endpoint expects. */
   id: string;
-  /** Master unit id. */
+  /** Master unit id (Unit table). */
   unitId: string;
   unitName: string;
+  unitSymbol: string;
   conversionFactor: number;
-  /** Selling price for this unit — the backend does NOT derive it from the base. */
+  /** Selling price for this unit — backend-configured, never derived. */
   sellPrice: number;
   isBaseUnit: boolean;
 }
@@ -24,13 +26,17 @@ export interface PosUnitDto {
 export interface PosProductDto {
   id: string;
   name: string;
-  brand: string;
-  sku: string;
-  baseUnit: { id: string; name: string };
+  genericName?: string | null;
+  brand?: string | null;
+  sku?: string | null;
+  productGroup?: { id: string; name: string } | null;
+  baseUnit: { id: string; name: string; symbol?: string } | null;
   units: PosUnitDto[];
-  /** quantity − reservedQuantity, expressed in the product's base unit. */
+  totalStock: number;
+  reservedStock: number;
   availableStock: number;
   stockStatus: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | (string & {});
+  isActive: boolean;
 }
 
 export interface PosProductsMeta {
@@ -43,7 +49,6 @@ export interface PosProductsMeta {
 export interface PosProductsQuery {
   page?: number;
   limit?: number;
-  /** Matches name, generic name, brand, or SKU server-side. */
   search?: string;
   brand?: string;
   productGroupId?: string;
@@ -134,32 +139,46 @@ export async function getPosProducts(
 
 // ─── UI adapters ─────────────────────────────────────────────────────────────
 
-function toUiStatus(status: PosProductDto["stockStatus"], availableStock: number): "in_stock" | "low_stock" | "out_of_stock" {
+function toUiStatus(
+  status: PosProductDto["stockStatus"],
+  availableStock: number,
+): "in_stock" | "low_stock" | "out_of_stock" {
   if (status === "OUT_OF_STOCK" || availableStock <= 0) return "out_of_stock";
   if (status === "LOW_STOCK") return "low_stock";
   return "in_stock";
 }
 
 /**
- * Adapt a backend POS product to the UI's `POSProduct` shape. Unit stock is
- * shown in base-unit terms (the backend returns one stock figure per product),
- * and `icon` is not part of the API so the default "pill" glyph is used.
+ * Adapt a backend POS product DTO to the UI's `POSProduct` shape.
+ *
+ * IMPORTANT — unit ID mapping:
+ *   The backend's `saleItemSchema` expects `unitId` = the master Unit id
+ *   (dto.units[n].unitId), NOT the ProductUnit row id (dto.units[n].id).
+ *   We store that as `POSUnit.id` so the cart and sale submission always
+ *   send the right identifier.
  */
-export function adaptPosProduct(dto: PosProductDto): import("./posMock").POSProduct {
+export function adaptPosProduct(dto: PosProductDto): POSProduct {
   return {
     id: dto.id,
     name: dto.name,
+    genericName: dto.genericName ?? undefined,
     brand: dto.brand || "—",
-    category: "",
+    sku: dto.sku ?? undefined,
+    productGroup: dto.productGroup ?? null,
+    category: dto.productGroup?.id ?? "",
     status: toUiStatus(dto.stockStatus, dto.availableStock),
-    units: dto.units.map((u) => ({
-      id: u.id,
+    availableStock: dto.availableStock,
+    units: dto.units.map((u): POSUnit => ({
+      id: u.unitId,           // master Unit id — used as unitId in sale
+      unitId: u.unitId,       // master Unit id
       name: u.unitName,
       price: u.sellPrice,
-      quantityInParent: u.conversionFactor,
-      parentId: u.isBaseUnit ? null : dto.baseUnit.id,
-      // One product-level figure from the API; each unit displays it in base units.
-      stock: dto.availableStock,
+      conversionFactor: u.conversionFactor,
+      isBaseUnit: u.isBaseUnit,
+      // Stock is in base units; non-base units get a derived figure.
+      stock: u.isBaseUnit
+        ? dto.availableStock
+        : Math.floor(dto.availableStock / u.conversionFactor),
     })),
     icon: "pill",
   };

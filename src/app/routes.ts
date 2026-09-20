@@ -25,14 +25,17 @@ import POSPage from "../pages/pos/POSPage";
 import SalesPage from "../pages/sales/SalesPage";
 import PurchaseRequirementsPage from "../pages/purchasing/PurchaseRequirementsPage";
 import CreateRequirementPage from "../pages/purchasing/CreateRequirementPage";
-import SupplierAssignmentPage from "../pages/purchasing/SupplierAssignmentPage";
-//import SupplierDetailPage from "../pages/purchasing/SupplierDetailPage";
+import GoodsReceiptsPage from "../pages/purchasing/GoodsReceiptsPage";
+import ReconciliationPage from "../pages/purchasing/ReconciliationPage";
+import SupplierInvoicesPage from "../pages/purchasing/SupplierInvoicesPage";
+import CreateSupplierInvoicePage from "../pages/purchasing/CreateSupplierInvoicePage";
+import SupplierInvoiceDetailPage from "../pages/purchasing/SupplierInvoiceDetailPage";
+import SupplierPayablesPage from "../pages/purchasing/SupplierPayablesPage";
+import PurchaseReturnPage from "../pages/purchasing/PurchaseReturnPage";
+import PurchaseReturnDetailPage from "../pages/purchasing/PurchaseReturnDetailPage";
 import PurchaseOrdersPage from "../pages/purchasing/PurchaseOrdersPage";
 import CreatePurchaseOrderPage from "../pages/purchasing/CreatePurchaseOrderPage";
 import DeliveryRegistrationPage from "../pages/purchasing/DeliveryRegistrationPage";
-import ReconciliationPage from "../pages/purchasing/ReconciliationPage";
-import SupplierPayablesPage from "../pages/purchasing/SupplierPayablesPage";
-import PurchaseReturnPage from "../pages/purchasing/PurchaseReturnPage";
 import ReportsDashboardPage from "../pages/reports/ReportsDashboardPage";
 import ProfitMarginConfigPage from "../pages/reports/ProfitMarginConfigPage";
 import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardPage";
@@ -82,17 +85,26 @@ export const router = createBrowserRouter([
           // Sales
           { path: "/sales", Component: SalesPage },
           // Purchasing
-          { path: "/purchasing", Component: PurchaseRequirementsPage },
+{ path: "/purchasing", Component: PurchaseRequirementsPage },
           { path: "/purchasing/requirements/new", Component: CreateRequirementPage },
-          { path: "/purchasing/requirements/:id/assign", Component: SupplierAssignmentPage },
+
           { path: "/purchasing/orders", Component: PurchaseOrdersPage },
           { path: "/purchasing/orders/new", Component: CreatePurchaseOrderPage },
           { path: "/purchasing/orders/:id", Component: CreatePurchaseOrderPage },
+
+          { path: "/purchasing/deliveries", Component: GoodsReceiptsPage },
           { path: "/purchasing/deliveries/new", Component: DeliveryRegistrationPage },
           { path: "/purchasing/deliveries/:id/reconcile", Component: ReconciliationPage },
+
+          { path: "/purchasing/invoices", Component: SupplierInvoicesPage },
+          { path: "/purchasing/invoices/new", Component: CreateSupplierInvoicePage },
+          { path: "/purchasing/invoices/:id", Component: SupplierInvoiceDetailPage },
+
           { path: "/purchasing/payables", Component: SupplierPayablesPage },
-         // { path: "/purchasing/suppliers/:supplierId", Component: SupplierDetailPage },
-          { path: "/purchasing/returns/new", Component: PurchaseReturnPage },
+          // { path: "/purchasing/suppliers/:supplierId", Component: SupplierDetailPage },
+
+          { path: "/purchasing/returns", Component: PurchaseReturnPage },
+          { path: "/purchasing/returns/:id", Component: PurchaseReturnDetailPage },
           // Reports
           { path: "/reports", Component: ReportsDashboardPage },
           { path: "/reports/margins", Component: ProfitMarginConfigPage },

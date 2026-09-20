@@ -13,12 +13,13 @@ import {
   generateRequirementFromReorder,
   addRequirementLine,
   updateRequirementLine,
-  assignSupplierToLine,
   removeRequirementLine,
+  getOrderPreview,
   RequirementsApiError,
   type RequirementDto,
   type RequirementLineDto,
-  type RequirementStatus,
+  type RequirementStatus as RequirementStatusType,
+  type OrderPreviewDto,
 } from "../../features/purchasing/requirementsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
@@ -26,20 +27,28 @@ import { getReorderSuggestions } from "../../features/inventory/reorderApi"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type LineStatus = "OPEN" | "ASSIGNED" | "CLOSED" | (string & {})
+type RequirementStatus = "OPEN" | "PARTIALLY_FULFILLED" | "FULFILLED" | "CLOSED" | (string & {})
+type LineStatus = "OPEN" | "PARTIALLY_FULFILLED" | "FULFILLED" | "CLOSED" | (string & {})
 type LineReason = "Low Stock" | "Reorder Alert" | "Manual" | ""
 
 interface RequirementLine {
   id: string
   product: string
+  sku: string
   quantityNeeded: number
+  quantityOrdered: number
   quantityDelivered: number
+  quantityRemaining: number
+  remainingToReceive: number
   reason: LineReason
+  reasonCode: string | null
   notes: string
-  supplier: string
   status: LineStatus
+  activeOrderCount: number
   /** Set when the line already has purchase orders (blocks edits/removal). */
-  hasPo?: boolean
+  hasPo: boolean
+  /** Purchase order items linked to this requirement line. */
+  purchaseOrderItems?: { purchaseOrderId: string; quantityOrdered: number }[]
 }
 
 interface Requirement {
@@ -77,13 +86,19 @@ function mapLine(l: RequirementLineDto): RequirementLine {
   return {
     id: l.id,
     product: l.product?.name ?? "Unknown product",
+    sku: l.product?.sku ?? "",
     quantityNeeded: l.quantityNeeded,
+    quantityOrdered: l.quantityOrdered,
     quantityDelivered: l.quantityDelivered,
+    quantityRemaining: l.quantityRemaining,
+    remainingToReceive: l.remainingToReceive,
     reason: reasonLabel(l.reasonCode),
+    reasonCode: l.reasonCode,
     notes: l.notes ?? "",
-    supplier: l.supplier?.name ?? "",
     status: l.status,
+    activeOrderCount: l.activeOrderCount ?? (l.purchaseOrderItems?.length ?? 0),
     hasPo: (l.purchaseOrderItems?.length ?? 0) > 0,
+    purchaseOrderItems: l.purchaseOrderItems,
   }
 }
 
@@ -117,19 +132,28 @@ const PAGE_SIZE = 50
 
 function ReqBadge({ status }: { status: RequirementStatus }) {
   const map: Record<string, string> = {
-    OPEN:     "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]",
-    ASSIGNED: "bg-blue-100 text-blue-700",
-    CLOSED:   "bg-gray-100 text-gray-500",
+    OPEN:                 "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]",
+    PARTIALLY_FULFILLED:  "bg-blue-100 text-blue-700",
+    FULFILLED:            "bg-green-100 text-green-700",
+    CLOSED:               "bg-gray-100 text-gray-500",
   }
-  return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? map.OPEN}`}>{status}</span>
+  const labelMap: Record<string, string> = {
+    PARTIALLY_FULFILLED: "PARTIALLY FULFILLED",
+  }
+  return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? map.OPEN}`}>{labelMap[status] ?? status}</span>
 }
 
 function LineBadge({ status }: { status: LineStatus }) {
-  return status === "ASSIGNED"
-    ? <span className="text-xs font-bold rounded-full px-2.5 py-0.5 bg-blue-100 text-blue-700">ASSIGNED</span>
-    : status === "CLOSED"
-    ? <span className="text-xs font-bold rounded-full px-2.5 py-0.5 bg-gray-100 text-gray-500">CLOSED</span>
-    : <span className="text-xs font-bold rounded-full px-2.5 py-0.5 bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]">OPEN</span>
+  const map: Record<string, string> = {
+    OPEN:                 "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]",
+    PARTIALLY_FULFILLED:  "bg-blue-100 text-blue-700",
+    FULFILLED:            "bg-green-100 text-green-700",
+    CLOSED:               "bg-gray-100 text-gray-500",
+  }
+  const labelMap: Record<string, string> = {
+    PARTIALLY_FULFILLED: "PARTIALLY FULFILLED",
+  }
+  return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? map.OPEN}`}>{labelMap[status] ?? status}</span>
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -194,6 +218,12 @@ export default function PurchaseRequirementsPage() {
   const [newOpen, setNewOpen] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [summary, setSummary] = useState({ open: 0, partiallyFulfilled: 0, fulfilled: 0, closed: 0, total: 0 })
 
   function showToast(msg: string) { setToast(msg) }
   const reload = useCallback(() => setRefreshTick((t) => t + 1), [])
@@ -202,15 +232,29 @@ export default function PurchaseRequirementsPage() {
     let cancelled = false
     setLoading(true)
     setLoadError("")
-    listRequirements({ page: 1, limit: PAGE_SIZE })
+    const params: any = { page, limit: 20 }
+    if (search) params.search = search
+    if (statusFilter) params.status = statusFilter
+    listRequirements(params)
       .then((result) => {
         if (cancelled) return
         setReqs(result.data.map(mapRequirement))
+        setTotalPages(result.meta.totalPages)
+        setTotalCount(result.meta.total)
+        // Calculate summary from current page data (approximation) - in a real app you'd fetch summary separately
+        const counts = { open: 0, partiallyFulfilled: 0, fulfilled: 0, closed: 0, total: result.meta.total }
+        result.data.forEach((r) => {
+          if (r.status === "OPEN") counts.open++
+          else if (r.status === "PARTIALLY_FULFILLED") counts.partiallyFulfilled++
+          else if (r.status === "FULFILLED") counts.fulfilled++
+          else if (r.status === "CLOSED") counts.closed++
+        })
+        setSummary(counts)
       })
       .catch((e) => { if (!cancelled) setLoadError(errMessage(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [refreshTick])
+  }, [refreshTick, page, search, statusFilter])
 
   const detail = reqs.find((r) => r.id === detailId) ?? null
 
@@ -239,6 +283,15 @@ export default function PurchaseRequirementsPage() {
         onNewReq={() => setNewOpen(true)}
         onGenerate={() => setGenerateOpen(true)}
         onToast={showToast}
+        search={search}
+        setSearch={setSearch}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        page={page}
+        setPage={setPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        summary={summary}
       />
       <NewRequirementModal
         open={newOpen}
@@ -257,7 +310,7 @@ export default function PurchaseRequirementsPage() {
 
 // ─── Requirements List Screen ─────────────────────────────────────────────────
 
-function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, onNewReq, onGenerate, onToast }: {
+function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, onNewReq, onGenerate, onToast, search, setSearch, statusFilter, setStatusFilter, page, setPage, totalPages, totalCount, summary }: {
   reqs: Requirement[]
   loading: boolean
   loadError: string
@@ -266,31 +319,28 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
   onNewReq: () => void
   onGenerate: () => void
   onToast: (msg: string) => void
+  search: string
+  setSearch: (v: string) => void
+  statusFilter: string
+  setStatusFilter: (v: string) => void
+  page: number
+  setPage: (v: number) => void
+  totalPages: number
+  totalCount: number
+  summary: { open: number; partiallyFulfilled: number; fulfilled: number; closed: number; total: number }
 }) {
-  const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
   const [deleting, setDeleting] = useState(false)
-  const [page, setPage] = useState(1)
   const [deleteTarget, setDeleteTarget] = useState<Requirement | null>(null)
 
-  const filtered = reqs.filter((r) => {
-    if (statusFilter && r.status !== statusFilter) return false
-    if (search) {
-      const q = search.toLowerCase()
-      if (!r.reference.toLowerCase().includes(q) && !r.createdBy.toLowerCase().includes(q)) return false
-    }
-    return true
-  })
+  const paginated = reqs
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / 10))
-  const paginated = filtered.slice((page - 1) * 10, page * 10)
-
-  const summary = {
-    open:     reqs.filter((r) => r.status === "OPEN").length,
-    assigned: reqs.filter((r) => r.status === "ASSIGNED").length,
-    closed:   reqs.filter((r) => r.status === "CLOSED").length,
-    total:    reqs.length,
-  }
+  const pageButtons = (() => {
+    const pages: number[] = []
+    for (let i = 1; i <= totalPages; i++) pages.push(i)
+    return pages.map((p: number) => (
+      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+    ))
+  })()
 
   async function confirmDelete() {
     if (!deleteTarget) return
@@ -334,7 +384,8 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
               <option value="">All Statuses</option>
               <option>OPEN</option>
-              <option>ASSIGNED</option>
+              <option>PARTIALLY_FULFILLED</option>
+              <option>FULFILLED</option>
               <option>CLOSED</option>
             </select>
             {(search || statusFilter) && (
@@ -344,12 +395,13 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {([
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+{([
             ["Open Requirements",     summary.open,     "text-[#49B0C1]",  "M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"],
-            ["Assigned Requirements", summary.assigned, "text-blue-600",   "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0zM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632z"],
-            ["Closed Requirements",   summary.closed,   "text-gray-500",   "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z"],
-            ["Total Requirements",    summary.total,    "text-[#333333]",  "M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z"],
+            ["Partially Fulfilled", summary.partiallyFulfilled, "text-blue-600",   "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0zM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632z"],
+            ["Fulfilled Requirements", summary.fulfilled, "text-green-600",   "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z"],
+            ["Closed Requirements",   summary.closed,   "text-gray-500",   "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0-2.25-2.25z"],
+            ["Total Requirements",    summary.total,    "text-[#333333]",  "M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0-1.125.504-1.125 1.125V11.25a9 9 0 0 0-9-9z"],
           ] as [string, number, string, string][]).map(([label, value, accent, iconPath]) => (
             <div key={label} className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex items-center gap-3">
               <div className={`h-10 w-10 rounded-xl bg-[#DBEFF3] flex items-center justify-center shrink-0 ${accent}`}>
@@ -376,7 +428,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
               <p className="text-sm font-semibold text-red-600">{loadError}</p>
               <Button variant="secondary" onClick={onRetry}>Try Again</Button>
             </div>
-          ) : filtered.length === 0 ? (
+          ) : reqs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="h-16 w-16 rounded-2xl bg-[#DBEFF3] flex items-center justify-center">
                 <svg className="h-8 w-8 text-[#49B0C1]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
@@ -435,14 +487,12 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
               </div>
               <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * 10 + 1, filtered.length)}–{Math.min(page * 10, filtered.length)} of {filtered.length} requirements
+                  Showing {Math.min((page - 1) * 20 + 1, totalCount)}–{Math.min(page * 20, totalCount)} of {totalCount} requirements
                 </p>
-                <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
-                  ))}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+<div className="flex gap-1">
+                  <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Prev</button>
+                  {pageButtons}
+                  <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Next</button>
                 </div>
               </div>
             </>
@@ -477,7 +527,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
   const [editOpen, setEditOpen] = useState(false)
   const [addProductOpen, setAddProductOpen] = useState(false)
   const [editLine, setEditLine] = useState<RequirementLine | null>(null)
-  const [assignLine, setAssignLine] = useState<RequirementLine | null>(null)
+
   const [deleteLine, setDeleteLine] = useState<RequirementLine | null>(null)
   const [closeOpen, setCloseOpen] = useState(false)
   const [apiError, setApiError] = useState("")
@@ -519,11 +569,35 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
     void runAction(() => closeRequirement(req.id), "Requirement closed successfully.")
   }
 
-  const reqStatus: RequirementStatus = req.lines.length > 0 && req.lines.every((l) => l.status === "ASSIGNED")
-    ? "ASSIGNED"
-    : req.status === "CLOSED"
-    ? "CLOSED"
-    : "OPEN"
+  const [orderPreviewOpen, setOrderPreviewOpen] = useState<{ line: RequirementLine; preview: OrderPreviewDto } | null>(null)
+
+  async function handleOrderRemaining(line: RequirementLine) {
+    setApiError("")
+    setBusy(true)
+    try {
+      const preview = await getOrderPreview(line.id)
+      setOrderPreviewOpen({ line, preview })
+    } catch (e) {
+      setApiError(errMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function navigateToCreatePO(line: RequirementLine, quantity: number, unitCost: number, expectedDeliveryDate: string, notes: string) {
+    const params = new URLSearchParams()
+    params.set("requirementLineId", line.id)
+    params.set("quantity", quantity.toString())
+    params.set("unitCost", unitCost.toString())
+    if (expectedDeliveryDate) params.set("expectedDeliveryDate", expectedDeliveryDate)
+    if (notes) params.set("notes", notes)
+    params.set("requirementReference", req.reference)
+    params.set("productName", line.product)
+    params.set("productSku", line.sku)
+    window.location.href = `/purchasing/orders/new?${params.toString()}`
+  }
+
+  const reqStatus: RequirementStatus = req.status
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -601,11 +675,14 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                 <thead>
                   <tr className="bg-[#DBEFF3]/50 text-left">
                     <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Needed</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333]">SKU</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Required</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Ordered</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Remaining</th>
                     <th className="px-4 py-3 font-semibold text-[#333333] text-right hidden sm:table-cell">Delivered</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] hidden md:table-cell">Reason</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">Supplier</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333] text-right hidden md:table-cell">Rem. to Receive</th>
                     <th className="px-4 py-3 font-semibold text-[#333333]">Status</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">Reason</th>
                     {!isReadOnly && <th className="px-4 py-3 font-semibold text-[#333333]">Actions</th>}
                   </tr>
                 </thead>
@@ -616,25 +693,22 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                         {line.product}
                         {line.hasPo && <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5 align-middle">PO LINKED</span>}
                       </td>
+                      <td className="px-4 py-3 text-[#666666] font-mono text-xs">{line.sku || "—"}</td>
                       <td className="px-4 py-3 text-right font-bold text-[#333333]">{line.quantityNeeded}</td>
+                      <td className="px-4 py-3 text-right text-[#333333]">{line.quantityOrdered}</td>
+                      <td className="px-4 py-3 text-right font-medium text-[#49B0C1]">{line.quantityRemaining}</td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">{line.quantityDelivered}</td>
-                      <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{line.reason || "—"}</td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        {line.supplier
-                          ? <span className="text-[#333333] font-medium">{line.supplier}</span>
-                          : <span className="text-[#999]">—</span>
-                        }
-                      </td>
+                      <td className="px-4 py-3 text-right text-[#666666] hidden md:table-cell">{line.remainingToReceive}</td>
                       <td className="px-4 py-3"><LineBadge status={line.status} /></td>
+                      <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{line.reason || "—"}</td>
                       {!isReadOnly && (
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            {!line.supplier && (
-                              <button onClick={() => setAssignLine(line)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">Assign</button>
-                            )}
                             <OverflowMenu items={[
                               { label: "Edit", onClick: () => setEditLine(line) },
-                              { label: line.supplier ? "Change Supplier" : "Assign Supplier", onClick: () => setAssignLine(line) },
+                              ...(line.quantityRemaining > 0
+                                ? [{ label: "Order Remaining", onClick: () => handleOrderRemaining(line) }]
+                                : [{ label: "Fulfilled", onClick: () => {} }]),
                               ...(line.hasPo ? [] : [{ label: "Remove", danger: true, onClick: () => setDeleteLine(line) }]),
                             ]} />
                           </div>
@@ -653,13 +727,82 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
             This requirement is <strong>CLOSED</strong> and cannot be modified.
           </div>
         )}
+
+        {/* Section 3: Purchase Order History */}
+        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+            <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Purchase Order History</p>
+          </div>
+          <div className="p-5">
+            {(() => {
+              const allAllocations = req.lines.flatMap((line) =>
+                (line.purchaseOrderItems ?? []).map((poItem) => ({
+                  poNumber: poItem.purchaseOrderId,
+                  supplier: "—",
+                  status: "ACTIVE",
+                  allocatedQuantity: poItem.quantityOrdered,
+                  orderedQuantity: poItem.quantityOrdered,
+                  receivedQuantity: 0,
+                  unitCost: 0,
+                  active: true,
+                  created: "",
+                  lineProduct: line.product,
+                  lineSku: line.sku,
+                }))
+              )
+              if (allAllocations.length === 0) {
+                return <p className="text-sm text-[#999] text-center py-4">No purchase orders linked to this requirement.</p>
+              }
+              return (
+                <div className="space-y-3">
+                  {allAllocations.map((alloc, idx) => (
+                    <div key={`${alloc.poNumber}-${idx}`} className="rounded-lg border border-[#DBEFF3] p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-[#333333]">{alloc.poNumber}</span>
+                          <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                            {alloc.active ? "ACTIVE" : "CANCELLED"}
+                          </span>
+                        </div>
+                        <span className="text-xs text-[#999]">{alloc.lineProduct} ({alloc.lineSku})</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <p className="text-[#999]">Allocated</p>
+                          <p className="font-semibold text-[#333333]">{alloc.allocatedQuantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-[#999]">Ordered</p>
+                          <p className="font-semibold text-[#333333]">{alloc.orderedQuantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-[#999]">Received</p>
+                          <p className="font-semibold text-[#333333]">{alloc.receivedQuantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-[#999]">Unit Cost</p>
+                          <p className="font-semibold text-[#333333]">{alloc.unitCost.toFixed(2)} ETB</p>
+                        </div>
+                      </div>
+                      {!alloc.active && (
+                        <p className="mt-2 text-xs text-red-600 font-medium">
+                          CANCELLED — Released allocation: {alloc.allocatedQuantity}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
       </div>
 
       {/* Modals */}
       <EditRequirementModal open={editOpen} req={req} onClose={() => setEditOpen(false)} onSave={(updates) => { setEditOpen(false); void runAction(() => updateRequirement(req.id, updates), "Requirement updated successfully.") }} />
       <AddProductModal open={addProductOpen} existingProductIds={[]} onClose={() => setAddProductOpen(false)} onAdd={(input) => { setAddProductOpen(false); void runAction(() => addRequirementLine(req.id, input), "Product added to requirement.") }} />
       <EditLineModal open={!!editLine} line={editLine} onClose={() => setEditLine(null)} onSave={updateLine} />
-      <AssignSupplierModal open={!!assignLine} line={assignLine} onClose={() => setAssignLine(null)} onAssign={(supplierId) => { const line = assignLine; setAssignLine(null); if (line) void runAction(() => assignSupplierToLine(line.id, supplierId), "Supplier assigned successfully.") }} />
+
       <ConfirmModal
         open={!!deleteLine}
         title="Remove Requirement Item?"
@@ -681,6 +824,16 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
         onClose={() => setCloseOpen(false)}
         onConfirm={closeReq}
         loading={busy}
+      />
+      <OrderPreviewModal
+        open={!!orderPreviewOpen}
+        line={orderPreviewOpen?.line ?? null}
+        preview={orderPreviewOpen?.preview ?? null}
+        onClose={() => setOrderPreviewOpen(null)}
+        onCreatePO={(quantity, unitCost, expectedDeliveryDate, notes) => {
+          setOrderPreviewOpen(null)
+          navigateToCreatePO(orderPreviewOpen!.line, quantity, unitCost, expectedDeliveryDate, notes)
+        }}
       />
     </div>
   )
@@ -841,11 +994,13 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<{ product: { id: string; name: string; sku: string }; suggestedQuantity: number }[]>([])
   const [loadError, setLoadError] = useState("")
+  const [showConfirm, setShowConfirm] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setLoadError("")
     setSuggestions([])
+    setShowConfirm(false)
     getReorderSuggestions({ page: 1, limit: 50 })
       .then((r) => setSuggestions(r.data.map((s) => ({ product: s.product, suggestedQuantity: s.suggestedQuantity }))))
       .catch((e) => setLoadError(errMessage(e)))
@@ -861,6 +1016,20 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (showConfirm) {
+    return (
+      <Modal open={true} title="Generate Purchase Requirement" onClose={() => { setShowConfirm(false); onClose() }} size="sm">
+        <p className="text-sm text-[#666666] mb-4">
+          This will create a requirement from currently available reorder suggestions.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <Button variant="secondary" onClick={() => setShowConfirm(false)}>Cancel</Button>
+          <Button onClick={() => { setShowConfirm(false); handleGenerate() }} loading={loading} disabled={suggestions.length === 0 && !loadError}>Generate</Button>
+        </div>
+      </Modal>
+    )
   }
 
   return (
@@ -887,7 +1056,7 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
       </div>
       <div className="flex gap-3 justify-end">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={handleGenerate} loading={loading} disabled={suggestions.length === 0 && !loadError}>Generate Requirement</Button>
+        <Button onClick={() => setShowConfirm(true)} loading={loading} disabled={suggestions.length === 0 && !loadError}>Generate Requirement</Button>
       </div>
     </Modal>
   )
@@ -1042,7 +1211,6 @@ function EditLineModal({ open, line, onClose, onSave }: {
           <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3">
             <p className="text-xs text-[#999]">Product</p>
             <p className="text-sm font-bold text-[#333333]">{line.product}</p>
-            {line.supplier && <p className="text-xs text-[#666666] mt-1">Supplier: {line.supplier}</p>}
           </div>
         )}
         <Fw label="Quantity Needed">
@@ -1067,80 +1235,6 @@ function EditLineModal({ open, line, onClose, onSave }: {
   )
 }
 
-// ─── Assign Supplier Modal ────────────────────────────────────────────────────
-
-function AssignSupplierModal({ open, line, onClose, onAssign }: {
-  open: boolean
-  line: RequirementLine | null
-  onClose: () => void
-  onAssign: (supplierId: string) => void
-}) {
-  const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
-  const [supplierId, setSupplierId] = useState("")
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    listSuppliers({ limit: 200, isActive: true })
-      .then((r) => setSuppliers(r.data))
-      .catch(() => {})
-  }, [open])
-
-  useEffect(() => {
-    if (open && line && suppliers.length > 0) {
-      const match = suppliers.find((s) => s.name === line.supplier)
-      setSupplierId(match?.id ?? "")
-    } else if (open) {
-      setSupplierId("")
-    }
-  }, [open, line, suppliers])
-
-  const selectedSupplier = suppliers.find((s) => s.id === supplierId)
-
-  async function handleAssign() {
-    if (!supplierId) return
-    setLoading(true)
-    try {
-      onAssign(supplierId)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Modal open={open} title="Assign Supplier" onClose={onClose} size="sm">
-      <div className="flex flex-col gap-4">
-        {line && (
-          <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-[#999]">Product</p>
-              <p className="text-sm font-bold text-[#333333]">{line.product}</p>
-            </div>
-            <div>
-              <p className="text-xs text-[#999]">Quantity Needed</p>
-              <p className="text-sm font-bold text-[#333333]">{line.quantityNeeded}</p>
-            </div>
-          </div>
-        )}
-        <Fw label="Supplier">
-          <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={SC}>
-            <option value="">Select supplier...</option>
-            {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </Fw>
-        {selectedSupplier && (
-          <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5 text-sm text-blue-700">
-            Payment Terms: <strong>{selectedSupplier.paymentTerms ?? "—"}</strong>
-          </div>
-        )}
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleAssign} loading={loading} disabled={!supplierId}>Assign Supplier</Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
@@ -1158,6 +1252,115 @@ function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass
         <button onClick={onConfirm} disabled={loading} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 ${confirmClass}`}>
           {loading ? "..." : confirmLabel}
         </button>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Order Preview Modal ──────────────────────────────────────────────────────
+
+function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
+  open: boolean
+  line: RequirementLine | null
+  preview: OrderPreviewDto | null
+  onClose: () => void
+  onCreatePO: (quantity: number, unitCost: number, expectedDeliveryDate: string, notes: string) => void
+}) {
+  const [quantity, setQuantity] = useState("")
+  const [unitCost, setUnitCost] = useState("")
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("")
+  const [notes, setNotes] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (open && preview) {
+      setQuantity(preview.suggestedOrderQuantity.toString())
+      setUnitCost("")
+      setExpectedDeliveryDate("")
+      setNotes("")
+      setError("")
+    }
+  }, [open, preview])
+
+  function handleCreate() {
+    if (!line || !preview) return
+    if (!quantity || parseFloat(quantity) <= 0) { setError("Quantity must be greater than zero."); return }
+    if (parseFloat(quantity) > preview.remainingQuantity) { setError(`Cannot order more than remaining quantity (${preview.remainingQuantity}).`); return }
+    if (!unitCost || parseFloat(unitCost) < 0) { setError("Unit cost must be a valid number."); return }
+    setError("")
+    setLoading(true)
+    onCreatePO(parseFloat(quantity), parseFloat(unitCost), expectedDeliveryDate, notes)
+    setLoading(false)
+  }
+
+  if (!open || !line || !preview) return null
+
+  return (
+    <Modal open={true} title="Order Remaining" onClose={onClose} size="md">
+      <div className="flex flex-col gap-4">
+        {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        
+        <div className="rounded-xl bg-[#DBEFF3]/50 p-4">
+          <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Requirement Line Preview</p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-[#999]">Product</p>
+              <p className="font-semibold text-[#333333]">{line.product}</p>
+            </div>
+            <div>
+              <p className="text-[#999]">SKU</p>
+              <p className="font-semibold text-[#333333]">{line.sku || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[#999]">Required</p>
+              <p className="font-bold text-[#333333]">{preview.requiredQuantity}</p>
+            </div>
+            <div>
+              <p className="text-[#999]">Ordered</p>
+              <p className="font-bold text-[#333333]">{preview.orderedQuantity}</p>
+            </div>
+            <div>
+              <p className="text-[#999]">Remaining to Order</p>
+              <p className="font-bold text-[#49B0C1]">{preview.remainingQuantity}</p>
+            </div>
+            <div>
+              <p className="text-[#999]">Suggested Order Qty</p>
+              <p className="font-bold text-[#49B0C1]">{preview.suggestedOrderQuantity}</p>
+            </div>
+            <div>
+              <p className="text-[#999]">Active POs</p>
+              <p className="font-semibold text-[#333333]">{preview.activeOrderCount}</p>
+            </div>
+            <div>
+              <p className="text-[#999]">Line Status</p>
+              <p className="font-semibold text-[#333333]"><LineBadge status={preview.lineStatus} /></p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#DBEFF3] p-4">
+          <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Create Purchase Order</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Fw label="Quantity to Order">
+              <input type="number" min={1} max={preview.remainingQuantity} step="0.001" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder={preview.suggestedOrderQuantity.toString()} />
+            </Fw>
+            <Fw label="Unit Cost (ETB)">
+              <input type="number" min={0} step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className={SC} placeholder="0.00" />
+            </Fw>
+            <Fw label="Expected Delivery Date">
+              <input type="date" value={expectedDeliveryDate} onChange={(e) => setExpectedDeliveryDate(e.target.value)} className={SC} />
+            </Fw>
+            <Fw label="Notes (optional)">
+              <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className={`${SC} resize-none`} placeholder="Optional notes..." />
+            </Fw>
+          </div>
+        </div>
+
+        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleCreate} loading={loading}>Create Purchase Order</Button>
+        </div>
       </div>
     </Modal>
   )

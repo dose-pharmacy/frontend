@@ -120,12 +120,10 @@ export interface SalesQuery {
 /** Line item for POST /pos/sales. */
 export interface CompleteSaleItemInput {
   productId: string;
-  /** Product-unit id (the POS product's `units[].id`). */
+  /** ProductUnit row id — from `PosProductDto.units[].id`. */
   unitId: string;
   quantity: number;
-  /** Line discount — omit for none. */
-  discount?: { type: "PERCENTAGE" | "FIXED"; value: number };
-  /** Price override — omit to use the unit's configured sell price. */
+  /** Optional price override — omit to use the unit's configured sell price. */
   actualUnitPrice?: number;
 }
 
@@ -143,6 +141,9 @@ export interface CompleteSaleInput {
   locationId: string;
   items: CompleteSaleItemInput[];
   payments: CompleteSalePaymentInput[];
+  /** Optional bill-level discount applied after summing all line totals. */
+  billDiscount?: { type: "PERCENTAGE" | "FIXED_AMOUNT"; value: number };
+  notes?: string;
 }
 
 // ─── Errors ──────────────────────────────────────────────────────────────────

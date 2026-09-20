@@ -3,9 +3,9 @@ import { NavLink } from "react-router";
 const SUB_LINKS = [
   { to: "/purchasing", label: "Requirements", end: true },
   { to: "/purchasing/orders", label: "Orders" },
-  { to: "/purchasing/deliveries/new", label: "Deliveries" },
-  { to: "/purchasing/payables", label: "Payables" },
-  { to: "/purchasing/returns/new", label: "Returns" },
+  { to: "/purchasing/deliveries", label: "Deliveries" },
+  { to: "/purchasing/invoices", label: "Invoices" },
+  { to: "/purchasing/returns", label: "Returns" },
 ];
 
 export default function PurchasingSubNav() {
@@ -28,5 +28,5 @@ export default function PurchasingSubNav() {
         </NavLink>
       ))}
     </nav>
-  );
+  )
 }

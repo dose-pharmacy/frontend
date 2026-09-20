@@ -1,176 +1,286 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
-import { getDelivery, fmtMoney } from "../../features/purchasing/purchasingService";
-import type { Delivery } from "../../features/purchasing/purchasingMock";
+import Modal from "../../components/ui/Modal";
+import Button from "../../components/ui/Button";
+import {
+  getGoodsReceipt,
+  resolveGoodsReceipt,
+  confirmGoodsReceipt,
+  deleteGoodsReceipt,
+  type GoodsReceiptDto,
+  type GRItemDto,
+  GoodsReceiptsApiError,
+} from "../../features/purchasing/goodsReceiptsApi";
 
-interface ReconcileRow {
-  id: string;
-  productName: string;
-  brand: string;
-  poQty: number;
-  deliveryQty: number;
-  physicalCount: number;
-  unit: string;
-  discrepancyReason: string;
-  resolution: string;
-  notes: string;
+function fmtDate(d: string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-const REASONS = ["", "Damaged", "Shortage", "Incorrect Item", "Quality Issue"];
-const RESOLUTIONS = ["", "Accept Discrepancy", "Return to Supplier", "Adjust PO"];
+interface ResolveItemState {
+  id: string;
+  deliveredQty: number;
+  actualQty: number;
+  batchNumber: string;
+  manufacturingDate: string;
+  expiryDate: string;
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  MATCHED: "bg-green-100 text-green-700",
+  DISCREPANCY: "bg-yellow-100 text-yellow-700",
+  RESOLVED: "bg-blue-100 text-blue-700",
+};
 
 export default function ReconciliationPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [delivery, setDelivery] = useState<Delivery | null>(null);
-  const [rows, setRows] = useState<ReconcileRow[]>([]);
+  const [receipt, setReceipt] = useState<GoodsReceiptDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [resolveNote, setResolveNote] = useState("");
+  const [resolveItems, setResolveItems] = useState<ResolveItemState[]>([]);
+  const [resolving, setResolving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    getDelivery(id ?? "del-1").then((d) => {
-      if (d) {
-        setDelivery(d);
-        setRows(
-          d.items.map((item) => ({
+  async function fetchReceipt() {
+    if (!id) return;
+    setLoading(true);
+    setError("");
+    try {
+      const r = await getGoodsReceipt(id);
+      setReceipt(r);
+      if (r.status === "DISCREPANCY") {
+        setResolveItems(
+          r.items.map((item) => ({
             id: item.id,
-            productName: item.productName,
-            brand: item.productName.split(" ")[0],
-            poQty: item.orderedQty,
-            deliveryQty: item.deliveredQty,
-            physicalCount: item.deliveredQty,
-            unit: item.orderedUnit,
-            discrepancyReason: "",
-            resolution: "",
-            notes: "",
+            deliveredQty: item.deliveredQty,
+            actualQty: item.actualQty,
+            batchNumber: item.batchNumber ?? "",
+            manufacturingDate: item.manufacturingDate ? item.manufacturingDate.split("T")[0] : "",
+            expiryDate: item.expiryDate ? item.expiryDate.split("T")[0] : "",
           }))
         );
       }
+    } catch (e) {
+      setError("Failed to load goods receipt.");
+    } finally {
       setLoading(false);
-    });
-  }, [id]);
-
-  function updateRow(rowId: string, field: keyof ReconcileRow, value: string | number) {
-    setRows((prev) => prev.map((r) => r.id === rowId ? { ...r, [field]: value } : r));
+    }
   }
 
-  const reconciled = rows.filter((r) => {
-    const variance = r.physicalCount - r.poQty;
-    return variance === 0 || (r.discrepancyReason && r.resolution);
-  }).length;
+  useEffect(() => {
+    void fetchReceipt();
+  }, [id]);
 
-  const allReconciled = reconciled === rows.length;
+  function updateResolveItem(itemId: string, field: keyof ResolveItemState, value: string | number) {
+    setResolveItems((prev) => prev.map((r) => r.id === itemId ? { ...r, [field]: value } : r));
+  }
 
-  const totalOrdered = rows.reduce((s, r) => s + r.poQty, 0);
-  const totalReceived = rows.reduce((s, r) => s + r.physicalCount, 0);
-  const discrepancyRows = rows.filter((r) => r.physicalCount !== r.poQty);
+  async function handleResolve() {
+    setActionError("");
+    setResolving(true);
+    try {
+      const updated = await resolveGoodsReceipt(id!, {
+        discrepancyNote: resolveNote || undefined,
+        items: resolveItems.map((item) => ({
+          id: item.id,
+          deliveredQty: Number(item.deliveredQty),
+          actualQty: Number(item.actualQty),
+          batchNumber: item.batchNumber || null,
+          manufacturingDate: item.manufacturingDate ? new Date(item.manufacturingDate).toISOString() : null,
+          expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString() : null,
+        })),
+      });
+      setReceipt(updated);
+      setSuccessMsg("Discrepancy resolved successfully.");
+    } catch (e) {
+      setActionError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to resolve discrepancy.");
+    } finally {
+      setResolving(false);
+    }
+  }
 
   async function handleConfirm() {
+    setActionError("");
     setConfirming(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setConfirming(false);
-    navigate("/purchasing/orders");
+    try {
+      await confirmGoodsReceipt(id!);
+      setSuccessMsg("Receipt confirmed! Stock has been updated.");
+      setTimeout(() => navigate("/purchasing/orders"), 1500);
+    } catch (e) {
+      setActionError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to confirm receipt.");
+      setConfirming(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await deleteGoodsReceipt(id);
+      setSuccessMsg("Goods receipt deleted successfully.");
+      setTimeout(() => navigate("/purchasing/deliveries"), 1500);
+    } catch (e) {
+      setActionError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to delete goods receipt.");
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
   }
 
   if (loading) {
     return (
       <div className="flex flex-col min-h-0 flex-1">
-        <PageHeader title="Stock Intake Reconciliation" subtitle="Purchasing → Deliveries → Reconcile" />
-        
-        <div className="flex-1 flex items-center justify-center text-[#666666]">Loading…</div>
+        <PageHeader title="Goods Receipt" subtitle="Purchasing → Goods Receipts → Detail" />
+        <div className="flex-1 flex items-center justify-center text-[#666666]">Loading receipt…</div>
       </div>
     );
   }
 
+  if (error || !receipt) {
+    return (
+      <div className="flex flex-col min-h-0 flex-1">
+        <PageHeader title="Goods Receipt" subtitle="Purchasing → Goods Receipts → Detail" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-500 mb-3">{error || "Receipt not found."}</p>
+            <button onClick={fetchReceipt} className="text-[#49B0C1] hover:underline text-sm">Retry</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const canConfirm = receipt.status === "MATCHED" || receipt.status === "RESOLVED";
+
+  const totalOrdered = receipt.items.reduce((s, i) => s + i.expectedQty, 0);
+  const totalDelivered = receipt.items.reduce((s, i) => s + i.deliveredQty, 0);
+  const totalActual = receipt.items.reduce((s, i) => s + i.actualQty, 0);
+
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <PageHeader
-        title="Stock Intake Reconciliation"
-        subtitle={`Purchasing → Deliveries → Reconcile · ${delivery?.poReference ?? ""}`}
+        title="Goods Receipt"
+        subtitle={`Purchasing → Goods Receipts · ${receipt.receiptNumber}`}
         actions={
           <div className="flex items-center gap-3">
-            <span className="text-sm text-white/80">{reconciled} of {rows.length} items reconciled</span>
-            <button
-              onClick={handleConfirm}
-              disabled={!allReconciled || confirming}
-              className="rounded-lg bg-green-500 border border-green-300 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {confirming ? "Confirming…" : "✓ Confirm Receiving"}
-            </button>
+            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${STATUS_BADGE[receipt.status] ?? "bg-gray-100 text-gray-600"}`}>
+              {receipt.status}
+            </span>
+            {receipt.confirmedAt === null && (
+              <button onClick={() => setDeleteOpen(true)} className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
+                Delete Receipt
+              </button>
+            )}
+            {canConfirm && (
+              <button
+                onClick={handleConfirm}
+                disabled={confirming}
+                className="rounded-lg bg-green-500 border border-green-300 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {confirming ? "Confirming…" : "✓ Confirm Receipt"}
+              </button>
+            )}
           </div>
         }
       />
-     
 
       <div className="flex-1 overflow-y-auto pb-24">
+        {successMsg && (
+          <div className="mx-4 sm:mx-6 mt-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm border border-green-200">
+            {successMsg}
+          </div>
+        )}
+        {actionError && (
+          <div className="mx-4 sm:mx-6 mt-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
+            {actionError}
+          </div>
+        )}
+
         {/* Summary cards */}
         <div className="px-4 sm:px-6 py-4 bg-[#DBEFF3]">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
-              <p className="text-xs text-[#666666]">Purchase Order</p>
-              <p className="text-xl font-bold text-[#333333] mt-1">{totalOrdered} Units</p>
-              <p className="text-xs text-[#666666] mt-0.5">{delivery?.poReference}</p>
+              <p className="text-xs text-[#666666]">PO Number</p>
+              <p className="text-lg font-bold text-[#333333] mt-1">{receipt.purchaseOrder?.poNumber ?? "—"}</p>
             </div>
             <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
-              <p className="text-xs text-[#666666]">Delivery Note</p>
-              <p className={`text-xl font-bold mt-1 ${delivery?.items.some((i) => i.deliveredQty < i.orderedQty) ? "text-yellow-500" : "text-[#333333]"}`}>
-                {rows.reduce((s, r) => s + r.deliveryQty, 0)} Units
+              <p className="text-xs text-[#666666]">Expected Qty</p>
+              <p className="text-lg font-bold text-[#333333] mt-1">{totalOrdered}</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
+              <p className="text-xs text-[#666666]">Delivered Qty</p>
+              <p className={`text-lg font-bold mt-1 ${totalDelivered < totalOrdered ? "text-yellow-500" : "text-[#333333]"}`}>
+                {totalDelivered}
               </p>
-              <p className="text-xs text-[#666666] mt-0.5">{delivery?.deliveryNote}</p>
             </div>
             <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
-              <p className="text-xs text-[#666666]">Physical Count</p>
-              <p className="text-xl font-bold text-green-600 mt-1">{totalReceived} Units</p>
-              <p className="text-xs text-[#666666] mt-0.5">Counted by: Staff</p>
+              <p className="text-xs text-[#666666]">Actual Qty</p>
+              <p className="text-lg font-bold text-green-600 mt-1">{totalActual}</p>
             </div>
           </div>
         </div>
 
-        {/* Three-way comparison table */}
+        {/* Receipt info */}
         <div className="px-4 sm:px-6 py-4">
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-[#666666]">Supplier</p>
+              <p className="font-medium text-[#333333]">{receipt.purchaseOrder?.supplier?.name ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#666666]">Received Date</p>
+              <p className="font-medium text-[#333333]">{fmtDate(receipt.receivedDate)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#666666]">Created By</p>
+              <p className="font-medium text-[#333333]">{receipt.createdBy?.name ?? "—"}</p>
+            </div>
+            {receipt.discrepancyNote && (
+              <div className="col-span-2 sm:col-span-4">
+                <p className="text-xs text-[#666666]">Discrepancy Note</p>
+                <p className="font-medium text-yellow-700">{receipt.discrepancyNote}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Items table */}
+        <div className="px-4 sm:px-6">
+          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="bg-[#ABDBE3]">
-                  {["#", "Product", "PO Qty", "Delivery Note Qty", "Physical Count", "Variance", "Status"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
+                  {["#", "Product", "Expected", "Delivered", "Actual", "Variance", "Batch", "Expiry", "Location"].map((h) => (
+                    <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => {
-                  const variance = row.physicalCount - row.poQty;
+                {receipt.items.map((item, i) => {
+                  const variance = item.actualQty - item.expectedQty;
                   const isMatch = variance === 0;
                   return (
-                    <tr key={row.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                      <td className="px-4 py-3 text-[#666666]">{i + 1}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-[#333333]">{row.productName}</p>
-                        <p className="text-xs text-[#666666]">{row.brand}</p>
+                    <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                      <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
+                      <td className="px-3 py-2.5 font-medium text-[#333333]">
+                        {item.purchaseOrderItem?.product?.name ?? `Product (${item.purchaseOrderItem?.productId?.slice(0, 8) ?? "?"})`}
                       </td>
-                      <td className="px-4 py-3 text-[#333333]">{row.poQty} {row.unit}s</td>
-                      <td className={`px-4 py-3 font-medium ${row.deliveryQty < row.poQty ? "text-yellow-600" : "text-[#333333]"}`}>
-                        {row.deliveryQty} {row.unit}s
+                      <td className="px-3 py-2.5 text-[#333333]">{item.expectedQty}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.deliveredQty}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.actualQty}</td>
+                      <td className={`px-3 py-2.5 font-semibold ${isMatch ? "text-green-600" : "text-red-500"}`}>
+                        {isMatch ? "✓ 0" : `${variance > 0 ? "+" : ""}${variance}`}
                       </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          value={row.physicalCount}
-                          min={0}
-                          onChange={(e) => updateRow(row.id, "physicalCount", Number(e.target.value))}
-                          className="w-16 rounded border border-[#ABDBE3] bg-white px-2 py-1 text-sm focus:border-[#49B0C1] focus:outline-none"
-                        />
-                      </td>
-                      <td className={`px-4 py-3 font-semibold ${isMatch ? "text-green-600" : "text-red-500"}`}>
-                        {isMatch ? "✓ 0" : `${variance > 0 ? "+" : ""}${variance} ${row.unit}s`}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${isMatch ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                          {isMatch ? "✅ Match" : "⚠ Discrepancy"}
-                        </span>
-                      </td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.batchNumber ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{fmtDate(item.expiryDate)}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.location?.name ?? "—"}</td>
                     </tr>
                   );
                 })}
@@ -179,92 +289,110 @@ export default function ReconciliationPage() {
           </div>
         </div>
 
-        {/* Discrepancy resolution */}
-        {discrepancyRows.length > 0 && (
-          <div className="px-4 sm:px-6">
-            <div className="bg-[#DBEFF3] rounded-xl p-4">
-              <p className="font-bold text-[#333333] mb-3">Discrepancy Resolution</p>
-              <div className="flex flex-col gap-2">
-                {discrepancyRows.map((row) => (
-                  <div key={row.id} className="bg-white rounded-lg p-3 flex flex-wrap items-center gap-3">
-                    <div className="min-w-[120px]">
-                      <p className="text-sm font-bold text-[#333333]">{row.productName}</p>
-                      <p className="text-xs text-red-500">{row.physicalCount - row.poQty} {row.unit}s discrepancy</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[#666666] mb-0.5">Reason</label>
-                      <select
-                        value={row.discrepancyReason}
-                        onChange={(e) => updateRow(row.id, "discrepancyReason", e.target.value)}
-                        className="rounded border border-[#ABDBE3] bg-white px-2 py-1 text-xs focus:border-[#49B0C1] focus:outline-none"
-                      >
-                        {REASONS.map((r) => <option key={r} value={r}>{r || "Select reason"}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[#666666] mb-0.5">Resolution</label>
-                      <select
-                        value={row.resolution}
-                        onChange={(e) => updateRow(row.id, "resolution", e.target.value)}
-                        className="rounded border border-[#ABDBE3] bg-white px-2 py-1 text-xs focus:border-[#49B0C1] focus:outline-none"
-                      >
-                        {RESOLUTIONS.map((r) => <option key={r} value={r}>{r || "Select resolution"}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex-1 min-w-[100px]">
-                      <label className="block text-xs text-[#666666] mb-0.5">Notes</label>
-                      <input
-                        value={row.notes}
-                        onChange={(e) => updateRow(row.id, "notes", e.target.value)}
-                        placeholder="Add notes..."
-                        className="w-full rounded border border-[#ABDBE3] bg-white px-2 py-1 text-xs focus:border-[#49B0C1] focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                ))}
+        {/* Discrepancy resolution panel */}
+        {receipt.status === "DISCREPANCY" && (
+          <div className="px-4 sm:px-6 py-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <p className="font-bold text-yellow-800 mb-3">Resolve Discrepancy</p>
+              <p className="text-sm text-yellow-700 mb-4">
+                This receipt has a discrepancy. Review and adjust quantities below, then resolve before confirming.
+              </p>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[600px] mb-4">
+                  <thead>
+                    <tr className="bg-yellow-100">
+                      {["Product", "Actual Qty", "Batch #", "Mfg Date", "Expiry Date"].map((h) => (
+                        <th key={h} className="px-3 py-2 text-left font-semibold text-yellow-800">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resolveItems.map((item, i) => {
+                      const originalItem = receipt.items.find((ri) => ri.id === item.id);
+                      return (
+                        <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-yellow-50/50"}>
+                          <td className="px-3 py-2 font-medium text-[#333333]">
+                            {originalItem?.purchaseOrderItem?.product?.name ?? `Item ${i + 1}`}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input type="number" min={0} value={item.actualQty} onChange={(e) => updateResolveItem(item.id, "actualQty", Number(e.target.value))} className="w-16 rounded border border-yellow-300 px-2 py-1 text-sm" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input value={item.batchNumber} onChange={(e) => updateResolveItem(item.id, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input type="date" value={item.manufacturingDate} onChange={(e) => updateResolveItem(item.id, "manufacturingDate", e.target.value)} className="w-32 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input type="date" value={item.expiryDate} onChange={(e) => updateResolveItem(item.id, "expiryDate", e.target.value)} className="w-32 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+
+              <div className="mb-3">
+                <label className="block text-sm text-yellow-800 mb-1">Resolution Note</label>
+                <textarea rows={2} value={resolveNote} onChange={(e) => setResolveNote(e.target.value)} placeholder="Explain how the discrepancy was resolved…" className="w-full rounded-lg border border-yellow-300 bg-white px-3 py-2 text-sm focus:outline-none resize-none" />
+              </div>
+
+              <button
+                onClick={handleResolve}
+                disabled={resolving}
+                className="rounded-lg bg-yellow-500 px-5 py-2 text-sm font-semibold text-white hover:bg-yellow-600 transition-colors disabled:opacity-40"
+              >
+                {resolving ? "Resolving…" : "Mark as Resolved"}
+              </button>
             </div>
           </div>
         )}
 
-        {/* Summary bottom */}
-        <div className="px-4 sm:px-6 py-4">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-xs text-[#666666]">Total Ordered</p>
-                <p className="text-lg font-bold text-[#333333]">{rows.length} items</p>
-                <p className="text-sm text-[#333333]">{totalOrdered} units</p>
-              </div>
-              <div>
-                <p className="text-xs text-[#666666]">Total Received</p>
-                <p className="text-lg font-bold text-[#333333]">{rows.length} items</p>
-                <p className="text-sm text-[#333333]">{totalReceived} units</p>
-              </div>
-              <div>
-                <p className="text-xs text-[#666666]">Acceptance</p>
-                <p className={`text-lg font-bold ${allReconciled ? "text-green-600" : "text-yellow-600"}`}>
-                  {allReconciled ? "Full Acceptance" : "Pending Review"}
-                </p>
-                <p className="text-xs text-[#666666]">{allReconciled ? "All items reconciled" : `${discrepancyRows.length} discrepancies`}</p>
-              </div>
+        {/* Confirm section */}
+        {canConfirm && (
+          <div className="px-4 sm:px-6 py-4">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <p className="font-bold text-green-800 mb-1">Ready to Confirm</p>
+              <p className="text-sm text-green-700 mb-3">
+                Confirming will update inventory stock levels with the actual quantities received.
+              </p>
+              <button
+                onClick={handleConfirm}
+                disabled={confirming}
+                className="rounded-lg bg-green-500 px-5 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40"
+              >
+                {confirming ? "Confirming…" : "✓ Confirm & Update Stock"}
+              </button>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#DBEFF3] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
-        <button onClick={() => navigate("/purchasing")} className="rounded-lg bg-red-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors">Cancel</button>
-        <button className="rounded-lg bg-[#ABDBE3] px-5 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#9acbd5] transition-colors">Save for Later</button>
-        <button
-          onClick={handleConfirm}
-          disabled={!allReconciled || confirming}
-          className="rounded-lg bg-green-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-green-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {confirming ? "Confirming…" : "✓ Confirm Receiving"}
+        <button onClick={() => navigate("/purchasing/orders")} className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">
+          Back to Orders
         </button>
+        {canConfirm && (
+          <button onClick={handleConfirm} disabled={confirming} className="rounded-lg bg-green-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-green-600 transition-colors disabled:opacity-40">
+            {confirming ? "Confirming…" : "✓ Confirm Receipt"}
+          </button>
+        )}
       </div>
     </div>
   );
+
+  {/* Delete confirmation modal */}
+  <Modal open={deleteOpen} title="Delete Goods Receipt?" onClose={() => setDeleteOpen(false)} size="sm">
+    <p className="text-sm text-[#666666]">Are you sure you want to delete this goods receipt?</p>
+    <p className="mt-2 text-xs text-[#999]">This action cannot be undone. Only unconfirmed receipts can be deleted.</p>
+    <div className="flex gap-3 justify-end mt-6">
+      <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+      <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
+        {deleting ? "Deleting..." : "Delete"}
+      </button>
+    </div>
+  </Modal>
 }

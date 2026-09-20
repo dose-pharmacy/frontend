@@ -19,8 +19,8 @@ import { API_BASE_URL } from "../auth/authApi";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
-export type RequirementStatus = "OPEN" | "ASSIGNED" | "CLOSED" | (string & {});
-export type RequirementLineStatus = "OPEN" | "ASSIGNED" | "CLOSED" | (string & {});
+export type RequirementStatus = "OPEN" | "CLOSED" | (string & {});
+export type RequirementLineStatus = "OPEN" | "CLOSED" | (string & {});
 export type RequirementReasonCode =
   | "LOW_STOCK"
   | "REORDER_ALERT"
@@ -50,16 +50,19 @@ export interface RequirementLineDto {
   requirementId: string;
   productId: string;
   quantityNeeded: number;
+  quantityOrdered: number;
   quantityDelivered: number;
+  quantityRemaining: number;
+  remainingToOrder: number;
+  remainingToReceive: number;
   reasonCode: RequirementReasonCode | null;
-  supplierId: string | null;
   status: RequirementLineStatus;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
   product?: RequirementProductRefDto | null;
-  supplier?: RequirementSupplierRefDto | null;
   purchaseOrderItems?: RequirementPoItemDto[];
+  activeOrderCount?: number;
 }
 
 export interface RequirementUserDto {
@@ -131,6 +134,16 @@ export interface UpdateRequirementLineInput {
   status?: RequirementLineStatus;
 }
 
+/** Response from GET /requirements/lines/{lineId}/order-preview. */
+export interface OrderPreviewDto {
+  requiredQuantity: number;
+  orderedQuantity: number;
+  remainingQuantity: number;
+  suggestedOrderQuantity: number;
+  activeOrderCount: number;
+  lineStatus: RequirementLineStatus;
+}
+
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 export class RequirementsApiError extends Error {
@@ -164,7 +177,10 @@ function friendlyStatusMessage(status: number, code?: string): string {
       if (code === "REQUIREMENT_CLOSED") return "This requirement is closed and can no longer be modified.";
       if (code === "DUPLICATE_PRODUCT_IN_REQUIREMENT")
         return "This product is already in the requirement.";
-      if (code === "INACTIVE_SUPPLIER") return "This supplier is inactive and cannot be assigned.";
+      if (code === "REQUIREMENT_HAS_ACTIVE_ORDERS")
+        return "This requirement has active purchase orders and cannot be deleted. Cancel the related purchase orders first.";
+      if (code === "REQUIREMENT_QUANTITY_BELOW_ORDERED")
+        return "Cannot reduce required quantity below the already ordered quantity.";
       if (code === "BAD_REQUEST") return "No reorder suggestions are available to generate from.";
       return "This conflicts with the current state of the requirement.";
     case 422:
@@ -337,21 +353,6 @@ export async function updateRequirementLine(
   return result.data;
 }
 
-/**
- * POST /requirements/lines/{lineId}/assign-supplier — link a supplier to a line;
- * the backend flips the line status to ASSIGNED.
- */
-export async function assignSupplierToLine(
-  lineId: string,
-  supplierId: string,
-): Promise<RequirementLineDto> {
-  const result = await requirementsRequest<{ success: boolean; data: RequirementLineDto }>(
-    `/lines/${encodeURIComponent(lineId)}/assign-supplier`,
-    { method: "POST", body: JSON.stringify({ supplierId }) },
-  );
-  if (!result?.data) throw new RequirementsApiError("Unexpected response from the server.");
-  return result.data;
-}
 
 /**
  * DELETE /requirements/lines/{lineId} — remove a product line.
@@ -362,4 +363,16 @@ export async function removeRequirementLine(lineId: string): Promise<void> {
     `/lines/${encodeURIComponent(lineId)}`,
     { method: "DELETE" },
   );
+}
+
+/**
+ * GET /requirements/lines/{lineId}/order-preview — get order preview for a requirement line.
+ * Returns suggested order quantity and current fulfillment state.
+ */
+export async function getOrderPreview(lineId: string): Promise<OrderPreviewDto> {
+  const result = await requirementsRequest<{ success: boolean; data: OrderPreviewDto }>(
+    `/lines/${encodeURIComponent(lineId)}/order-preview`,
+  );
+  if (!result?.data) throw new RequirementsApiError("Unexpected response from the server.");
+  return result.data;
 }

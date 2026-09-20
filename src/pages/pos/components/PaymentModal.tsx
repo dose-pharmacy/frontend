@@ -2,277 +2,263 @@ import { useState } from "react";
 import { fmt } from "../../../features/pos/posService";
 import { CURRENCY } from "../../../features/pos/posMock";
 import type { CartItem } from "../../../features/pos/useCart";
+import type { BillDiscount } from "../../../features/pos/useCart";
 
-type PaymentMethod = "cash" | "card" | "digital";
+type BackendMethod = "CASH" | "CARD" | "DIGITAL_TRANSFER";
 
-interface Payment { id: string; method: PaymentMethod; amount: number; }
+interface PaymentRow {
+  id: string;
+  method: BackendMethod;
+  amount: string; // string while typing
+  reference?: string;
+}
 
 interface Props {
   total: number;
   subtotal: number;
-  tax: number;
   discountAmount: number;
+  billDiscount: BillDiscount | null;
   items: CartItem[];
   lineTotal: (item: CartItem) => number;
-  onComplete: () => void;
+  onComplete: (payments: { method: BackendMethod; amount: number; reference?: string }[]) => Promise<void>;
   onBack: () => void;
 }
 
-const METHOD_LABELS: Record<PaymentMethod, string> = { cash: "Cash", card: "Card", digital: "Digital Transfer" };
-const METHOD_ICONS: Record<PaymentMethod, string> = { cash: "💵", card: "💳", digital: "📱" };
+const METHOD_LABELS: Record<BackendMethod, string> = {
+  CASH: "Cash",
+  CARD: "Card",
+  DIGITAL_TRANSFER: "Digital Transfer",
+};
 
-export default function PaymentModal({ total, subtotal, tax, discountAmount, items, lineTotal, onComplete, onBack }: Props) {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [addMethod, setAddMethod] = useState<PaymentMethod>("cash");
-  const [addAmount, setAddAmount] = useState("");
-  const [activeMethod, setActiveMethod] = useState<PaymentMethod>("cash");
-  const [mismatchOpen, setMismatchOpen] = useState(false);
+export default function PaymentModal({
+  total,
+  subtotal,
+  discountAmount,
+  billDiscount,
+  items,
+  lineTotal,
+  onComplete,
+  onBack,
+}: Props) {
+  const [paymentRows, setPaymentRows] = useState<PaymentRow[]>([
+    { id: "1", method: "CASH", amount: String(total > 0 ? total.toFixed(2) : "") },
+  ]);
   const [completing, setCompleting] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  const remaining = total - totalPaid;
+  const totalPaid = paymentRows.reduce((s, r) => {
+    const v = parseFloat(r.amount);
+    return s + (isNaN(v) ? 0 : v);
+  }, 0);
+  const remaining = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
-  const isFullyPaid = totalPaid >= total;
+  const isFullyPaid = totalPaid >= total && total > 0;
 
-  function addPayment() {
-    const amt = parseFloat(addAmount);
-    if (!addAmount || isNaN(amt) || amt <= 0) return;
-    setPayments((prev) => [...prev, { id: Date.now().toString(), method: addMethod, amount: amt }]);
-    setAddAmount("");
+  function addRow() {
+    setPaymentRows((prev) => [
+      ...prev,
+      { id: Date.now().toString(), method: "CASH", amount: "" },
+    ]);
   }
 
-  function removePayment(id: string) { setPayments((prev) => prev.filter((p) => p.id !== id)); }
+  function removeRow(id: string) {
+    setPaymentRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  function updateRow(id: string, field: Partial<Omit<PaymentRow, "id">>) {
+    setPaymentRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...field } : r))
+    );
+  }
 
   async function handleComplete() {
-    if (!isFullyPaid) { setMismatchOpen(true); return; }
-    setCompleting(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setCompleting(false);
-    onComplete();
-  }
+    setError(null);
+    const parsed = paymentRows
+      .map((r) => ({ method: r.method, amount: parseFloat(r.amount), reference: r.reference }))
+      .filter((r) => !isNaN(r.amount) && r.amount > 0);
 
-  function quickAddRemaining(method: PaymentMethod) {
-    if (remaining <= 0) return;
-    setPayments((prev) => [...prev, { id: Date.now().toString(), method, amount: remaining }]);
-    setMismatchOpen(false);
+    if (parsed.length === 0) {
+      setError("Add at least one payment.");
+      return;
+    }
+    if (!isFullyPaid) {
+      setError(`Remaining balance: ${fmt(remaining)}. Add more payment.`);
+      return;
+    }
+    setCompleting(true);
+    try {
+      await onComplete(parsed);
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to complete sale. Please try again.");
+    } finally {
+      setCompleting(false);
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal aria-labelledby="pay-title">
-      <div className="relative bg-[#DBEFF3] rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[95vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      role="dialog"
+      aria-modal
+      aria-labelledby="pay-title"
+    >
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95vh]">
         {/* Header */}
         <div className="bg-[#49B0C1] px-6 py-4 flex items-center justify-between gap-4">
-          <h2 id="pay-title" className="text-lg font-bold text-white">Payment Processing</h2>
-          <div className="text-2xl font-bold text-white">{fmt(total)}</div>
-          <button onClick={onBack} className="text-white/80 hover:text-white" aria-label="Back"><svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg></button>
+          <h2 id="pay-title" className="text-base font-bold text-white">
+            Payment
+          </h2>
+          <div className="text-xl font-bold text-white">{fmt(total)}</div>
+          <button onClick={onBack} className="text-white/80 hover:text-white" aria-label="Back">
+            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-4 flex flex-col gap-4">
-          {/* Payment method selector */}
-          <div className="bg-white rounded-xl p-4">
-            <p className="text-sm font-semibold text-[#666666] mb-3">Payment Method</p>
-            <div className="flex gap-3 flex-wrap">
-              {(["cash", "card", "digital"] as PaymentMethod[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => { setActiveMethod(m); setAddMethod(m); }}
-                  className={`flex flex-col items-center gap-1 rounded-xl border-2 px-6 py-4 min-w-[100px] transition-all ${
-                    activeMethod === m ? "border-[#49B0C1] bg-[#DBEFF3]" : "border-transparent bg-[#DBEFF3] hover:border-[#ABDBE3]"
-                  }`}
-                >
-                  <span className="text-2xl" aria-hidden>{METHOD_ICONS[m]}</span>
-                  <span className="text-sm font-semibold text-[#333333]">{METHOD_LABELS[m]}</span>
-                </button>
+          {/* Sale summary */}
+          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+            <div className="bg-[#DBEFF3] px-4 py-2">
+              <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide">Summary</p>
+            </div>
+            <div className="px-4 py-3 flex flex-col gap-1 text-sm">
+              {items.map((item) => (
+                <div key={item.id} className="flex justify-between text-xs text-[#666666]">
+                  <span>{item.product.name} ({item.unit.name}) × {item.quantity}</span>
+                  <span>{fmt(lineTotal(item))}</span>
+                </div>
               ))}
+              <div className="border-t border-[#DBEFF3] mt-2 pt-2 flex flex-col gap-1">
+                <div className="flex justify-between text-[#666666]">
+                  <span>Subtotal</span>
+                  <span>{fmt(subtotal)}</span>
+                </div>
+                {discountAmount > 0 && billDiscount && (
+                  <div className="flex justify-between text-green-600">
+                    <span>
+                      Discount (
+                      {billDiscount.type === "PERCENTAGE"
+                        ? `${billDiscount.value}%`
+                        : `${fmt(billDiscount.value)} fixed`}
+                      )
+                    </span>
+                    <span>− {fmt(discountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-[#333333] text-base border-t border-[#DBEFF3] pt-1 mt-1">
+                  <span>Total</span>
+                  <span className="text-[#49B0C1]">{fmt(total)}</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Payments table */}
-          {payments.length > 0 && (
-            <div className="bg-white rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#ABDBE3]">
-                    <th className="px-4 py-3 text-left font-semibold text-[#333333]">Method</th>
-                    <th className="px-4 py-3 text-right font-semibold text-[#333333]">Amount</th>
-                    <th className="px-4 py-3 w-12"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((p, i) => (
-                    <tr key={p.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
-                      <td className="px-4 py-3 flex items-center gap-2">
-                        <span aria-hidden>{METHOD_ICONS[p.method]}</span>
-                        <span className="text-[#333333]">{METHOD_LABELS[p.method]}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmt(p.amount)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button onClick={() => removePayment(p.id)} className="text-red-500 hover:text-red-700" aria-label="Remove">🗑</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-[#49B0C1]">
-                    <td className="px-4 py-3 text-sm font-bold text-white">TOTAL PAID: {fmt(totalPaid)}</td>
-                    <td colSpan={2} className="px-4 py-3 text-right text-sm font-bold" style={{ color: remaining > 0 ? "#FFC107" : "white" }}>
-                      {remaining > 0 ? `REMAINING: ${fmt(remaining)}` : change > 0 ? `CHANGE: ${fmt(change)}` : "PAID IN FULL ✓"}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+          {/* Payment rows */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-[#333333]">Payments</p>
+              <button
+                onClick={addRow}
+                className="text-xs font-semibold text-[#49B0C1] hover:underline"
+              >
+                + Add payment
+              </button>
             </div>
+
+            {paymentRows.map((row, idx) => (
+              <div key={row.id} className="flex items-center gap-2 bg-[#DBEFF3]/50 rounded-lg p-2.5">
+                <span className="text-xs text-[#999] w-4 flex-shrink-0">{idx + 1}.</span>
+                <select
+                  value={row.method}
+                  onChange={(e) => updateRow(row.id, { method: e.target.value as BackendMethod })}
+                  className="flex-1 rounded-lg border border-[#ABDBE3] bg-white px-2.5 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                >
+                  {(Object.keys(METHOD_LABELS) as BackendMethod[]).map((m) => (
+                    <option key={m} value={m}>{METHOD_LABELS[m]}</option>
+                  ))}
+                </select>
+                <div className="relative flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#999]">{CURRENCY}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={row.amount}
+                    onChange={(e) => updateRow(row.id, { amount: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-[#ABDBE3] bg-white pl-9 pr-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                  />
+                </div>
+                {paymentRows.length > 1 && (
+                  <button
+                    onClick={() => removeRow(row.id)}
+                    className="text-[#ABDBE3] hover:text-red-500 flex-shrink-0 transition-colors"
+                    aria-label="Remove payment"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                      <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zm0 0" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Paid / Remaining / Change */}
+          <div className="rounded-xl border border-[#DBEFF3] px-4 py-3 flex flex-col gap-1.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[#666666]">Total</span>
+              <span className="font-semibold text-[#333333]">{fmt(total)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[#666666]">Paid</span>
+              <span className="font-semibold text-[#333333]">{fmt(totalPaid)}</span>
+            </div>
+            <div className="flex justify-between border-t border-[#DBEFF3] pt-1.5 mt-0.5">
+              {remaining > 0 ? (
+                <>
+                  <span className="font-semibold text-orange-600">Remaining</span>
+                  <span className="font-bold text-orange-600">{fmt(remaining)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-green-600">Change</span>
+                  <span className="font-bold text-green-600">{fmt(change)}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {error}
+            </p>
           )}
-
-          {/* Add payment form */}
-          <div className="bg-[#DBEFF3] rounded-xl p-4 flex items-end gap-3 flex-wrap">
-            <div className="flex flex-col gap-1 flex-shrink-0">
-              <label className="text-xs font-medium text-[#666666]">Method</label>
-              <select value={addMethod} onChange={(e) => setAddMethod(e.target.value as PaymentMethod)} className="rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none">
-                {(["cash", "card", "digital"] as PaymentMethod[]).map((m) => (
-                  <option key={m} value={m}>{METHOD_LABELS[m]}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-[#666666]">Amount ({CURRENCY})</label>
-              <input
-                type="number"
-                min={0}
-                value={addAmount}
-                onChange={(e) => setAddAmount(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addPayment()}
-                placeholder="0.00"
-                className="w-36 rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
-              />
-            </div>
-            <button
-              onClick={addPayment}
-              className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors"
-            >
-              + Add Payment
-            </button>
-          </div>
-
-          {/* Status cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-xl p-4 flex items-center gap-3">
-              <span className="text-2xl" aria-hidden>{isFullyPaid ? "✅" : "⏳"}</span>
-              <div>
-                <p className="text-xs text-[#666666]">Payment Status</p>
-                <p className={`text-sm font-bold ${isFullyPaid ? "text-green-600" : "text-orange-500"}`}>
-                  {isFullyPaid ? "Fully Paid" : "Partially Paid"}
-                </p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 flex items-center gap-3">
-              <span className="text-2xl" aria-hidden>💰</span>
-              <div>
-                <p className="text-xs text-[#666666]">Change Due</p>
-                <p className={`text-sm font-bold ${change > 0 ? "text-green-600" : "text-[#333333]"}`}>{fmt(change)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Receipt toggle */}
-          <div className="bg-white rounded-xl overflow-hidden">
-            <button
-              onClick={() => setShowReceipt((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-[#49B0C1] hover:bg-[#DBEFF3]/50 transition-colors"
-            >
-              <span>📄 Receipt Preview</span>
-              <span>{showReceipt ? "▲" : "▼"}</span>
-            </button>
-            {showReceipt && (
-              <div className="border-t border-[#DBEFF3] px-4 py-4 text-sm font-mono">
-                <p className="text-center font-bold text-[#333333] mb-2">PharmaCare POS</p>
-                <p className="text-center text-xs text-[#666666] mb-3">{new Date().toLocaleString()}</p>
-                <div className="divide-y divide-dashed divide-[#ABDBE3]">
-                  {items.map((item) => (
-                    <div key={item.id} className="py-1.5 flex justify-between text-xs">
-                      <span>{item.product.name} ({item.unit.name}) x{item.quantity}</span>
-                      <span>{fmt(lineTotal(item))}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-[#ABDBE3] mt-2 pt-2 space-y-1 text-xs">
-                  <div className="flex justify-between"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-                  {discountAmount > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-{fmt(discountAmount)}</span></div>}
-                  <div className="flex justify-between"><span>Tax (15%)</span><span>{fmt(tax)}</span></div>
-                  <div className="flex justify-between font-bold text-sm border-t border-[#ABDBE3] pt-1 mt-1"><span>TOTAL</span><span>{fmt(total)}</span></div>
-                </div>
-                <button onClick={() => window.print()} className="mt-3 w-full rounded-lg bg-[#ABDBE3] py-2 text-xs font-semibold text-[#333333] hover:bg-[#9acbd5] transition-colors">
-                  🖨 Print Receipt
-                </button>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Footer */}
-        <div className="bg-white border-t border-[#DBEFF3] px-4 py-3 flex gap-3 justify-end flex-wrap">
-          <button
-            onClick={onBack}
-            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
-          >
-            Cancel Transaction
-          </button>
+        <div className="bg-white border-t border-[#DBEFF3] px-4 py-3 flex gap-3 justify-end">
           <button
             onClick={onBack}
             className="rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] bg-[#ABDBE3] hover:bg-[#9acbd5] transition-colors"
           >
-            ← Back to Sale
+            Back
           </button>
           <button
             onClick={handleComplete}
             disabled={!isFullyPaid || completing}
             className={`rounded-lg px-8 py-2.5 text-sm font-bold text-white transition-all disabled:cursor-not-allowed ${
-              isFullyPaid
-                ? "bg-green-500 hover:bg-green-600 shadow-md hover:shadow-lg"
+              isFullyPaid && !completing
+                ? "bg-green-600 hover:bg-green-700 shadow-md"
                 : "bg-gray-300"
             }`}
           >
-            {completing ? "Processing…" : "COMPLETE SALE ✓"}
+            {completing ? "Processing…" : "Complete Sale"}
           </button>
         </div>
       </div>
-
-      {/* Mismatch dialog */}
-      {mismatchOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setMismatchOpen(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="bg-red-500 px-6 py-4 flex items-center gap-3">
-              <span className="text-xl text-white" aria-hidden>⚠</span>
-              <h3 className="text-base font-bold text-white">Payment Mismatch</h3>
-              <button onClick={() => setMismatchOpen(false)} className="ml-auto text-white/80 hover:text-white" aria-label="Close"><svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg></button>
-            </div>
-            <div className="p-6 flex flex-col gap-4">
-              <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-                ⚠ Payment total does not match the bill amount.
-              </div>
-              <div className="bg-[#DBEFF3] rounded-xl p-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-[#666666]">Bill Total</span><span className="font-bold text-[#333333]">{fmt(total)}</span></div>
-                <div className="flex justify-between"><span className="text-[#666666]">Amount Paid</span><span className="font-bold text-[#333333]">{fmt(totalPaid)}</span></div>
-                <div className="flex justify-between border-t border-[#ABDBE3] pt-2"><span className="text-[#666666]">Remaining</span><span className="text-xl font-bold text-red-600">{fmt(remaining)}</span></div>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <button onClick={() => quickAddRemaining("cash")} className="flex-1 rounded-lg bg-[#49B0C1] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3a9baf] transition-colors">
-                  💵 Add as Cash
-                </button>
-                <button onClick={() => quickAddRemaining("card")} className="flex-1 rounded-lg bg-[#ABDBE3] px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#9acbd5] transition-colors">
-                  💳 Add as Card
-                </button>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button onClick={() => setMismatchOpen(false)} className="rounded-lg bg-red-500 px-5 py-2 text-sm font-semibold text-white hover:bg-red-600">Cancel Payment</button>
-                <button onClick={() => setMismatchOpen(false)} className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3a9baf]">Back to Payments</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
