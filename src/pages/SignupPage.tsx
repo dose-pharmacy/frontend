@@ -148,7 +148,7 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="text-[#666666] hover:text-[#49B0C1] transition-colors focus:outline-none"
+              className="text-[#666666] hover:text-[#7A9076] transition-colors focus:outline-none"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? (
@@ -191,7 +191,7 @@ export default function SignupPage() {
       {/* Divider */}
       <div className="relative my-6">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-[#DBEFF3]" />
+          <div className="w-full border-t border-[#E6ECE2]" />
         </div>
         <div className="relative flex justify-center">
           <span className="bg-white px-3 text-xs font-medium text-[#999]">OR</span>
@@ -203,7 +203,7 @@ export default function SignupPage() {
         type="button"
         onClick={handleGoogleSignIn}
         disabled={isLoading || googleLoading}
-        className="w-full flex items-center justify-center gap-3 rounded-xl border border-[#DBEFF3] bg-white px-4 py-2.5 text-sm font-medium text-[#333333] shadow-sm hover:bg-[#DBEFF3]/40 hover:border-[#ABDBE3] transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[#49B0C1]"
+        className="w-full flex items-center justify-center gap-3 rounded-xl border border-[#E6ECE2] bg-white px-4 py-2.5 text-sm font-medium text-[#333333] shadow-sm hover:bg-[#E6ECE2]/40 hover:border-[#C6D4BF] transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[#B6C8AF]"
       >
         {googleLoading ? (
           <svg className="h-4 w-4 animate-spin text-[#666666]" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -221,7 +221,7 @@ export default function SignupPage() {
         Already have an account?{" "}
         <Link
           to="/login"
-          className="font-semibold text-[#49B0C1] hover:text-[#3a9aaa] transition-colors focus:outline-none focus-visible:underline"
+          className="font-semibold text-[#7A9076] hover:text-[#7A9076] transition-colors focus:outline-none focus-visible:underline"
         >
           Sign in
         </Link>

@@ -16,7 +16,7 @@ interface ReportFilterBarProps {
 }
 
 const inputClass =
-  "flex-1 min-w-[150px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all";
+  "flex-1 min-w-[150px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#B6C8AF] focus:outline-none transition-all";
 
 export default function ReportFilterBar({
   dateFrom,
@@ -31,7 +31,7 @@ export default function ReportFilterBar({
   extra,
 }: ReportFilterBarProps) {
   return (
-    <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+    <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
           <label className="text-sm font-medium text-[#333333]">From</label>

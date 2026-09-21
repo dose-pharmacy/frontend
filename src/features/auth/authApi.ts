@@ -7,7 +7,7 @@
 //   POST /api/auth/sign-in/email    { email, password }
 //   POST /api/auth/sign-in/social   { provider: "google", callbackURL }
 //   POST /api/auth/sign-out
-//   GET  /api/auth/get-session      → { user, session } | null
+//   GET  /api/auth/get-session      -> { user, session } | null
 //
 // The backend validates the browser's Origin header against its configured
 // FRONTEND_URL (trusted origins) and rejects mismatches with 403

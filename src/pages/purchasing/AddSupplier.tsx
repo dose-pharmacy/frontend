@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 import {
   createSupplier,
   SuppliersApiError,
@@ -99,14 +100,14 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#DBEFF3] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[#E6ECE2] px-5 py-4">
           <div>
             <h2 className="text-lg font-bold text-[#333333]">Add Supplier</h2>
             <p className="text-xs text-[#666666]">Create a new supplier record</p>
           </div>
           <button
             onClick={handleClose}
-            className="rounded-lg p-1.5 text-[#666666] hover:bg-[#DBEFF3] transition-colors"
+            className="rounded-lg p-1.5 text-[#666666] hover:bg-[#E6ECE2] transition-colors"
             aria-label="Close"
           >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -121,15 +122,21 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
 
         {/* Error banner */}
         {apiError && (
-          <div className="mx-5 mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-            ⚠ {apiError}
+          <div className="mx-5 mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-700 flex items-start gap-2">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden>
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+            </svg>
+            <span>{apiError}</span>
           </div>
         )}
 
         {/* Success banner */}
         {success && (
-          <div className="mx-5 mt-4 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-700">
-            ✅ Supplier added successfully!
+          <div className="mx-5 mt-4 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-700 flex items-start gap-2">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden>
+              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd"/>
+            </svg>
+            <span>Supplier added successfully!</span>
           </div>
         )}
 
@@ -142,7 +149,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
               onChange={(e) => update("name", e.target.value)}
               placeholder="ABC Pharmaceuticals"
               className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
-                errors.name ? "border-red-400" : "border-[#ABDBE3] focus:border-[#49B0C1]"
+                errors.name ? "border-red-400" : "border-[#C6D4BF] focus:border-[#B6C8AF]"
               }`}
             />
             {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
@@ -155,7 +162,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
               onChange={(e) => update("contactPerson", e.target.value)}
               placeholder="John Doe"
               className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
-                errors.contactPerson ? "border-red-400" : "border-[#ABDBE3] focus:border-[#49B0C1]"
+                errors.contactPerson ? "border-red-400" : "border-[#C6D4BF] focus:border-[#B6C8AF]"
               }`}
             />
             {errors.contactPerson && <p className="mt-1 text-xs text-red-500">{errors.contactPerson}</p>}
@@ -169,7 +176,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
               onChange={(e) => update("email", e.target.value)}
               placeholder="john@abc.com"
               className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
-                errors.email ? "border-red-400" : "border-[#ABDBE3] focus:border-[#49B0C1]"
+                errors.email ? "border-red-400" : "border-[#C6D4BF] focus:border-[#B6C8AF]"
               }`}
             />
             {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
@@ -182,7 +189,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
               onChange={(e) => update("phone", e.target.value)}
               placeholder="+251911234567"
               className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
-                errors.phone ? "border-red-400" : "border-[#ABDBE3] focus:border-[#49B0C1]"
+                errors.phone ? "border-red-400" : "border-[#C6D4BF] focus:border-[#B6C8AF]"
               }`}
             />
             {errors.phone && <p className="mt-1 text-xs text-red-500">{errors.phone}</p>}
@@ -193,7 +200,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
             <select
               value={form.paymentTerms}
               onChange={(e) => update("paymentTerms", e.target.value)}
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
             >
               <option>15 days</option>
               <option>30 days</option>
@@ -209,7 +216,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
               value={form.address}
               onChange={(e) => update("address", e.target.value)}
               placeholder="Addis Ababa"
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
             />
           </div>
 
@@ -219,7 +226,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
               type="checkbox"
               checked={form.isActive}
               onChange={(e) => update("isActive", e.target.checked)}
-              className="h-4 w-4 rounded border-[#ABDBE3] text-[#49B0C1] focus:ring-[#49B0C1]"
+              className="h-4 w-4 rounded border-[#C6D4BF] text-[#7A9076] focus:ring-[#B6C8AF]"
             />
             <label htmlFor="isActive" className="text-sm text-[#333333]">
               Active supplier
@@ -228,19 +235,19 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-[#DBEFF3] px-5 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-[#E6ECE2] px-5 py-4">
           <button
             onClick={handleClose}
-            className="rounded-lg border border-[#ABDBE3] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#DBEFF3] transition-colors"
+            className="rounded-lg border border-[#C6D4BF] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#E6ECE2] transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg bg-[#B6C8AF] px-5 py-2 text-sm font-bold text-[#333333] hover:bg-[#A0B59C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? "Saving..." : "✓ Save Supplier"}
+            {saving ? "Saving..." : (<span className="inline-flex items-center gap-1.5"><Check className="h-4 w-4" /> Save Supplier</span>)}
           </button>
         </div>
       </div>

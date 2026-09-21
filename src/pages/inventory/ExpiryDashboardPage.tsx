@@ -129,7 +129,7 @@ export default function ExpiryDashboardPage() {
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
         {/* Threshold configuration */}
-        <div className="bg-[#DBEFF3] rounded-xl p-5">
+        <div className="bg-[#E6ECE2] rounded-xl p-5">
           <p className="text-sm font-bold text-[#333333] mb-3">Threshold Settings (days)</p>
           <div className="flex flex-wrap gap-4 items-end">
             {[
@@ -144,7 +144,7 @@ export default function ExpiryDashboardPage() {
                   min={1}
                   value={tempThresholds[key]}
                   onChange={(e) => setTempThresholds((t) => ({ ...t, [key]: Number(e.target.value) }))}
-                  className="w-24 rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+                  className="w-24 rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
                 />
               </div>
             ))}
@@ -155,7 +155,7 @@ export default function ExpiryDashboardPage() {
         {error && <FormError message={error} />}
 
         {loading ? (
-          <div className="p-6 animate-pulse space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-[#DBEFF3] rounded-xl" />)}</div>
+          <div className="p-6 animate-pulse space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-[#E6ECE2] rounded-xl" />)}</div>
         ) : !error ? (
           <>
             {/* Within 30 days */}
@@ -195,7 +195,7 @@ export default function ExpiryDashboardPage() {
         {actionBatch && (
           <div className="flex flex-col gap-5">
             {/* Batch summary */}
-            <div className="rounded-xl bg-[#DBEFF3] p-4 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-xl bg-[#E6ECE2] p-4 grid grid-cols-2 gap-3 text-sm">
               <div><span className="text-[#666666]">Product: </span><span className="font-semibold text-[#333333]">{actionBatch.product.name}</span></div>
               <div><span className="text-[#666666]">Batch: </span><span className="font-mono font-semibold text-[#333333]">{actionBatch.batchNumber}</span></div>
               <div><span className="text-[#666666]">Qty: </span><span className="font-semibold text-[#333333]">{actionBatch.stock.quantity}</span></div>
@@ -213,8 +213,8 @@ export default function ExpiryDashboardPage() {
             <div className="flex flex-col gap-2">
               <p className="text-sm font-semibold text-[#333333]">Select Action</p>
               {(["return", "clearance", "dispose"] as ExpiryAction[]).map((a) => (
-                <label key={a} className="flex items-center gap-3 cursor-pointer rounded-lg border border-[#ABDBE3] px-4 py-3 hover:bg-[#DBEFF3]/50 transition-colors">
-                  <input type="radio" name="action" value={a} checked={actionType === a} onChange={() => setActionType(a)} className="accent-[#49B0C1]" />
+                <label key={a} className="flex items-center gap-3 cursor-pointer rounded-lg border border-[#C6D4BF] px-4 py-3 hover:bg-[#E6ECE2]/50 transition-colors">
+                  <input type="radio" name="action" value={a} checked={actionType === a} onChange={() => setActionType(a)} className="accent-[#B6C8AF]" />
                   <span className="text-sm font-medium capitalize text-[#333333]">
                     {a === "return" ? "Return to Supplier" : a === "clearance" ? "Clearance Sale" : "Dispose"}
                   </span>
@@ -234,7 +234,7 @@ export default function ExpiryDashboardPage() {
                 <Input label="Discount (%)" type="number" min={1} max={100} value={actionForm.discount} onChange={(e) => setActionForm((f) => ({ ...f, discount: e.target.value }))} />
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-[#333333]">Notes</label>
-                  <textarea rows={2} value={actionForm.notes} onChange={(e) => setActionForm((f) => ({ ...f, notes: e.target.value }))} className="w-full rounded-lg border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" />
+                  <textarea rows={2} value={actionForm.notes} onChange={(e) => setActionForm((f) => ({ ...f, notes: e.target.value }))} className="w-full rounded-lg border border-[#C6D4BF] px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none" />
                 </div>
               </div>
             )}
@@ -256,21 +256,21 @@ export default function ExpiryDashboardPage() {
 function ExpirySection({ title, batches, urgency, onAction }: {
   title: string; batches: ExpiryBatchDto[]; urgency: "high" | "medium" | "low" | "expired"; onAction: (b: ExpiryBatchDto) => void;
 }) {
-  const headerBg = urgency === "high" ? "bg-red-500" : urgency === "medium" ? "bg-yellow-500" : urgency === "expired" ? "bg-gray-500" : "bg-[#49B0C1]";
+  const headerBg = urgency === "high" ? "bg-red-500" : urgency === "medium" ? "bg-yellow-500" : urgency === "expired" ? "bg-gray-500" : "bg-[#7A9076]";
   return (
     <section>
       <div className={`${headerBg} px-4 py-2 rounded-t-xl`}>
         <p className="text-sm font-bold text-white">{title}</p>
         <p className="text-xs text-white/80 mt-0.5">{batches.length} batch{batches.length !== 1 ? "es" : ""}</p>
       </div>
-      <div className="bg-white rounded-b-xl border border-t-0 border-[#DBEFF3] overflow-hidden">
+      <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] overflow-hidden">
         {batches.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-[#666666]">No batches in this range.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-[#DBEFF3]">
+                <tr className="bg-[#E6ECE2]">
                   {["Product", "Batch", "Quantity", "Days Left", "Actions"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
                   ))}
@@ -281,19 +281,25 @@ function ExpirySection({ title, batches, urgency, onAction }: {
                   const days = b.daysRemaining;
                   const key = `${b.id}-${i}`;
                   return (
-                    <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                    <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"}>
                       <td className="px-4 py-3 text-[#333333]">{b.product.name}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
                       <td className="px-4 py-3 font-semibold">{b.stock.quantity}</td>
                       <td className="px-4 py-3">
-                        <span className={`font-bold ${urgency === "high" ? "text-red-600" : urgency === "medium" ? "text-yellow-600" : urgency === "expired" ? "text-red-700" : "text-[#49B0C1]"}`}>
+                        <span className={`font-bold ${urgency === "high" ? "text-red-600" : urgency === "medium" ? "text-yellow-600" : urgency === "expired" ? "text-red-700" : "text-[#7A9076]"}`}>
                           {days} days
                         </span>
-                        {urgency === "high" && <span className="ml-2 text-xs text-red-400" aria-label="Urgent">⚠</span>}
+                        {urgency === "high" && (
+                          <span className="ml-1.5 inline-flex text-red-400" aria-label="Urgent">
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                            </svg>
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button onClick={() => { onAction(b); }} className="text-xs font-semibold text-[#49B0C1] hover:underline">Return</button>
+                          <button onClick={() => { onAction(b); }} className="text-xs font-semibold text-[#7A9076] hover:underline">Return</button>
                           <button onClick={() => { onAction(b); }} className="text-xs font-semibold text-orange-500 hover:underline">Clearance</button>
                           {urgency === "expired" && (
                             <button onClick={() => { onAction(b); }} className="text-xs font-semibold text-red-500 hover:underline">Dispose</button>

@@ -4,9 +4,9 @@
 //   POST   /api/v1/purchasing/purchase-orders                     (create)
 //   GET    /api/v1/purchasing/purchase-orders/{id}                (detail)
 //   PATCH  /api/v1/purchasing/purchase-orders/{id}                (update)
-//   POST   /api/v1/purchasing/purchase-orders/{id}/mark-awaiting-delivery (→ AWAITING_DELIVERY)
-//   POST   /api/v1/purchasing/purchase-orders/{id}/cancel         (→ CANCELLED)
-//   POST   /api/v1/purchasing/purchase-orders/{id}/close          (→ CLOSED)
+//   POST   /api/v1/purchasing/purchase-orders/{id}/mark-awaiting-delivery (-> AWAITING_DELIVERY)
+//   POST   /api/v1/purchasing/purchase-orders/{id}/cancel         (-> CANCELLED)
+//   POST   /api/v1/purchasing/purchase-orders/{id}/close          (-> CLOSED)
 //
 // All requests require the authenticated session cookie
 // (HTTP-only — sent automatically with `credentials: "include"`).

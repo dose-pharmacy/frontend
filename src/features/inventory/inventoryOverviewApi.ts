@@ -20,7 +20,7 @@ export interface InventoryMetricsDto {
 }
 
 export interface InventoryOverviewQuery {
-  /** Comma-joined expiry thresholds in days, e.g. [30, 60, 90] → "30,60,90". */
+  /** Comma-joined expiry thresholds in days, e.g. [30, 60, 90] -> "30,60,90". */
   thresholds?: number[];
 }
 

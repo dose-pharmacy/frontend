@@ -145,7 +145,7 @@ export interface OpeningStockDto {
 
 /**
  * Body for POST /inventory/stock-adjustments.
- * ⚠️ Exact request schema not yet confirmed from Swagger — keep payloads
+* NOTE: Exact request schema not yet confirmed from Swagger — keep payloads
  * minimal and validate against the live backend before extending.
  */
 export interface StockAdjustmentInput {
@@ -404,7 +404,7 @@ export async function createOpeningStock(input: OpeningStockInput): Promise<Open
 
 /**
  * POST /inventory/stock-adjustments — adjust recorded stock.
- * ⚠️ Exact request/response schema unconfirmed — adjust the payload once the
+* NOTE: Exact request/response schema unconfirmed — adjust the payload once the
  * Swagger definition is available.
  */
 export async function createStockAdjustment(

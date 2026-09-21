@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from "react";
+import { Loader2 } from "lucide-react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary";
@@ -20,9 +21,9 @@ export default function Button({
 
   const variants = {
     primary:
-      "bg-[#49B0C1] text-white hover:bg-[#3a9baf] focus-visible:ring-[#49B0C1] active:scale-[0.98]",
+      "bg-[#B6C8AF] text-[#333333] hover:bg-[#A0B59C] focus-visible:ring-[#B6C8AF] active:scale-[0.98]",
     secondary:
-      "bg-[#ABDBE3] text-[#333333] hover:bg-[#95cdd8] focus-visible:ring-[#ABDBE3] active:scale-[0.98]",
+      "bg-[#C6D4BF] text-[#333333] hover:bg-[#B5C8AE] focus-visible:ring-[#C6D4BF] active:scale-[0.98]",
   };
 
   return (
@@ -32,26 +33,7 @@ export default function Button({
       {...props}
     >
       {loading && (
-        <svg
-          className="h-4 w-4 animate-spin"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-          />
-        </svg>
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
       )}
       {children}
     </button>

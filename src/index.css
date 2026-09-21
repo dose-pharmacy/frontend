@@ -7,27 +7,131 @@ body,
   overflow: hidden;
 }
 
-/* Subtle scrollbar styling */
+body {
+  background-color: #FAF9F4;
+}
+
+/* Subtle scrollbar styling to match the sage theme */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #ABDBE3 transparent;
+  scrollbar-color: #A9BCA3 transparent;
 }
 *::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: #ABDBE3;
+  background: #A9BCA3;
   border-radius: 99px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #8FA88D;
+}
+
+/* Native dropdowns styled to match the UI */
+@layer base {
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #ffffff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%237A9076' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 1rem;
+    padding-right: 2.25rem;
+    color: #333333;
+    border: 1px solid #E6ECE2;
+    border-radius: 0.5rem;
+  }
+  select:focus {
+    outline: none;
+    border-color: #B6C8AF;
+    box-shadow: 0 0 0 2px rgba(182, 200, 175, 0.25);
+  }
+  select option {
+    background-color: #ffffff;
+    color: #333333;
+  }
 }
 
 @theme {
-  --color-primary: #49B0C1;
-  --color-primary-mid: #ABDBE3;
-  --color-primary-light: #DBEFF3;
+  --color-primary: #B6C8AF;
+  --color-primary-mid: #C6D4BF;
+  --color-primary-light: #E6ECE2;
   --color-text-primary: #333333;
   --color-text-secondary: #666666;
+
+  /* Muted, desaturated semantic palette matching the sage/cream theme */
+  --color-red-50: #FBEFED;
+  --color-red-100: #F6DCD8;
+  --color-red-200: #EBBCB6;
+  --color-red-300: #DC968C;
+  --color-red-400: #C97165;
+  --color-red-500: #B0574A;
+  --color-red-600: #97473D;
+  --color-red-700: #7C3C34;
+  --color-red-800: #64322D;
+
+  --color-orange-50: #FBF3EC;
+  --color-orange-100: #F5E2CE;
+  --color-orange-200: #EAC6A0;
+  --color-orange-300: #DDA56E;
+  --color-orange-400: #CD8744;
+  --color-orange-500: #B76F36;
+  --color-orange-600: #9A5B2D;
+  --color-orange-700: #7C4A28;
+  --color-orange-800: #633D25;
+
+  --color-amber-50: #FBF6E9;
+  --color-amber-100: #F6E9C6;
+  --color-amber-200: #EDD493;
+  --color-amber-300: #E0BC60;
+  --color-amber-400: #D0A23C;
+  --color-amber-500: #B68932;
+  --color-amber-600: #916D2C;
+  --color-amber-700: #745728;
+  --color-amber-800: #5C4624;
+
+  --color-yellow-50: #FAF9EC;
+  --color-yellow-100: #F2EFCB;
+  --color-yellow-200: #E4DF9B;
+  --color-yellow-300: #D1C96C;
+  --color-yellow-400: #BBB043;
+  --color-yellow-500: #A2953A;
+  --color-yellow-600: #84792F;
+  --color-yellow-700: #6A612A;
+  --color-yellow-800: #554F25;
+
+  --color-green-50: #F2F7F1;
+  --color-green-100: #E2EDE0;
+  --color-green-200: #C3D8BF;
+  --color-green-300: #9BBE97;
+  --color-green-400: #74A070;
+  --color-green-500: #5A8756;
+  --color-green-600: #486D45;
+  --color-green-700: #3C5A3A;
+  --color-green-800: #31482F;
+
+  --color-blue-50: #EFF3F5;
+  --color-blue-100: #DCE5E9;
+  --color-blue-200: #BACBD3;
+  --color-blue-300: #91ACB9;
+  --color-blue-400: #6A8C9B;
+  --color-blue-500: #537485;
+  --color-blue-600: #455F6D;
+  --color-blue-700: #3A4E59;
+  --color-blue-800: #314049;
+
+  --color-purple-50: #F5F2F6;
+  --color-purple-100: #E9E1EC;
+  --color-purple-200: #D3C2D9;
+  --color-purple-300: #B79CBE;
+  --color-purple-400: #9679A0;
+  --color-purple-500: #7C6286;
+  --color-purple-600: #65516E;
+  --color-purple-700: #534258;
+  --color-purple-800: #443747;
 }
