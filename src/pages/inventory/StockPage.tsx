@@ -43,12 +43,25 @@ interface ProductOption {
 }
 
 async function fetchProductOptions(): Promise<ProductOption[]> {
-  const res = await listInventoryProducts({ limit: 1000 })
-  return res.data.map(p => ({
+  // GET /inventory/inventory-products returns 422 for oversized limits and
+  // requires `page` — walk the paginated endpoint instead of a single page.
+  const all: ProductOption[] = []
+  const first = await listInventoryProducts({ page: 1, limit: 100 })
+  all.push(...first.data.map(p => ({
     id: p.id,
     name: p.name,
-    baseUnit: p.baseUnit?.name ?? null
-  }))
+    baseUnit: p.baseUnit?.name ?? null,
+  })))
+  const totalPages = Math.min(first.meta?.totalPages ?? 1, 30)
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await listInventoryProducts({ page, limit: 100 })
+    all.push(...next.data.map(p => ({
+      id: p.id,
+      name: p.name,
+      baseUnit: p.baseUnit?.name ?? null,
+    })))
+  }
+  return all
 }
 
 // ─── Adapted stock row (UI shape from GET /inventory/stock) ───────────────────

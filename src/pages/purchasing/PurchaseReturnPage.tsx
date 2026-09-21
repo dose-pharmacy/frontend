@@ -11,6 +11,7 @@ import {
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
 import { listBatches, type BatchDto } from "../../features/inventory/batchesApi";
+import { listLocations, type LocationDto } from "../../features/inventory/locationsApi";
 
 const REASON_LABELS: Record<PurchaseReturnReason, string> = {
   EXPIRED: "Expired",
@@ -38,6 +39,7 @@ export default function PurchaseReturnPage() {
   const [supplierId, setSupplierId] = useState("");
   const [productId, setProductId] = useState("");
   const [batchId, setBatchId] = useState("");
+  const [locationId, setLocationId] = useState("");
   const [reason, setReason] = useState<PurchaseReturnReason>("EXPIRED");
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState("");
@@ -46,6 +48,7 @@ export default function PurchaseReturnPage() {
 
   // Reference data
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
+  const [locations, setLocations] = useState<LocationDto[]>([]);
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [batchesLoading, setBatchesLoading] = useState(false);
@@ -77,15 +80,34 @@ export default function PurchaseReturnPage() {
     }
   }, []);
 
+  const loadProducts = useCallback(async () => {
+    // GET /inventory/products rejects oversized limits / missing `page`
+    // (422) — walk the paginated endpoint instead of one big request.
+    const all: ProductDto[] = [];
+    try {
+      const first = await listProducts({ page: 1, limit: 100 });
+      all.push(...first.data);
+      const totalPages = Math.min(first.meta?.totalPages ?? 1, 30);
+      for (let page = 2; page <= totalPages; page++) {
+        const next = await listProducts({ page, limit: 100 });
+        all.push(...next.data);
+      }
+    } catch (e) {
+      console.error("Failed to load products:", e);
+    }
+    setProducts(all.filter((p) => p.isActive));
+  }, []);
+
   useEffect(() => {
     listSuppliers({ limit: 100, isActive: true })
       .then((r) => setSuppliers(r.data))
       .catch(() => {})
-    listProducts({ limit: 200, isActive: true })
-      .then((r) => setProducts(r.data))
-      .catch((e) => { console.error('Failed to load products:', e) })
+    listLocations({ limit: 100, isActive: true })
+      .then((r) => setLocations(r.data.filter((l) => l.isActive)))
+      .catch(() => {})
+    void loadProducts()
     void loadReturns()
-  }, [])
+  }, [loadProducts])
 
   // Product selection drives the batch list: batches are fetched per product
   // (GET /inventory/products/{productId}/batches or ?productId= on /batches).
@@ -120,13 +142,14 @@ export default function PurchaseReturnPage() {
   const canSubmit =
     !!supplierId &&
     !!productId &&
+    !!locationId &&
     quantity > 0 &&
     parsedUnitCost > 0 &&
     (!batchId || getAvailableStock(batchId) >= quantity);
 
   async function handleSubmit() {
-    if (!supplierId || !productId) {
-      setError("Supplier and Product are required.");
+    if (!supplierId || !productId || !locationId) {
+      setError("Supplier, Product and Location are required.");
       return;
     }
     if (quantity <= 0 || parsedUnitCost <= 0) {
@@ -151,6 +174,7 @@ export default function PurchaseReturnPage() {
         supplierId,
         productId,
         batchId: batchId || null,
+        locationId,
         reason,
         quantity: Number(quantity),
         unitCost: parsedUnitCost,
@@ -162,6 +186,7 @@ export default function PurchaseReturnPage() {
       setSupplierId("");
       setProductId("");
       setBatchId("");
+      setLocationId("");
       setBatches([]);
       setReason("EXPIRED");
       setQuantity(1);
@@ -233,6 +258,13 @@ export default function PurchaseReturnPage() {
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Location *</label>
+                  <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputClass}>
+                    <option value="">— Select Location —</option>
+                    {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -313,7 +345,7 @@ export default function PurchaseReturnPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={saving || !canSubmit}
-                  title={!canSubmit ? "Select a supplier and product, and enter a quantity and unit cost greater than zero." : undefined}
+                  title={!canSubmit ? "Select a supplier, product and location, and enter a quantity and unit cost greater than zero." : undefined}
                   className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saving ? "Recording…" : "Record Return"}

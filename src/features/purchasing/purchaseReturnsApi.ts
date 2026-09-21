@@ -139,14 +139,16 @@ export async function getPurchaseReturn(id: string): Promise<PurchaseReturnDto> 
 }
 
 /**
- * Body for POST /purchase-returns — batchId, unitCost, debitNoteAmount and
- * notes are optional per the backend contract; the backend derives the
- * location from the batch and stamps returnedDate/returnNumber itself.
+ * Body for POST /purchase-returns — locationId is REQUIRED by the backend
+ * (it was missing before, which caused 422).  batchId is optional; when
+ * omitted the backend picks the first batch with stock at the location.
+ * unitCost / debitNoteAmount / notes are optional.
  */
 export interface CreatePurchaseReturnInput {
   supplierId: string
   productId: string
   batchId?: string | null
+  locationId: string
   reason: PurchaseReturnReason
   quantity: number
   unitCost?: number
@@ -158,6 +160,7 @@ export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Pr
   const body: Record<string, unknown> = {
     supplierId: input.supplierId,
     productId: input.productId,
+    locationId: input.locationId,
     reason: input.reason,
     quantity: input.quantity,
   }

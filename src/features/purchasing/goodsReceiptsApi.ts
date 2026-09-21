@@ -51,10 +51,17 @@ export interface GoodsReceiptDto {
   status: GoodsReceiptStatus
   discrepancyNote: string | null
   createdAt: string
+  updatedAt: string
   createdById: string
-  confirmedAt: string | null
   confirmedById: string | null
+  /** Detail responses embed the items; the LIST response omits them (use `_count.items`). */
   items: GRItemDto[]
+  /** Item count as reported by the backend `_count.items` on list rows. */
+  _count?: { items: number }
+  /** Confirmation flag — null / absent until the receipt is confirmed. */
+  confirmedBy?: { id: string; name: string } | null
+  /** Backward-compatible alias used by detail/reconcile pages. */
+  confirmedAt?: string | null
   purchaseOrder?: {
     id: string
     poNumber: string
@@ -65,10 +72,6 @@ export interface GoodsReceiptDto {
     }
   }
   createdBy?: {
-    id: string
-    name: string
-  }
-  confirmedBy?: {
     id: string
     name: string
   }
@@ -132,14 +135,12 @@ export async function listGoodsReceipts(params: {
   limit?: number
   purchaseOrderId?: string
   status?: GoodsReceiptStatus
-  search?: string
 } = {}): Promise<PaginatedResponse<GoodsReceiptDto>> {
   const q = new URLSearchParams()
   if (params.page) q.set("page", params.page.toString())
   if (params.limit) q.set("limit", params.limit.toString())
   if (params.purchaseOrderId) q.set("purchaseOrderId", params.purchaseOrderId)
   if (params.status) q.set("status", params.status)
-  if (params.search) q.set("search", params.search)
 
   const qs = q.toString()
   return await grRequest<PaginatedResponse<GoodsReceiptDto>>(qs ? `?${qs}` : "")

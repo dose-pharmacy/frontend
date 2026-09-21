@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
@@ -11,6 +11,7 @@ import {
   type GoodsReceiptStatus,
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi"
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
@@ -36,8 +37,23 @@ export default function GoodsReceiptsPage() {
   const [toast, setToast] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptDto | null>(null)
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
 
   const PAGE_SIZE = 20
+
+  useEffect(() => {
+    listSuppliers({ limit: 100 })
+      .then((r) => setSuppliers(r.data))
+      .catch(() => {})
+  }, [])
+
+  const supplierName = useCallback(
+    (id: string | undefined | null) => {
+      if (!id) return "—"
+      return suppliers.find((s) => s.id === id)?.name ?? "—"
+    },
+    [suppliers],
+  )
 
   const loadReceipts = useCallback(async () => {
     setLoading(true)
@@ -46,7 +62,6 @@ export default function GoodsReceiptsPage() {
       const res = await listGoodsReceipts({
         page,
         limit: PAGE_SIZE,
-        search: search || undefined,
         status: statusFilter || undefined,
       })
       setReceipts(res.data)
@@ -57,7 +72,7 @@ export default function GoodsReceiptsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, statusFilter])
+  }, [page, statusFilter])
 
   useEffect(() => {
     loadReceipts()
@@ -84,11 +99,21 @@ export default function GoodsReceiptsPage() {
     }
   }
 
+  const visibleReceipts = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return receipts
+    return receipts.filter((r) =>
+      r.receiptNumber.toLowerCase().includes(q) ||
+      (r.purchaseOrder?.poNumber ?? "").toLowerCase().includes(q) ||
+      supplierName(r.supplierId).toLowerCase().includes(q),
+    )
+  }, [receipts, search, supplierName])
+
   const summary = {
     total: totalCount,
-    matched: receipts.filter((r) => r.status === "MATCHED").length,
-    discrepancy: receipts.filter((r) => r.status === "DISCREPANCY").length,
-    resolved: receipts.filter((r) => r.status === "RESOLVED").length,
+    matched: visibleReceipts.filter((r) => r.status === "MATCHED").length,
+    discrepancy: visibleReceipts.filter((r) => r.status === "DISCREPANCY").length,
+    resolved: visibleReceipts.filter((r) => r.status === "RESOLVED").length,
   }
 
   return (
@@ -181,36 +206,52 @@ export default function GoodsReceiptsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {receipts.map((r, i) => (
-                      <tr key={r.id} className={`hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}>
-                        <td className="px-4 py-3">
-                          <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="font-semibold text-[#49B0C1] hover:underline">{r.receiptNumber}</button>
-                        </td>
-                        <td className="px-4 py-3 text-[#333333]">{r.purchaseOrder?.poNumber ?? "—"}</td>
-                        <td className="px-4 py-3 text-[#333333]">{r.purchaseOrder?.supplier?.name ?? "—"}</td>
-                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(r.receivedDate)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${STATUS_BADGE[r.status] ?? "bg-gray-100 text-gray-600"}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-[#666666]">{r.items?.length ?? 0} item{(r.items?.length ?? 0) !== 1 ? "s" : ""}</td>
-                        <td className="px-4 py-3 text-[#666666]">{r.createdBy?.name ?? "—"}</td>
-                        <td className="px-4 py-3 text-[#666666]">{r.confirmedAt ? "Yes" : "No"}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
-                              View →
-                            </button>
-                            {r.confirmedAt === null && (
-                              <button onClick={() => setDeleteTarget(r)} className="text-xs text-red-500 hover:underline whitespace-nowrap">
-                                Delete
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                    {visibleReceipts.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-8 text-center text-sm text-[#999]">No receipts match your search.</td>
                       </tr>
-                    ))}
+                    ) : (
+                      visibleReceipts.map((r, i) => {
+                        const itemCount = r._count?.items ?? r.items?.length ?? 0
+                        const confirmed = !!r.confirmedBy || !!r.confirmedById || !!r.confirmedAt
+                        return (
+                          <tr key={r.id} className={`hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}>
+                            <td className="px-4 py-3">
+                              <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="font-semibold text-[#49B0C1] hover:underline">{r.receiptNumber}</button>
+                            </td>
+                            <td className="px-4 py-3 text-[#333333]">{r.purchaseOrder?.poNumber ?? r.purchaseOrderId}</td>
+                            <td className="px-4 py-3 text-[#333333]">{supplierName(r.supplierId)}</td>
+                            <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(r.receivedDate)}</td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${STATUS_BADGE[r.status] ?? "bg-gray-100 text-gray-600"}`}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-[#666666]">
+                              {itemCount} item{itemCount !== 1 ? "s" : ""}
+                            </td>
+                            <td className="px-4 py-3 text-[#666666]">{r.createdBy?.name ?? "—"}</td>
+                            <td className="px-4 py-3 text-[#666666]">
+                              {confirmed
+                                ? (r.confirmedBy ? `Yes · ${r.confirmedBy.name}` : "Yes")
+                                : "No"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+                                  View →
+                                </button>
+                                {!confirmed && (
+                                  <button onClick={() => setDeleteTarget(r)} className="text-xs text-red-500 hover:underline whitespace-nowrap">
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

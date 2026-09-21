@@ -120,6 +120,11 @@ export interface BinCardResult {
   openingBalance: number;
   transactions: BinCardTransactionDto[];
   closingBalance: number;
+  /** Pagination info returned by the backend (query params are page + pageSize). */
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
 }
 
 /** Body for POST /inventory/opening-stock. */
@@ -346,31 +351,29 @@ export async function getBatchTransactions(
 }
 
 /**
- * GET /inventory/bin-card — bin card for a product (optionally per batch).
- * Swagger shows query params for product/batch selection; pass at least the
- * batch the UI opened the card for.
+ * GET /inventory/bin-card — bin card for a product at a location, optionally
+ * per batch and a date range.
+ * Query params: productId, locationId, batchId, startDate, endDate, page,
+ * pageSize. (NOTE: the backend uses `pageSize`, not `limit` — sending
+ * `limit` makes it reject the request with HTTP 422.)
+ * The backend computes opening/closing balances and each row's running
+ * balance for the filtered range, so the UI renders them verbatim.
  */
-export async function getBinCard(
-  query: { 
-    productId: string; 
-    locationId: string;
-    batchId?: string;
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    limit?: number;
-  },
-): Promise<BinCardResult> {
+export async function getBinCard(query: {
+  productId: string;
+  locationId: string;
+  batchId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<BinCardResult> {
   const qs = buildQueryString(query as Record<string, string | number | undefined>);
-  const result = await stockRequest<BinCardResult>(`/bin-card${qs}`);
-  return (
-    result ?? {
-      baseUnit: null,
-      openingBalance: 0,
-      transactions: [],
-      closingBalance: 0,
-    }
+  const result = await stockRequest<{ success: boolean; data?: BinCardResult }>(
+    `/bin-card${qs}`,
   );
+  if (!result?.data) throw new StockApiError("Unexpected response from the server.");
+  return result.data;
 }
 
 /** POST /inventory/opening-stock — record stock already physically available. */

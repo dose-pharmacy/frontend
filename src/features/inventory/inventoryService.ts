@@ -19,7 +19,7 @@ import {
   type BatchStatusDto,
   type BatchDetailDto,
 } from "./batchesApi";
-import { listInventoryProducts } from "./productsApi";
+import { listInventoryProducts, type InventoryProductDto } from "./productsApi";
 import { getStock } from "./stockApi";
 
 const delay = (ms = 600) => new Promise((r) => setTimeout(r, ms));
@@ -162,10 +162,22 @@ export async function fetchBatchById(id: string): Promise<BatchDetail | null> {
   }
 }
 
-/** GET /inventory/inventory-products — real product options for batch pages. */
+/**
+ * GET /inventory/inventory-products — real product options for batch pages.
+ * Walks the paginated endpoint (page + limit) — the backend rejects oversized
+ * `limit` values and requires `page`, so a single large page fetch is not an
+ * option.
+ */
 export async function fetchProductOptions(): Promise<ProductOption[]> {
-  const result = await listInventoryProducts({ limit: 100 });
-  return result.data.map((p) => ({
+  const rows: InventoryProductDto[] = [];
+  const first = await listInventoryProducts({ page: 1, limit: 100 });
+  rows.push(...first.data);
+  const totalPages = Math.min(first.meta?.totalPages ?? 1, 30);
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await listInventoryProducts({ page, limit: 100 });
+    rows.push(...next.data);
+  }
+  return rows.map((p) => ({
     id: p.id,
     name: p.name,
     baseUnit: p.baseUnit?.name ?? "",
