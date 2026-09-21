@@ -15,6 +15,10 @@ import {
   type POPaymentStatus,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { searchSuppliers } from "../../features/inventory/searchSelectors"
+import { useSearchableResource } from "../../hooks/useSearchableResource"
+import SearchableSelect from "../../components/ui/SearchableSelect"
+import type { SearchableOption } from "../../components/ui/SearchableSelect"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +30,10 @@ export interface POItem {
   /** Product display name when known (list rows from the API only carry the id). */
   product: string
   requirementLineId: string | null
+  /** Unit the ordered quantity is expressed in; null = base unit. */
+  unitId?: string | null
+  /** Display label for the unit (base-unit lines show blank). */
+  unitLabel?: string
   quantity: number
   unitCost: number
 }
@@ -206,6 +214,12 @@ export default function PurchaseOrdersPage() {
     return () => { active = false }
   }, [])
 
+  const supplierSearch = useSearchableResource(searchSuppliers)
+  const supplierFilterOptions: SearchableOption[] = [
+    ...suppliers.map((s) => ({ value: s.id, label: s.name, sub: s.contactPerson ?? (s.email ?? undefined) })),
+    ...supplierSearch.options.filter((o) => !suppliers.some((s) => s.id === o.value)),
+  ]
+
   // Real purchase orders with backend pagination.
   useEffect(() => {
     let active = true
@@ -311,10 +325,22 @@ export default function PurchaseOrdersPage() {
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
           <div className="flex flex-wrap gap-3 items-center">
-            <select value={suppFilter} onChange={(e) => { setSuppFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
-              <option value="">All Suppliers</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <div className="flex-1 min-w-[160px]">
+              <SearchableSelect
+                value={suppFilter || null}
+                onChange={(v) => { setSuppFilter(v); setPage(1) }}
+                options={supplierFilterOptions}
+                onSearch={supplierSearch.setTerm}
+                loading={supplierSearch.loading}
+                error={supplierSearch.error}
+                onRetry={supplierSearch.retry}
+                allowClear
+                placeholder="All Suppliers"
+                searchPlaceholder="Search by name, contact or email..."
+                emptyMessage="No suppliers available"
+                noResultsMessage="No suppliers matching your search"
+              />
+            </div>
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="REGISTERED">Registered</option>

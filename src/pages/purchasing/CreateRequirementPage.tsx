@@ -4,14 +4,61 @@ import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
 import { createRequirement, type CreateRequirementInput, type RequirementReasonCode } from "../../features/purchasing/requirementsApi";
+import { useProductUnits } from "../../features/inventory/useProductUnits";
+import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions";
 
 interface ProductRow {
   id: string; // Temporary UI id
   productId: string;
   productName: string;
+  /** null = use the product's base unit. */
+  unitId: string | null;
   quantityNeeded: number;
   reasonCode: RequirementReasonCode;
   notes: string;
+}
+
+/** Compact per-row quantity + unit picker with a base-unit conversion preview. */
+function ProductUnitRowEditor({ row, onUpdate }: {
+  row: ProductRow
+  onUpdate: (patch: Partial<ProductRow>) => void
+}) {
+  const { units, baseUnit, options, loading, error } = useProductUnits(row.productId)
+  const unitId = row.unitId ?? baseUnit?.id ?? ""
+  const productUnit = units.find((u) => u.unitId === unitId)
+  const qty = row.quantityNeeded || 0
+  const baseQty = toBaseQuantity(qty, productUnit)
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number"
+          min={1}
+          step="any"
+          value={qty}
+          onChange={(e) => onUpdate({ quantityNeeded: Number(e.target.value) })}
+          className="w-20 rounded border border-gray-200 px-2 py-1"
+        />
+        <select
+          value={unitId}
+          onChange={(e) => onUpdate({ unitId: e.target.value || null })}
+          className="rounded border border-gray-200 px-2 py-1 text-xs max-w-[120px]"
+        >
+          {loading && <option value="">Loading units…</option>}
+          {error && <option value="">Error loading units</option>}
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+      {qty > 0 && row.unitId && baseQty !== null && baseUnit && productUnit && !productUnit.isBaseUnit && (
+        <p className="text-[10px] text-[#49B0C1]">
+          = {baseQty} {baseUnit.name} ({formatFactor(productUnit.conversionFactor)}×)
+        </p>
+      )}
+    </div>
+  )
 }
 
 export default function CreateRequirementPage() {
@@ -66,6 +113,7 @@ export default function CreateRequirementPage() {
         id: Date.now().toString(),
         productId: product.id,
         productName: product.name,
+        unitId: null,
         quantityNeeded: addQty,
         reasonCode: addReason,
         notes: "",
@@ -83,6 +131,10 @@ export default function CreateRequirementPage() {
 
   function updateProduct(id: string, field: keyof ProductRow, value: any) {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+  }
+
+  function patchProduct(id: string, patch: Partial<ProductRow>) {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
   const totalQty = products.reduce((s, p) => s + p.quantityNeeded, 0);
@@ -111,6 +163,7 @@ export default function CreateRequirementPage() {
         lines: products.map((p) => ({
           productId: p.productId,
           quantityNeeded: p.quantityNeeded,
+          ...(p.unitId ? { unitId: p.unitId } : {}),
           ...(p.reasonCode ? { reasonCode: p.reasonCode } : {}),
           ...(p.notes?.trim() ? { notes: p.notes.trim() } : {}),
         })),
@@ -205,7 +258,7 @@ export default function CreateRequirementPage() {
                 <table className="w-full text-sm min-w-[600px]">
                   <thead>
                     <tr className="bg-[#ABDBE3]">
-                      {["#", "Product", "Qty Needed", "Reason", "Notes", ""].map((h) => (
+                      {["#", "Product", "Qty & Unit", "Reason", "Notes", ""].map((h) => (
                         <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -216,7 +269,7 @@ export default function CreateRequirementPage() {
                         <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                         <td className="px-3 py-2.5 font-medium text-[#333333]">{p.productName}</td>
                         <td className="px-3 py-2.5">
-                          <input type="number" min={1} value={p.quantityNeeded} onChange={(e) => updateProduct(p.id, "quantityNeeded", Number(e.target.value))} className="w-20 rounded border border-gray-200 px-2 py-1" />
+                          <ProductUnitRowEditor row={p} onUpdate={(patch) => patchProduct(p.id, patch)} />
                         </td>
                         <td className="px-3 py-2.5">
                           <select value={p.reasonCode} onChange={(e) => updateProduct(p.id, "reasonCode", e.target.value)} className="rounded border border-gray-200 px-2 py-1 text-xs">

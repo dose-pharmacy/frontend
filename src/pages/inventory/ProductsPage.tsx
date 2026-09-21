@@ -383,7 +383,7 @@ export default function ProductsPage() {
           const unit = units.find((x) => x.id === u.unitId);
           const cf = Number(u.conversionFactor || 1);
           const perBase = cf > 0 ? baseSell / cf : 0;
-          return `1 ${unit?.name ?? "?"} = ₱${perBase.toFixed(2)}/${baseUnit.name}`;
+          return `1 ${unit?.name ?? "?"} = ${perBase.toFixed(2)} ETB/${baseUnit.name}`;
         })
         .join(" · ")
     : "";

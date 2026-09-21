@@ -167,6 +167,8 @@ export interface PurchaseOrdersQuery {
 /** Body for POST /purchase-orders. */
 export interface CreatePurchaseOrderItemInput {
   productId: string;
+  /** Unit the ordered quantity is expressed in; omit to default to the product's base unit. */
+  unitId?: string | null;
   quantityOrdered: number;
   unitCost: number;
   requirementLineId?: string | null;

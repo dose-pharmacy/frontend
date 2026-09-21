@@ -2,27 +2,26 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useSearchParams, useNavigate } from "react-router"
 import {
   getStock,
-  getProductTransactions,
-  getBatchTransactions,
-  getBinCard,
   createOpeningStock,
   createStockAdjustment,
   StockApiError,
   type StockRowDto,
-  type StockTransactionDto,
-  type BinCardResult,
 } from "../../features/inventory/stockApi"
-import { listLocations } from "../../features/inventory/locationsApi"
 import { listProductBatches, type BatchDto } from "../../features/inventory/batchesApi"
-import { getProduct as getProductDetail, listInventoryProducts } from "../../features/inventory/productsApi"
+import { searchProducts, searchLocations } from "../../features/inventory/searchSelectors"
+import { useProductUnits } from "../../features/inventory/useProductUnits"
+import { toBaseQuantity } from "../../features/inventory/unitOptions"
+import { formatFactor } from "../../features/inventory/unitOptions"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
-import Select from "../../components/ui/Select"
 import Pagination from "../../components/ui/Pagination"
 import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import Input from "../../components/ui/Input"
+import SearchableSelect from "../../components/ui/SearchableSelect"
+import type { SearchableOption } from "../../components/ui/SearchableSelect"
+import { useSearchableResource } from "../../hooks/useSearchableResource"
 
 function describeError(err: unknown): string {
   if (err instanceof StockApiError) {
@@ -35,34 +34,6 @@ function describeError(err: unknown): string {
 type Tab = "stock" | "movements"
 
 const PAGE_SIZE = 10
-
-interface ProductOption {
-  id: string
-  name: string
-  baseUnit: string | null
-}
-
-async function fetchProductOptions(): Promise<ProductOption[]> {
-  // GET /inventory/inventory-products returns 422 for oversized limits and
-  // requires `page` — walk the paginated endpoint instead of a single page.
-  const all: ProductOption[] = []
-  const first = await listInventoryProducts({ page: 1, limit: 100 })
-  all.push(...first.data.map(p => ({
-    id: p.id,
-    name: p.name,
-    baseUnit: p.baseUnit?.name ?? null,
-  })))
-  const totalPages = Math.min(first.meta?.totalPages ?? 1, 30)
-  for (let page = 2; page <= totalPages; page++) {
-    const next = await listInventoryProducts({ page, limit: 100 })
-    all.push(...next.data.map(p => ({
-      id: p.id,
-      name: p.name,
-      baseUnit: p.baseUnit?.name ?? null,
-    })))
-  }
-  return all
-}
 
 // ─── Adapted stock row (UI shape from GET /inventory/stock) ───────────────────
 
@@ -118,46 +89,11 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
 }
 
-function fmtDateTime(d: string) {
-  return new Date(d).toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  })
-}
-
-function prettyType(t: string) {
-  if (!t) return ""
-  if (t === t.toUpperCase()) return t.charAt(0) + t.slice(1).toLowerCase()
-  return t.charAt(0).toUpperCase() + t.slice(1)
-}
-
 function StatusLabel({ status }: { status: DerivedStatus }): { label: string; cls: string } {
   return status === "depleted"
     ? { label: "Depleted", cls: "bg-red-100 text-red-700" }
     : { label: "Available", cls: "bg-green-100 text-green-700" }
 }
-
-function TxTypeBadge({ type }: { type: string }) {
-  const map: Record<string, string> = {
-    received:   "bg-green-100 text-green-700",
-    sale:       "bg-blue-100 text-blue-700",
-    transfer:   "bg-purple-100 text-purple-700",
-    adjustment: "bg-orange-100 text-orange-700",
-    opening:    "bg-[#DBEFF3] text-[#49B0C1]",
-    disposal:   "bg-red-100 text-red-700",
-    return:     "bg-yellow-100 text-yellow-700",
-    // API transaction types (StockTransactionDto / bin card)
-    receipt:    "bg-green-100 text-green-700",
-  }
-  return (
-    <span className={`text-xs font-semibold rounded-full px-2 py-0.5 capitalize ${map[type.toLowerCase()] ?? "bg-gray-100 text-gray-600"}`}>
-      {prettyType(type)}
-    </span>
-  )
-}
-
-const IN_TYPES = ["received", "opening", "return"]
-const isInType = (t: string) => IN_TYPES.includes(t.toLowerCase())
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -175,18 +111,15 @@ export default function StockPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [stockLoading, setStockLoading] = useState(true)
   const [stockError, setStockError] = useState<string | null>(null)
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
   const requestSeq = useRef(0)
 
   // modals
   const [addStockOpen, setAddStockOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [stockDetail, setStockDetail] = useState<StockRow | null>(null)
-  const [txDetail, setTxDetail] = useState<TxDetail | null>(null)
 
-  useEffect(() => {
-    listLocations({ limit: 100 }).then(res => setLocations(res.data)).catch(() => {})
-  }, [])
+  const locationsSearch = useSearchableResource(searchLocations)
+  const locationFilterOptions: SearchableOption[] = locationsSearch.options
 
   const loadStock = useCallback(async (searchTerm: string, locId: string, pageNum: number, pId: string) => {
     const seq = ++requestSeq.current
@@ -254,10 +187,22 @@ export default function StockPage() {
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search product, SKU or batch..." />
           <div className="flex flex-wrap gap-3 items-center">
-            <Select value={locationFilter} onChange={(e) => { setLocationFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[150px]">
-              <option value="">All Locations</option>
-              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </Select>
+            <div className="flex-1 min-w-[150px]">
+              <SearchableSelect
+                value={locationFilter || null}
+                onChange={(v) => { setLocationFilter(v); setPage(1) }}
+                options={locationFilterOptions}
+                onSearch={locationsSearch.setTerm}
+                loading={locationsSearch.loading}
+                error={locationsSearch.error}
+                onRetry={locationsSearch.retry}
+                allowClear
+                placeholder="All Locations"
+                searchPlaceholder="Search locations..."
+                emptyMessage="No locations available"
+                noResultsMessage="No locations matching your search"
+              />
+            </div>
             {(search || locationFilter || productIdQuery) && (
               <button onClick={reset} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
                 Reset Filters
@@ -358,195 +303,7 @@ export default function StockPage() {
   )
 }
 
-// ─── Transaction detail (normalized across mock & API shapes) ────────────────
-
-interface TxDetail {
-  id: string
-  type: string
-  direction: "IN" | "OUT"
-  quantity: number
-  balanceAfter: number
-  date: string
-  reference: string
-  notes: string
-  productName: string
-  batchNumber: string
-  locationName: string
-  unitName: string
-  userName: string
-}
-
-
-
-function nameOf(ref: unknown, fallback: string): string {
-  if (ref && typeof ref === "object" && "name" in (ref as Record<string, unknown>)) {
-    const n = (ref as { name?: unknown }).name
-    if (typeof n === "string" && n) return n
-  }
-  return fallback
-}
-
-function adaptApiTransaction(tx: StockTransactionDto): TxDetail {
-  return {
-    id: tx.id,
-    type: tx.transactionType,
-    direction: tx.direction,
-    quantity: tx.quantity,
-    balanceAfter: tx.balanceAfter,
-    date: tx.createdAt,
-    reference: [tx.referenceType, tx.referenceId].filter(Boolean).join(" · ") || "—",
-    notes: tx.notes ?? "",
-    productName: nameOf(tx.product, tx.productId),
-    batchNumber: tx.batchId ? nameOf(tx.batch, "—") : "—",
-    locationName: nameOf(tx.location, tx.locationId),
-    unitName: nameOf(tx.baseUnit, ""),
-    userName: nameOf(tx.createdBy, "—"),
-  }
-}
-
-// ─── Current Stock Tab ────────────────────────────────────────────────────────
-
-function CurrentStockTab({
-  loading, loadError, rows, onRetry, onViewDetail,
-}: {
-  loading: boolean
-  loadError: string | null
-  rows: StockRow[]
-  onRetry: () => void
-  onViewDetail: (row: StockRow) => void
-}) {
-  const [search, setSearch] = useState("")
-  const [locationFilter, setLocationFilter] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [page, setPage] = useState(1)
-
-  const locations = useMemo(() => [...new Set(rows.map((r) => r.locationName).filter((l) => l && l !== "—"))], [rows])
-
-  const filtered = useMemo(() => {
-    let result = rows
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter((r) =>
-        r.productName.toLowerCase().includes(q) ||
-        r.productSku.toLowerCase().includes(q) ||
-        r.batchNumber.toLowerCase().includes(q),
-      )
-    }
-    if (locationFilter) result = result.filter((r) => r.locationName === locationFilter)
-    if (statusFilter) result = result.filter((r) => deriveStatus(r) === statusFilter)
-    return result
-  }, [rows, search, locationFilter, statusFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  const summary = useMemo(() => ({
-    total: rows.reduce((a, r) => a + r.quantity, 0),
-    available: rows.reduce((a, r) => a + r.availableQuantity, 0),
-    reserved: rows.reduce((a, r) => a + r.reservedQuantity, 0),
-    depleted: rows.filter((r) => deriveStatus(r) === "depleted").length,
-  }), [rows])
-
-  function reset() { setSearch(""); setLocationFilter(""); setStatusFilter(""); setPage(1) }
-
-  return (
-    <>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SmallCard label="Total Stock" value={summary.total.toLocaleString()} sub="Base units" />
-        <SmallCard label="Available" value={summary.available.toLocaleString()} sub="Units" accent="text-green-600" />
-        <SmallCard label="Reserved" value={summary.reserved.toLocaleString()} sub="Units" accent="text-orange-600" />
-        <SmallCard label="Depleted" value={summary.depleted} sub="Stock rows" accent="text-red-600" />
-      </div>
-
-      <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
-        <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search product, SKU or batch..." />
-        <div className="flex flex-wrap gap-3 items-center">
-          <Select value={locationFilter} onChange={(e) => { setLocationFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[150px]">
-            <option value="">All Locations</option>
-            {locations.map((l) => <option key={l} value={l}>{l}</option>)}
-          </Select>
-          <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[150px]">
-            <option value="">All Statuses</option>
-            <option value="available">Available</option>
-            <option value="depleted">Depleted</option>
-          </Select>
-          {(search || locationFilter || statusFilter) && (
-            <button onClick={reset} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
-              Reset Filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-        {loadError ? (
-          <div className="p-6">
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3">
-              <span>{loadError}</span>
-              <button onClick={onRetry} className="text-xs font-semibold text-red-700 hover:underline whitespace-nowrap">Retry</button>
-            </div>
-          </div>
-        ) : loading ? <LoadingSkeleton /> : filtered.length === 0 ? (
-          <EmptyState title="No stock records found" description="Adjust your filters or add stock to products." />
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#DBEFF3] text-left">
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Location</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Quantity</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] hidden md:table-cell">Unit</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">Expiry</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Status</th>
-                    <th className="px-4 py-3 font-semibold text-[#333333]">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((r, i) => {
-                    const s = StatusLabel({ status: deriveStatus(r) })
-                    return (
-                      <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-[#333333]">{r.productName}</p>
-                          {r.productSku && <p className="text-xs text-[#999] font-mono">{r.productSku}</p>}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-[#666666]">{r.batchNumber}</td>
-                        <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{r.locationName}</td>
-                        <td className="px-4 py-3 text-right">
-                          <p className="font-bold text-[#333333]">{r.quantity.toLocaleString()}</p>
-                          {r.reservedQuantity > 0 && (
-                            <p className="text-xs text-[#999]">{r.availableQuantity.toLocaleString()} available</p>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{r.unitName ? `${r.unitName}s` : "—"}</td>
-                        <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{fmtDate(r.expiryDate)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold rounded-full px-2.5 py-0.5 ${s.cls}`}>{s.label}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => onViewDetail(r)} className="text-xs font-semibold text-[#49B0C1] hover:underline">View</button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
-              <p className="text-xs text-[#666666]">
-                Showing {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} stock records
-              </p>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  )
-}
+// ─── Stock Detail Modal ───────────────────────────────────────────────────────
 
 function StockDetailModal({
   row, allRows, onClose,
@@ -648,78 +405,6 @@ function BatchDetailView({
   )
 }
 
-// ─── Transaction Detail Modal ─────────────────────────────────────────────────
-
-function TxDetailModal({
-  tx, onClose,
-}: {
-  tx: TxDetail
-  onClose: () => void
-}) {
-  const { direction } = tx
-  const unit = tx.unitName
-  const isIn = direction === "IN"
-
-  return (
-    <Modal open title="Stock Movement" onClose={onClose} size="md">
-      <div className="flex flex-col gap-4">
-        {/* Type + direction */}
-        <div className="flex items-center gap-3">
-          <TxTypeBadge type={tx.type} />
-          <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${isIn ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-            {direction}
-          </span>
-        </div>
-
-        {/* Big quantity box */}
-        <div className={`rounded-xl border p-4 flex items-center justify-between ${isIn ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-          <div>
-            <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide">Movement</p>
-            <p className="text-xs text-[#999] mt-0.5">{direction === "IN" ? "Stock In" : "Stock Out"}</p>
-          </div>
-          <p className={`text-2xl font-bold ${isIn ? "text-green-700" : "text-red-700"}`}>
-            {isIn ? "+" : "−"}{tx.quantity.toLocaleString()} <span className="text-sm font-medium">{unit ? `${unit}s` : ""}</span>
-          </p>
-        </div>
-
-        {/* Transaction info */}
-        <Section title="Transaction Information">
-          <Row label="Transaction ID" value={tx.id} mono />
-          <Row label="Type" value={prettyType(tx.type)} />
-          <Row label="Direction" value={direction} />
-          <Row label="Date" value={fmtDateTime(tx.date)} />
-        </Section>
-
-        {/* Product info */}
-        <Section title="Product Information">
-          <Row label="Product" value={tx.productName} />
-          <Row label="Batch" value={tx.batchNumber} mono />
-          <Row label="Base Unit" value={unit || "—"} />
-        </Section>
-
-        {/* Stock info */}
-        <Section title="Stock Information">
-          <Row label="Location" value={tx.locationName} />
-          <Row label="Quantity" value={`${tx.quantity.toLocaleString()} ${unit ? `${unit}s` : ""}`.trim()} />
-          <Row label="Balance After" value={`${tx.balanceAfter.toLocaleString()} ${unit ? `${unit}s` : ""}`.trim()} />
-        </Section>
-
-        {/* Reference & audit */}
-        <Section title="Reference & Audit">
-          <Row label="Reference" value={tx.reference} mono />
-          {tx.notes && <Row label="Notes" value={tx.notes} />}
-          <Row label="Created By" value={tx.userName} />
-        </Section>
-
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2 justify-end border-t border-[#DBEFF3] pt-4">
-          <Button onClick={onClose}>Close</Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
 // ─── Add Stock Modal (POST /inventory/opening-stock) ──────────────────────────
 
 function AddStockModal({
@@ -729,72 +414,50 @@ function AddStockModal({
   onClose: () => void
   onCreated: () => void
 }) {
-  // Real pickers: products & locations load once; batches & units per product.
-  const [productOptions, setProductOptions] = useState<ProductOption[]>([])
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
-  const [optionsLoading, setOptionsLoading] = useState(false)
-  const [optionsError, setOptionsError] = useState("")
-
   const [productId, setProductId] = useState("")
   const [batchId, setBatchId] = useState("")
   const [batches, setBatches] = useState<BatchDto[]>([])
   const [batchesLoading, setBatchesLoading] = useState(false)
   const [locationId, setLocationId] = useState("")
   const [qty, setQty] = useState("")
-  const [units, setUnits] = useState<{ unitId: string; name: string; isBaseUnit: boolean }[]>([])
   const [unitId, setUnitId] = useState("")
   const [notes, setNotes] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
-  useEffect(() => {
-    if (!open || productOptions.length > 0) return
-    let cancelled = false
-    setOptionsLoading(true)
-    setOptionsError("")
-    Promise.all([fetchProductOptions(), listLocations({ limit: 100 })])
-      .then(([opts, locs]) => {
-        if (cancelled) return
-        setProductOptions(opts)
-        setLocations(
-          locs.data
-            .filter((l: any) => l.isActive)
-            .map((l: any) => ({ id: l.id, name: l.name })),
-        )
-      })
-      .catch((err) => {
-        if (!cancelled) setOptionsError(err instanceof Error ? err.message : "Failed to load form options.")
-      })
-      .finally(() => { if (!cancelled) setOptionsLoading(false) })
-    return () => { cancelled = true }
-  }, [open, productOptions.length])
+  const productSearch = useSearchableResource(searchProducts, open)
+  const locationsSearch = useSearchableResource(searchLocations, open)
+  const unitsApi = useProductUnits(productId)
+
+  const selectedProductOption = productSearch.options.find((o) => o.value === productId) ?? null
+  const productOptions: SearchableOption[] = selectedProductOption
+    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
+    : productSearch.options
+
+  const selectedLocationOption = locationsSearch.options.find((o) => o.value === locationId) ?? null
+  const locationOptions: SearchableOption[] = selectedLocationOption
+    ? [selectedLocationOption, ...locationsSearch.options.filter((o) => o.value !== locationId)]
+    : locationsSearch.options
 
   useEffect(() => {
-    if (!productId) { setBatches([]); setUnits([]); setBatchId(""); setUnitId(""); return }
+    if (!productId) { setBatches([]); setBatchId(""); return }
     let cancelled = false
     setBatchesLoading(true)
-    Promise.all([
-      listProductBatches(productId, { limit: 100 }),
-      getProductDetail(productId),
-    ])
-      .then(([b, p]) => {
-        if (cancelled) return
-        setBatches(b.data)
-        const productUnits = p.units.map((u) => ({
-          unitId: u.unitId,
-          name: u.unit.name,
-          isBaseUnit: u.isBaseUnit,
-        }))
-        setUnits(productUnits)
-        const base = productUnits.find((u) => u.isBaseUnit) ?? productUnits[0]
-        setUnitId(base?.unitId ?? "")
-      })
-      .catch(() => {
-        if (!cancelled) { setBatches([]); setUnits([]) }
-      })
+    listProductBatches(productId, { limit: 100 })
+      .then((b) => { if (!cancelled) setBatches(b.data) })
+      .catch(() => { if (!cancelled) setBatches([]) })
       .finally(() => { if (!cancelled) setBatchesLoading(false) })
     return () => { cancelled = true }
   }, [productId])
+
+  useEffect(() => {
+    if (unitsApi.units.length === 0) { setUnitId(""); return }
+    const current = unitsApi.units.find((u) => u.unitId === unitId)
+    if (!current) {
+      const base = unitsApi.units.find((u) => u.isBaseUnit) ?? unitsApi.units[0]
+      setUnitId(base?.unitId ?? "")
+    }
+  }, [unitsApi.units, unitId])
 
   async function handleSubmit() {
     if (!productId || !batchId || !locationId || !qty) return
@@ -820,28 +483,33 @@ function AddStockModal({
     }
   }
 
-  const selectedProduct = productOptions.find((p) => p.id === productId)
+  const selectedUnit = unitsApi.units.find((u) => u.unitId === unitId)
+  const basePreview = toBaseQuantity(parseInt(qty) || 0, selectedUnit)
+  const baseLabel = basePreview !== null && unitsApi.baseUnit ? basePreview.toLocaleString() + " " + (unitsApi.baseUnit.name ?? "") : ""
 
   return (
     <Modal open={open} title="Add Opening Stock" onClose={onClose} size="md">
       <p className="text-sm text-[#666666] -mt-2 mb-4">Add stock already physically available in the pharmacy.</p>
       <div className="flex flex-col gap-4">
-        {(error || optionsError) && (
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error || optionsError}</p>
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
         )}
 
-        <div>
-          <label className="text-sm font-medium text-[#333333] block mb-1.5">Product</label>
-          <select
-            value={productId}
-            onChange={(e) => { setProductId(e.target.value); setBatchId("") }}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
-            disabled={optionsLoading}
-          >
-            <option value="">{optionsLoading ? "Loading products..." : "Select product..."}</option>
-            {productOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
+        <SearchableSelect
+          label="Product"
+          value={productId || null}
+          onChange={(v) => { setProductId(v); setBatchId("") }}
+          options={productOptions}
+          onSearch={productSearch.setTerm}
+          loading={productSearch.loading}
+          error={productSearch.error}
+          onRetry={productSearch.retry}
+          placeholder="Search and select a product..."
+          searchPlaceholder="Search by name or SKU..."
+          emptyMessage="No products found"
+          noResultsMessage="No products matching your search"
+        />
+
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Batch</label>
           <select
@@ -858,18 +526,22 @@ function AddStockModal({
             ))}
           </select>
         </div>
-        <div>
-          <label className="text-sm font-medium text-[#333333] block mb-1.5">Location</label>
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
-            disabled={optionsLoading}
-          >
-            <option value="">{optionsLoading ? "Loading locations..." : "Select location..."}</option>
-            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-        </div>
+
+        <SearchableSelect
+          label="Location"
+          value={locationId || null}
+          onChange={(v) => setLocationId(v)}
+          options={locationOptions}
+          onSearch={locationsSearch.setTerm}
+          loading={locationsSearch.loading}
+          error={locationsSearch.error}
+          onRetry={locationsSearch.retry}
+          placeholder="Search and select a location..."
+          searchPlaceholder="Search locations..."
+          emptyMessage="No locations found"
+          noResultsMessage="No locations matching your search"
+        />
+
         <div className="grid grid-cols-2 gap-3">
           <Input label="Quantity" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" />
           <div>
@@ -878,22 +550,22 @@ function AddStockModal({
               value={unitId}
               onChange={(e) => setUnitId(e.target.value)}
               className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
-              disabled={!productId || units.length === 0}
+              disabled={!productId || unitsApi.units.length === 0}
             >
-              {units.length === 0 ? (
+              {unitsApi.units.length === 0 ? (
                 <option value="">{productId ? "No units configured" : "Select product first"}</option>
               ) : (
-                units.map((u) => (
+                unitsApi.units.map((u) => (
                   <option key={u.unitId} value={u.unitId}>
-                    {u.name}{u.isBaseUnit ? " (base)" : ""}
+                    {u.unit.name}{u.isBaseUnit ? " (base)" : ""}
                   </option>
                 ))
               )}
             </select>
           </div>
         </div>
-        {selectedProduct && (
-          <p className="text-xs text-[#999]">Base unit for {selectedProduct.name}: {selectedProduct.baseUnit || "—"}</p>
+        {baseLabel && qty && unitsApi.baseUnit && selectedUnit && !selectedUnit.isBaseUnit && (
+          <p className="text-xs text-[#999]">= {baseLabel}</p>
         )}
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Notes</label>
@@ -921,62 +593,56 @@ function AdjustStockModal({
   const [batchId, setBatchId] = useState("")
   const [batches, setBatches] = useState<BatchDto[]>([])
   const [batchesLoading, setBatchesLoading] = useState(false)
-  const [units, setUnits] = useState<{ unitId: string; name: string; isBaseUnit: boolean }[]>([])
   const [unitId, setUnitId] = useState("")
   const [locationId, setLocationId] = useState("")
   const [adjustment, setAdjustment] = useState("")
   const [reason, setReason] = useState("")
   const [notes, setNotes] = useState("")
 
-  const [productOptions, setProductOptions] = useState<ProductOption[]>([])
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
-  const [optionsLoading, setOptionsLoading] = useState(false)
-
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
-  useEffect(() => {
-    if (!open || productOptions.length > 0) return
-    setOptionsLoading(true)
-    Promise.all([fetchProductOptions(), listLocations({ limit: 100 })])
-      .then(([opts, locs]) => {
-        setProductOptions(opts)
-        setLocations(locs.data.filter((l: any) => l.isActive).map((l: any) => ({ id: l.id, name: l.name })))
-      })
-      .catch(() => {})
-      .finally(() => setOptionsLoading(false))
-  }, [open, productOptions.length])
+  const productSearch = useSearchableResource(searchProducts, open)
+  const locationsSearch = useSearchableResource(searchLocations, open)
+  const unitsApi = useProductUnits(productId)
+
+  const selectedProductOption = productSearch.options.find((o) => o.value === productId) ?? null
+  const productOptions: SearchableOption[] = selectedProductOption
+    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
+    : productSearch.options
+
+  const selectedLocationOption = locationsSearch.options.find((o) => o.value === locationId) ?? null
+  const locationOptions: SearchableOption[] = selectedLocationOption
+    ? [selectedLocationOption, ...locationsSearch.options.filter((o) => o.value !== locationId)]
+    : locationsSearch.options
 
   useEffect(() => {
-    if (!productId) { setBatches([]); setBatchId(""); setUnits([]); setUnitId(""); return }
+    if (!productId) { setBatches([]); setBatchId(""); return }
     let cancelled = false
     setBatchesLoading(true)
-    Promise.all([
-      listProductBatches(productId, { limit: 100 }),
-      getProductDetail(productId),
-    ])
-      .then(([b, p]) => {
-        if (cancelled) return
-        setBatches(b.data)
-        const productUnits = p.units.map((u) => ({
-          unitId: u.unitId,
-          name: u.unit.name,
-          isBaseUnit: u.isBaseUnit,
-        }))
-        setUnits(productUnits)
-        const base = productUnits.find((u) => u.isBaseUnit) ?? productUnits[0]
-        setUnitId(base?.unitId ?? "")
-      })
-      .catch(() => { if (!cancelled) { setBatches([]); setUnits([]) } })
+    listProductBatches(productId, { limit: 100 })
+      .then((b) => { if (!cancelled) setBatches(b.data) })
+      .catch(() => { if (!cancelled) setBatches([]) })
       .finally(() => { if (!cancelled) setBatchesLoading(false) })
     return () => { cancelled = true }
   }, [productId])
 
+  useEffect(() => {
+    if (unitsApi.units.length === 0) { setUnitId(""); return }
+    const current = unitsApi.units.find((u) => u.unitId === unitId)
+    if (!current) {
+      const base = unitsApi.units.find((u) => u.isBaseUnit) ?? unitsApi.units[0]
+      setUnitId(base?.unitId ?? "")
+    }
+  }, [unitsApi.units, unitId])
+
   const selectedBatch = batches.find((b) => b.id === batchId)
-  const product = productOptions.find((p) => p.id === productId)
   const currentStock = selectedBatch?.totalQuantity ?? 0
   const adjNum = parseInt(adjustment) || 0
   const newStock = Math.max(0, currentStock + adjNum)
+  const selectedUnit = unitsApi.units.find((u) => u.unitId === unitId)
+  const baseAdjPreview = toBaseQuantity(Math.abs(adjNum), selectedUnit)
+  const baseAdjLabel = baseAdjPreview !== null && unitsApi.baseUnit ? baseAdjPreview.toLocaleString() + " " + (unitsApi.baseUnit.name ?? "") : ""
 
   function reset() {
     setProductId(""); setBatchId(""); setLocationId(""); setAdjustment("")
@@ -1017,18 +683,20 @@ function AdjustStockModal({
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
         )}
 
-        <div>
-          <label className="text-sm font-medium text-[#333333] block mb-1.5">Product</label>
-          <select
-            value={productId}
-            onChange={(e) => { setProductId(e.target.value); setBatchId("") }}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
-            disabled={optionsLoading}
-          >
-            <option value="">{optionsLoading ? "Loading products..." : "Select product..."}</option>
-            {productOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
+        <SearchableSelect
+          label="Product"
+          value={productId || null}
+          onChange={(v) => { setProductId(v); setBatchId("") }}
+          options={productOptions}
+          onSearch={productSearch.setTerm}
+          loading={productSearch.loading}
+          error={productSearch.error}
+          onRetry={productSearch.retry}
+          placeholder="Search and select a product..."
+          searchPlaceholder="Search by name or SKU..."
+          emptyMessage="No products found"
+          noResultsMessage="No products matching your search"
+        />
 
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Batch</label>
@@ -1043,23 +711,25 @@ function AdjustStockModal({
           </select>
         </div>
 
-        <div>
-          <label className="text-sm font-medium text-[#333333] block mb-1.5">Location</label>
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
-            disabled={optionsLoading}
-          >
-            <option value="">Select location...</option>
-            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-        </div>
+        <SearchableSelect
+          label="Location"
+          value={locationId || null}
+          onChange={(v) => setLocationId(v)}
+          options={locationOptions}
+          onSearch={locationsSearch.setTerm}
+          loading={locationsSearch.loading}
+          error={locationsSearch.error}
+          onRetry={locationsSearch.retry}
+          placeholder="Search and select a location..."
+          searchPlaceholder="Search locations..."
+          emptyMessage="No locations found"
+          noResultsMessage="No locations matching your search"
+        />
 
         {selectedBatch && (
           <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 flex items-center justify-between">
             <span className="text-sm text-[#666666]">Current Stock</span>
-            <span className="text-sm font-bold text-[#333333]">{currentStock.toLocaleString()} {product?.baseUnit ? `${product.baseUnit}s` : ""}</span>
+            <span className="text-sm font-bold text-[#333333]">{currentStock.toLocaleString()} {selectedUnit ? selectedUnit.unit.name : ""}</span>
           </div>
         )}
 
@@ -1077,14 +747,14 @@ function AdjustStockModal({
               value={unitId}
               onChange={(e) => setUnitId(e.target.value)}
               className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
-              disabled={!productId || units.length === 0}
+              disabled={!productId || unitsApi.units.length === 0}
             >
-              {units.length === 0 ? (
+              {unitsApi.units.length === 0 ? (
                 <option value="">{productId ? "No units configured" : "Select product first"}</option>
               ) : (
-                units.map((u) => (
+                unitsApi.units.map((u) => (
                   <option key={u.unitId} value={u.unitId}>
-                    {u.name}{u.isBaseUnit ? " (base)" : ""}
+                    {u.unit.name}{u.isBaseUnit ? " (base)" : ""}
                   </option>
                 ))
               )}
@@ -1092,10 +762,14 @@ function AdjustStockModal({
           </div>
         </div>
 
+        {adjustment && baseAdjLabel && selectedUnit && !selectedUnit.isBaseUnit && (
+          <p className="text-xs text-[#999]">Adjustment = {baseAdjLabel}</p>
+        )}
+
         {adjustment && selectedBatch && (
           <div className={`rounded-xl px-4 py-3 flex items-center justify-between ${adjNum >= 0 ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
             <span className="text-sm text-[#666666]">New Stock</span>
-            <span className={`text-sm font-bold ${adjNum >= 0 ? "text-green-700" : "text-red-700"}`}>{newStock.toLocaleString()} {product?.baseUnit ? `${product.baseUnit}s` : ""}</span>
+            <span className={`text-sm font-bold ${adjNum >= 0 ? "text-green-700" : "text-red-700"}`}>{newStock.toLocaleString()} {selectedUnit ? selectedUnit.unit.name : ""}</span>
           </div>
         )}
 
@@ -1140,16 +814,6 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
     <div className="flex items-center justify-between px-4 py-2.5">
       <span className="text-xs text-[#999]">{label}</span>
       <span className={`text-sm font-medium text-[#333333] ${mono ? "font-mono" : ""}`}>{value}</span>
-    </div>
-  )
-}
-
-function SmallCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
-      <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${accent ?? "text-[#333333]"}`}>{value}</p>
-      {sub && <p className="text-xs text-[#999] mt-0.5">{sub}</p>}
     </div>
   )
 }

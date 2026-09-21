@@ -1,7 +1,7 @@
 export type POSStockStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export interface POSUnit {
-  id: string;      // ProductUnit row ID — used as unitId when creating a sale
+  id: string;      // master Unit ID used as `unitId` when creating a sale
   unitId: string;  // master Unit ID
   name: string;
   price: number;

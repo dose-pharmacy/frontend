@@ -10,6 +10,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { cacheRead, invalidateCache, invalidateCachePrefix } from "./apiCache";
 
 // ─── Types (mirror the backend response shapes) ──────────────────────────────
 
@@ -152,8 +153,10 @@ export async function listUnits(query: UnitsQuery = {}): Promise<UnitListResult>
   if (query.isActive != null) params.set("isActive", String(query.isActive));
 
   const qs = params.toString();
-  const result = await unitsRequest<UnitListResult>(qs ? `?${qs}` : "");
-  return result ?? { data: [], meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } };
+  // Reference list used by unit pickers and the units page — cache briefly;
+  // invalidated by the unit mutations below.
+  return cacheRead(`units:${qs}`, () => unitsRequest<UnitListResult>(qs ? `?${qs}` : ""))
+    .then((result) => result ?? { data: [], meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } });
 }
 
 /** POST /inventory/units — create a new unit. */
@@ -167,6 +170,8 @@ export async function createUnit(input: UnitInput): Promise<UnitDto> {
       isActive: input.isActive ?? true,
     }),
   });
+  invalidateCachePrefix("units:");
+  if (result?.data) invalidateCache(`unit:${result.data.id}`);
   return result.data;
 }
 
@@ -190,6 +195,8 @@ export async function updateUnit(id: string, input: Partial<UnitInput>): Promise
     `/${encodeURIComponent(id)}`,
     { method: "PATCH", body: JSON.stringify(body) },
   );
+  invalidateCachePrefix("units:");
+  invalidateCache(`unit:${id}`);
   return result.data;
 }
 
@@ -200,4 +207,6 @@ export async function updateUnit(id: string, input: Partial<UnitInput>): Promise
  */
 export async function deactivateUnit(id: string): Promise<void> {
   await unitsRequest<null>(`/${encodeURIComponent(id)}`, { method: "DELETE" });
+  invalidateCachePrefix("units:");
+  invalidateCache(`unit:${id}`);
 }

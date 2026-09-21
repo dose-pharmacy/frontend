@@ -5,10 +5,15 @@ import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POIte
 import { createGoodsReceipt, type CreateGoodsReceiptInput, GoodsReceiptsApiError } from "../../features/purchasing/goodsReceiptsApi";
 import { listLocations, type LocationDto } from "../../features/inventory/locationsApi";
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
+import SearchableSelect, { type SearchableOption } from "../../components/ui/SearchableSelect";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
+import { searchSuppliers } from "../../features/inventory/searchSelectors";
 
 interface GRItemRow {
   purchaseOrderItemId: string;
   productName: string;
+  /** Unit the PO quantities are expressed in (blank = base unit). */
+  unitLabel: string;
   quantityOrdered: number;
   quantityReceived: number;
   quantityShort: number;
@@ -32,6 +37,7 @@ export default function DeliveryRegistrationPage() {
   const [selectedPoId, setSelectedPoId] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
+  const supplierSearch = useSearchableResource(searchSuppliers, true);
   const [selectedPo, setSelectedPo] = useState<PurchaseOrderDto | null>(null);
   const [poLoading, setPoLoading] = useState(false);
   const [locations, setLocations] = useState<LocationDto[]>([]);
@@ -90,6 +96,7 @@ export default function DeliveryRegistrationPage() {
           return {
             purchaseOrderItemId: item.id,
             productName: (item as any).product?.name ?? `Product (${item.productId.slice(0, 8)})`,
+            unitLabel: item.unit?.name ?? "",
             quantityOrdered: ordered,
             quantityReceived: received,
             quantityShort: short,
@@ -116,6 +123,11 @@ export default function DeliveryRegistrationPage() {
   }
 
   const hasDiscrepancy = items.some((item) => item.actualQty !== item.deliveredQty);
+
+  const supplierFilterOptions: SearchableOption[] = [
+    ...suppliers.map((s) => ({ value: s.id, label: s.name, sub: s.contactPerson ?? (s.email ?? undefined) })),
+    ...supplierSearch.options.filter((o) => !suppliers.some((s) => s.id === o.value)),
+  ];
 
   async function handleSubmit() {
     if (!selectedPoId) {
@@ -190,16 +202,20 @@ export default function DeliveryRegistrationPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Supplier</label>
-                <select
-                  value={supplierFilter}
-                  onChange={(e) => { setSupplierFilter(e.target.value); setSelectedPoId(""); setSelectedPo(null); setItems([]); }}
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
-                >
-                  <option value="">All Suppliers</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={supplierFilter || null}
+                  onChange={(v) => { setSupplierFilter(v); setSelectedPoId(""); setSelectedPo(null); setItems([]); }}
+                  options={supplierFilterOptions}
+                  onSearch={supplierSearch.setTerm}
+                  loading={supplierSearch.loading}
+                  error={supplierSearch.error}
+                  onRetry={supplierSearch.retry}
+                  allowClear
+                  placeholder="All Suppliers"
+                  searchPlaceholder="Search by name, contact or email..."
+                  emptyMessage="No suppliers available"
+                  noResultsMessage="No suppliers matching your search"
+                />
               </div>
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
@@ -261,8 +277,14 @@ export default function DeliveryRegistrationPage() {
                       <tr key={item.purchaseOrderItemId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
                         <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                         <td className="px-3 py-2.5 font-medium text-[#333333]">{item.productName}</td>
-                        <td className="px-3 py-2.5 text-[#333333] font-semibold">{item.quantityOrdered}</td>
-                        <td className="px-3 py-2.5 text-[#666666]">{item.quantityReceived}</td>
+                        <td className="px-3 py-2.5 text-[#333333] font-semibold">
+                          {item.quantityOrdered}
+                          {item.unitLabel && <span className="ml-1 text-xs font-normal text-[#999]">{item.unitLabel}</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-[#666666]">
+                          {item.quantityReceived}
+                          {item.unitLabel && <span className="ml-1 text-xs font-normal text-[#999]">{item.unitLabel}</span>}
+                        </td>
                         <td className="px-3 py-2.5">
                           <select
                             value={item.locationId}
@@ -273,10 +295,16 @@ export default function DeliveryRegistrationPage() {
                           </select>
                         </td>
                         <td className="px-3 py-2.5">
-                          <input type="number" min={0} value={item.deliveredQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "deliveredQty", Number(e.target.value))} className="w-16 rounded border border-[#ABDBE3] bg-white px-2 py-1 text-sm focus:outline-none" />
+                          <div className="flex items-center gap-1">
+                            <input type="number" min={0} value={item.deliveredQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "deliveredQty", Number(e.target.value))} className="w-16 rounded border border-[#ABDBE3] bg-white px-2 py-1 text-sm focus:outline-none" />
+                            {item.unitLabel && <span className="text-[10px] text-[#999] whitespace-nowrap">{item.unitLabel}</span>}
+                          </div>
                         </td>
                         <td className="px-3 py-2.5">
-                          <input type="number" min={0} value={item.actualQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "actualQty", Number(e.target.value))} className={`w-16 rounded border px-2 py-1 text-sm focus:outline-none ${isDiscrepancy ? "border-red-300 bg-red-50" : "border-[#ABDBE3] bg-white"}`} />
+                          <div className="flex items-center gap-1">
+                            <input type="number" min={0} value={item.actualQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "actualQty", Number(e.target.value))} className={`w-16 rounded border px-2 py-1 text-sm focus:outline-none ${isDiscrepancy ? "border-red-300 bg-red-50" : "border-[#ABDBE3] bg-white"}`} />
+                            {item.unitLabel && <span className="text-[10px] text-[#999] whitespace-nowrap">{item.unitLabel}</span>}
+                          </div>
                         </td>
                         <td className="px-3 py-2.5">
                           <input value={item.batchNumber} onChange={(e) => updateItem(item.purchaseOrderItemId, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-[#ABDBE3] bg-white px-2 py-1 text-xs focus:outline-none" />

@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { getBinCard, type BinCardResult } from "../../features/inventory/stockApi";
-import { fetchProductOptions, type ProductOption } from "../../features/inventory/inventoryService";
 import { listLocations } from "../../features/inventory/locationsApi";
 import { listProductBatches, type BatchDto } from "../../features/inventory/batchesApi";
+import { searchProducts, searchLocations } from "../../features/inventory/searchSelectors";
+import { useProductUnits } from "../../features/inventory/useProductUnits";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
+import SearchableSelect from "../../components/ui/SearchableSelect";
+import type { SearchableOption } from "../../components/ui/SearchableSelect";
 import PageHeader from "../../components/ui/PageHeader";
 import Select from "../../components/ui/Select";
 import Button from "../../components/ui/Button";
@@ -22,20 +26,29 @@ function fmtDateTime(d: string) {
 
 function prettyType(t: string) {
   if (!t) return "";
-  if (t === t.toUpperCase()) return t.charAt(0) + t.slice(1).toLowerCase();
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  const spaced = t.replace(/_/g, " ");
+  if (spaced === spaced.toUpperCase()) return spaced.charAt(0) + spaced.slice(1).toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function TxTypeBadge({ type }: { type: string }) {
+  // Keys match the backend StockTransactionType enum (lowercased).
   const map: Record<string, string> = {
-    received:   "bg-green-100 text-green-700",
-    sale:       "bg-blue-100 text-blue-700",
-    transfer:   "bg-purple-100 text-purple-700",
-    adjustment: "bg-orange-100 text-orange-700",
-    opening:    "bg-[#DBEFF3] text-[#49B0C1]",
-    disposal:   "bg-red-100 text-red-700",
-    return:     "bg-yellow-100 text-yellow-700",
-    closing:    "bg-gray-100 text-gray-600",
+    opening:           "bg-[#DBEFF3] text-[#49B0C1]",
+    purchase:          "bg-green-100 text-green-700",
+    sale:              "bg-blue-100 text-blue-700",
+    transfer_in:       "bg-purple-100 text-purple-700",
+    transfer_out:      "bg-purple-100 text-purple-700",
+    adjustment_in:     "bg-orange-100 text-orange-700",
+    adjustment_out:    "bg-orange-100 text-orange-700",
+    return_in:         "bg-yellow-100 text-yellow-700",
+    return_out:        "bg-yellow-100 text-yellow-700",
+    return_to_supplier:"bg-yellow-100 text-yellow-700",
+    expiry:            "bg-amber-100 text-amber-700",
+    disposal:          "bg-red-100 text-red-700",
+    correction:        "bg-slate-200 text-slate-700",
+    clearance_sale:    "bg-cyan-100 text-cyan-700",
+    closing:           "bg-gray-100 text-gray-600",
   };
   return (
     <span className={`text-xs font-semibold rounded-full px-2 py-0.5 capitalize ${map[type.toLowerCase()] ?? "bg-gray-100 text-gray-600"}`}>
@@ -50,7 +63,6 @@ export default function BinCardPage() {
   const initBatchId = params.get("batchId") || "";
   const initLocationId = params.get("locationId") || "";
 
-  const [products, setProducts] = useState<ProductOption[]>([]);
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
   const [batches, setBatches] = useState<BatchDto[]>([]);
 
@@ -67,14 +79,27 @@ export default function BinCardPage() {
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
+  const productSearch = useSearchableResource(searchProducts);
+  const unitsProd = useProductUnits(initProductId || productId);
+
+  const selectedProductOption = productSearch.options.find((o) => o.value === productId)
+    ?? (unitsProd.product && productId === unitsProd.product?.id
+      ? { value: unitsProd.product.id, label: unitsProd.product.name }
+      : null)
+  const productOptions: SearchableOption[] = selectedProductOption
+    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
+    : productSearch.options
+
+  const locationSearch = useSearchableResource(searchLocations);
+  const locationOptions: SearchableOption[] = [
+    ...locations.map((l) => ({ value: l.id, label: l.name })),
+    ...locationSearch.options.filter((o) => !locations.some((l) => l.id === o.value)),
+  ]
+
   useEffect(() => {
-    Promise.all([
-      fetchProductOptions(),
-      listLocations({ limit: 100 }),
-    ]).then(([p, l]) => {
-      setProducts(p);
-      setLocations(l.data.filter((x) => x.isActive).map((x) => ({ id: x.id, name: x.name })));
-    }).catch(() => {});
+    listLocations({ limit: 100 })
+      .then((res) => setLocations(res.data.filter((x) => x.isActive).map((x) => ({ id: x.id, name: x.name }))))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -121,10 +146,10 @@ export default function BinCardPage() {
     [tx],
   );
 
-  const selectedProduct = products.find((p) => p.id === productId);
+  const selectedProduct = unitsProd.product ?? (selectedProductOption ? { name: selectedProductOption.label } : null);
   const selectedLocation = locations.find((l) => l.id === locationId);
   const selectedBatch = batches.find((b) => b.id === batchId);
-  const unit = card?.baseUnit?.name || selectedProduct?.baseUnit || "";
+  const unit = card?.baseUnit?.name || unitsProd.product?.baseUnit?.name || "";
   const unitLabel = unit ? `${unit}s` : "";
 
   function handleExportCSV() {
@@ -168,14 +193,38 @@ export default function BinCardPage() {
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-4">
           <p className="text-sm font-semibold text-[#333333]">Bin Card Selection</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Select label="Product *" value={productId} onChange={(e) => { setProductId(e.target.value); setBatchId(""); setPage(1); setParams({}); }}>
-              <option value="">Select Product...</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </Select>
-            <Select label="Location *" value={locationId} onChange={(e) => { setLocationId(e.target.value); setPage(1); setParams({}); }}>
-              <option value="">Select Location...</option>
-              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#666666]">Product *</label>
+              <SearchableSelect
+                value={productId || null}
+                onChange={(v) => { setProductId(v); setBatchId(""); setPage(1); setParams({}); }}
+                options={productOptions}
+                onSearch={productSearch.setTerm}
+                loading={productSearch.loading}
+                error={productSearch.error}
+                onRetry={productSearch.retry}
+                placeholder="Search and select a product..."
+                searchPlaceholder="Search by name or SKU..."
+                emptyMessage="No products found"
+                noResultsMessage="No products matching your search"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-[#666666]">Location *</label>
+              <SearchableSelect
+                value={locationId || null}
+                onChange={(v) => { setLocationId(v); setPage(1); setParams({}); }}
+                options={locationOptions}
+                onSearch={locationSearch.setTerm}
+                loading={locationSearch.loading}
+                error={locationSearch.error}
+                onRetry={locationSearch.retry}
+                placeholder="Search and select a location..."
+                searchPlaceholder="Search locations..."
+                emptyMessage="No locations found"
+                noResultsMessage="No locations matching your search"
+              />
+            </div>
             <Select label="Batch" value={batchId} onChange={(e) => { setBatchId(e.target.value); setPage(1); setParams({}); }} disabled={!productId}>
               <option value="">All Batches</option>
               {batches.map((b) => <option key={b.id} value={b.id}>{b.batchNumber}</option>)}

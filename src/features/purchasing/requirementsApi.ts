@@ -76,6 +76,9 @@ export interface RequirementLineDto {
   id: string;
   requirementId: string;
   productId: string;
+  /** Unit `requiredQuantity`/`quantityNeeded` are expressed in; null = base unit. */
+  unitId: string | null;
+  unit: { id: string; name: string; symbol: string } | null;
   requiredQuantity: number;
   quantityNeeded: number;
   quantityOrdered: number;
@@ -146,6 +149,8 @@ export interface RequirementsQuery {
 /** Body for POST /requirements — requires at least one line, no duplicate products. */
 export interface CreateRequirementLineInput {
   productId: string;
+  /** Unit the quantity is expressed in; omit to default to the product's base unit. */
+  unitId?: string | null;
   quantityNeeded: number;
   reasonCode?: RequirementReasonCode | null;
   notes?: string | null;
@@ -173,6 +178,8 @@ export type CreateRequirementLineBody = CreateRequirementLineInput;
  */
 export interface UpdateRequirementLineInput {
   quantityNeeded?: number;
+  /** Changing the unit recomputes the base quantity. */
+  unitId?: string | null;
   reasonCode?: RequirementReasonCode | null;
   notes?: string | null;
 }

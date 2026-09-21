@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
+import Button from "../../components/ui/Button";
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
 import {
   createPurchaseReturn,
   listPurchaseReturns,
@@ -64,6 +66,7 @@ export default function PurchaseReturnPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const loadReturns = useCallback(async () => {
     setReturnsLoading(true);
@@ -137,7 +140,7 @@ export default function PurchaseReturnPage() {
   const parsedUnitCost = parseFloat(unitCost) || 0;
   const parsedDebit = parseFloat(debitNoteAmount) || 0;
   const estimatedValue = Number(quantity) * parsedUnitCost;
-  const batchQuantityUsed = batchId && parsedUnitCost === 0;
+  const selectedLocation = locations.find((l) => l.id === locationId) ?? null;
 
   const canSubmit =
     !!supplierId &&
@@ -146,6 +149,27 @@ export default function PurchaseReturnPage() {
     quantity > 0 &&
     parsedUnitCost > 0 &&
     (!batchId || getAvailableStock(batchId) >= quantity);
+
+  function confirmAndSubmit() {
+    if (!supplierId || !productId || !locationId) {
+      setError("Supplier, Product and Location are required.");
+      return;
+    }
+    if (quantity <= 0 || parsedUnitCost <= 0) {
+      setError("Quantity and Unit Cost must be greater than zero.");
+      return;
+    }
+    if (batchId) {
+      const available = getAvailableStock(batchId);
+      if (quantity > available) {
+        setError(`Insufficient stock for the selected batch. Available: ${available}, Requested: ${quantity}`);
+        return;
+      }
+    }
+    setError("");
+    setSuccess("");
+    setConfirmOpen(true);
+  }
 
   async function handleSubmit() {
     if (!supplierId || !productId || !locationId) {
@@ -183,6 +207,7 @@ export default function PurchaseReturnPage() {
       });
       setSuccess("Purchase return recorded successfully.");
       setShowForm(false);
+      setConfirmOpen(false);
       setSupplierId("");
       setProductId("");
       setBatchId("");
@@ -312,13 +337,11 @@ export default function PurchaseReturnPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Quantity *</label>
+                  <label className="block text-sm text-[#666666] mb-1">Quantity (base units) *</label>
                   <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">
-                    Unit Cost * <span className="text-xs font-normal">(defaults to the batch cost when left empty)</span>
-                  </label>
+                  <label className="block text-sm text-[#666666] mb-1">Unit Cost *</label>
                   <input type="number" min={0.01} step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0.00" className={inputClass} />
                 </div>
                 <div>
@@ -339,19 +362,17 @@ export default function PurchaseReturnPage() {
               )}
 
               <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[#DBEFF3]">
-                <button onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmit}
+                <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button
+                  onClick={confirmAndSubmit}
                   disabled={saving || !canSubmit}
-                  title={!canSubmit ? "Select a supplier, product and location, and enter a quantity and unit cost greater than zero." : undefined}
-                  className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saving ? "Recording…" : "Record Return"}
-                </button>
-                {batchQuantityUsed && !saving && canSubmit && (
-                  <span className="text-xs text-[#666666]">Unit cost will be taken from the selected batch.</span>
+                </Button>
+                {canSubmit && !saving && (
+                  <span className="text-xs text-[#666666]">
+                    Recording a return deducts {quantity} from stock immediately and cannot be undone.
+                  </span>
                 )}
               </div>
             </div>
@@ -418,6 +439,18 @@ export default function PurchaseReturnPage() {
           </div>
         </div>
       </div>
+
+      {/* Stock-impact confirmation */}
+      <ConfirmationDialog
+        open={confirmOpen}
+        title="Confirm Purchase Return?"
+        message={`Return ${quantity} × ${selectedProduct?.name ?? "product"} to ${selectedBatch ? `batch ${selectedBatch.batchNumber} · ` : ""}${suppliers.find((s) => s.id === supplierId)?.name ?? "supplier"}. This will permanently reduce stock at ${selectedLocation?.name ?? "the selected location"} by ${quantity} base units — the movement is recorded in the stock ledger and cannot be reversed.`}
+        confirmLabel="Record Return"
+        danger
+        loading={saving}
+        onConfirm={() => void handleSubmit()}
+        onCancel={() => { setConfirmOpen(false); setError(""); }}
+      />
     </div>
   );
 }

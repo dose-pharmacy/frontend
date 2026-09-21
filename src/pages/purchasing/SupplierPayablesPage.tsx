@@ -693,7 +693,8 @@ export default function SupplierPayablesPage() {
 
         <div className="px-4 sm:px-6 py-4">
           <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="bg-[#ABDBE3]">
                   {[
@@ -862,6 +863,7 @@ export default function SupplierPayablesPage() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Pagination */}

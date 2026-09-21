@@ -25,6 +25,12 @@ import {
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
 import { getReorderSuggestions } from "../../features/inventory/reorderApi"
+import SearchableSelect, { type SearchableOption } from "../../components/ui/SearchableSelect"
+import { useSearchableResource } from "../../hooks/useSearchableResource"
+import { searchProducts } from "../../features/inventory/searchSelectors"
+import { useProductUnits } from "../../features/inventory/useProductUnits"
+import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions"
+import type { CreateRequirementLineInput } from "../../features/purchasing/requirementsApi"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,8 +40,13 @@ type LineReason = "Low Stock" | "Reorder Alert" | "Manual" | ""
 
 interface RequirementLine {
   id: string
+  productId: string
   product: string
   sku: string
+  /** Unit the required quantity is expressed in (null = base unit). */
+  unitId: string | null
+  /** Display label for the line unit (empty when base unit). */
+  unitName: string
   quantityNeeded: number
   quantityOrdered: number
   quantityDelivered: number
@@ -86,8 +97,11 @@ function reasonCode(reason: LineReason): string | null {
 function mapLine(l: RequirementLineDto): RequirementLine {
   return {
     id: l.id,
+    productId: l.productId,
     product: l.product?.name ?? "Unknown product",
     sku: l.product?.sku ?? "",
+    unitId: l.unitId,
+    unitName: l.unit?.name ?? "",
     quantityNeeded: l.quantityNeeded,
     quantityOrdered: l.quantityOrdered,
     quantityDelivered: l.quantityDelivered,
@@ -566,6 +580,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
     void runAction(
       () => updateRequirementLine(updated.id, {
         quantityNeeded: updated.quantityNeeded,
+        unitId: updated.unitId ?? undefined,
         reasonCode: reasonCode(updated.reason),
         notes: updated.notes || null,
       }),
@@ -706,7 +721,10 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                         {line.hasPo && <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5 align-middle">PO LINKED</span>}
                       </td>
                       <td className="px-4 py-3 text-[#666666] font-mono text-xs">{line.sku || "—"}</td>
-                      <td className="px-4 py-3 text-right font-bold text-[#333333]">{line.quantityNeeded}</td>
+                      <td className="px-4 py-3 text-right font-bold text-[#333333]">
+                        {line.quantityNeeded}
+                        {line.unitName && <span className="ml-1 text-xs font-normal text-[#999]">{line.unitName}</span>}
+                      </td>
                       <td className="px-4 py-3 text-right text-[#333333]">{line.quantityOrdered}</td>
                       <td className="px-4 py-3 text-right font-medium text-[#49B0C1]">{line.quantityRemaining}</td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">{line.quantityDelivered}</td>
@@ -1133,32 +1151,52 @@ function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
   open: boolean
   existingProductIds: string[]
   onClose: () => void
-  onAdd: (input: { productId: string; quantityNeeded: number; reasonCode: string | null; notes: string | null }) => void
+  onAdd: (input: CreateRequirementLineInput) => void
 }) {
-  const [products, setProducts] = useState<ProductDto[]>([])
+  const productSearch = useSearchableResource(searchProducts, open)
   const [productId, setProductId] = useState("")
+  const [unitId, setUnitId] = useState("")
   const [quantity, setQuantity] = useState("")
   const [reason, setReason] = useState<LineReason>("Low Stock")
   const [notes, setNotes] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [unitSearchTerm, setUnitSearchTerm] = useState("")
 
-  useEffect(() => {
-    if (!open) return
-    listProducts({ limit: 200, isActive: true })
-      .then((r) => setProducts(r.data))
-      .catch(() => {})
-  }, [open])
+  const unitProducts = useProductUnits(productId || null)
+  const baseUnit = unitProducts.baseUnit
+
+  // Keep the selected product's label in the option list even when the current
+  // search results don't include it (server-search results are page-scoped).
+  const selectedProductOption: SearchableOption[] =
+    productId && !productSearch.options.some((o) => o.value === productId) && unitProducts.product
+      ? [{ value: unitProducts.product.id, label: unitProducts.product.name, sub: unitProducts.product.sku }]
+      : []
+  const productOptions = [...selectedProductOption, ...productSearch.options]
+
+  const unitOptions = unitProducts.options.filter(
+    (o) => !unitSearchTerm || o.label.toLowerCase().includes(unitSearchTerm.toLowerCase()),
+  )
+
+  const qty = parseFloat(quantity) || 0
+  const productUnit = unitProducts.units.find((u) => u.unitId === unitId)
+  const baseQty = toBaseQuantity(qty, productUnit)
+  const showPreview = !!productId && !!unitId && qty > 0 && baseQty !== null && !!baseUnit
+
+  function resetForm() {
+    setProductId(""); setUnitId(""); setQuantity(""); setReason("Low Stock"); setNotes(""); setError("")
+  }
 
   async function handleAdd() {
     if (!productId) { setError("Please select a product."); return }
-    if (!quantity || parseInt(quantity) <= 0) { setError("Quantity must be greater than zero."); return }
     if (existingProductIds.includes(productId)) { setError("This product is already in the requirement."); return }
+    if (!qty || qty <= 0) { setError("Quantity must be greater than zero."); return }
+    if (!unitId) { setError("Please select a unit."); return }
     setError("")
     setLoading(true)
     try {
-      onAdd({ productId, quantityNeeded: parseInt(quantity), reasonCode: reasonCode(reason), notes: notes || null })
-      setProductId(""); setQuantity(""); setReason("Low Stock"); setNotes("")
+      onAdd({ productId, unitId, quantityNeeded: qty, reasonCode: reasonCode(reason), notes: notes || null })
+      resetForm()
     } finally {
       setLoading(false)
     }
@@ -1169,14 +1207,44 @@ function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
       <div className="flex flex-col gap-4">
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <Fw label="Product">
-          <select value={productId} onChange={(e) => setProductId(e.target.value)} className={SC}>
-            <option value="">Select product...</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <SearchableSelect
+            value={productId}
+            onChange={(v) => { setProductId(v); setUnitId("") }}
+            options={productOptions}
+            onSearch={productSearch.setTerm}
+            loading={productSearch.loading}
+            error={productSearch.error}
+            onRetry={productSearch.retry}
+            placeholder="Search and select a product..."
+            searchPlaceholder="Search by name or SKU..."
+            emptyMessage="No products to choose from"
+            noResultsMessage="No products matching your search"
+          />
+        </Fw>
+        <Fw label="Unit">
+          <SearchableSelect
+            value={unitId || null}
+            onChange={(v) => setUnitId(v)}
+            options={unitOptions}
+            onSearch={setUnitSearchTerm}
+            loading={unitProducts.loading}
+            error={unitProducts.error}
+            onRetry={unitProducts.refresh}
+            allowClear
+            placeholder={unitProducts.loading ? "Loading units..." : (productId ? "Select a unit..." : "Select a product first")}
+            emptyMessage={productId ? "No units configured for this product" : "Select a product first"}
+          />
         </Fw>
         <Fw label="Quantity Needed">
-          <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder="0" />
+          <input type="number" min={1} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder={`0${baseUnit ? ` ${baseUnit.name ?? ""}` : ""}`} />
         </Fw>
+        {showPreview && (
+          <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 text-sm text-[#333333]">
+            {qty} {productUnit?.unit?.name ?? ""} ={" "}
+            <span className="font-semibold text-[#49B0C1]">{baseQty} {baseUnit?.name ?? ""}</span>
+            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
+          </div>
+        )}
         <Fw label="Reason">
           <select value={reason} onChange={(e) => setReason(e.target.value as LineReason)} className={SC}>
             <option>Low Stock</option>
@@ -1205,19 +1273,38 @@ function EditLineModal({ open, line, onClose, onSave }: {
   onSave: (updated: RequirementLine) => void
 }) {
   const [quantity, setQuantity] = useState(line?.quantityNeeded.toString() ?? "")
+  const [unitId, setUnitId] = useState(line?.unitId ?? "")
   const [reason, setReason] = useState<LineReason>(line?.reason ?? "Low Stock")
   const [notes, setNotes] = useState(line?.notes ?? "")
   const [loading, setLoading] = useState(false)
+  const [unitSearchTerm, setUnitSearchTerm] = useState("")
+
+  const unitProducts = useProductUnits(line?.productId ?? null)
+  const baseUnit = unitProducts.baseUnit
+  const unitOptions = unitProducts.options.filter(
+    (o) => !unitSearchTerm || o.label.toLowerCase().includes(unitSearchTerm.toLowerCase()),
+  )
+
+  const qty = parseFloat(quantity) || 0
+  const productUnit = unitProducts.units.find((u) => u.unitId === unitId)
+  const baseQty = toBaseQuantity(qty, productUnit)
+  const showPreview = !!unitId && qty > 0 && baseQty !== null && !!baseUnit
 
   useEffect(() => {
-    if (line) { setQuantity(line.quantityNeeded.toString()); setReason(line.reason); setNotes(line.notes) }
+    if (line) {
+      setQuantity(line.quantityNeeded.toString())
+      setUnitId(line.unitId ?? "")
+      setReason(line.reason)
+      setNotes(line.notes)
+    }
   }, [line])
 
   async function handleSave() {
     if (!line) return
+    if (!qty || qty <= 0) return
     setLoading(true)
     try {
-      onSave({ ...line, quantityNeeded: parseInt(quantity) || line.quantityNeeded, reason, notes })
+      onSave({ ...line, quantityNeeded: qty, unitId: unitId || null, reason, notes })
     } finally {
       setLoading(false)
     }
@@ -1232,9 +1319,30 @@ function EditLineModal({ open, line, onClose, onSave }: {
             <p className="text-sm font-bold text-[#333333]">{line.product}</p>
           </div>
         )}
-        <Fw label="Quantity Needed">
-          <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} />
+        <Fw label="Unit">
+          <SearchableSelect
+            value={unitId || null}
+            onChange={(v) => setUnitId(v)}
+            options={unitOptions}
+            onSearch={setUnitSearchTerm}
+            loading={unitProducts.loading}
+            error={unitProducts.error}
+            onRetry={unitProducts.refresh}
+            allowClear
+            placeholder="Select a unit..."
+            emptyMessage={unitProducts.loading ? "Loading units..." : "No units configured for this product"}
+          />
         </Fw>
+        <Fw label="Quantity Needed">
+          <input type="number" min={1} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder={`0${baseUnit ? ` ${baseUnit.name ?? ""}` : ""}`} />
+        </Fw>
+        {showPreview && (
+          <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 text-sm text-[#333333]">
+            {qty} {productUnit?.unit?.name ?? ""} ={" "}
+            <span className="font-semibold text-[#49B0C1]">{baseQty} {baseUnit?.name ?? ""}</span>
+            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
+          </div>
+        )}
         <Fw label="Reason">
           <select value={reason} onChange={(e) => setReason(e.target.value as LineReason)} className={SC}>
             <option>Low Stock</option>

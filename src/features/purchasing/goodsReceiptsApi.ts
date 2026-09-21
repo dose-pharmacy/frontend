@@ -31,6 +31,8 @@ export interface GRItemDto {
   unitCost: number
   /** Unit the quantities are expressed in (snapshotted from the PO item). */
   unitId: string | null
+  /** Embedded on create/confirm/detail responses (and PO receiving detail). */
+  unit?: { id: string; name: string; symbol: string } | null
   batchNumber: string | null
   manufacturingDate: string | null
   expiryDate: string | null
