@@ -8,6 +8,14 @@ export interface PaginatedResponse<T> {
     total: number
     totalPages: number
   }
+  /** Server-computed status counts over the FILTERED dataset (list responses). */
+  summary?: GoodsReceiptListSummary
+}
+
+export interface GoodsReceiptListSummary {
+  matched: number
+  discrepancy: number
+  resolved: number
 }
 
 export type GoodsReceiptStatus = "MATCHED" | "DISCREPANCY" | "RESOLVED"
@@ -21,6 +29,8 @@ export interface GRItemDto {
   deliveredQty: number
   actualQty: number
   unitCost: number
+  /** Unit the quantities are expressed in (snapshotted from the PO item). */
+  unitId: string | null
   batchNumber: string | null
   manufacturingDate: string | null
   expiryDate: string | null
@@ -40,6 +50,12 @@ export interface GRItemDto {
     id: string
     name: string
   }
+  /** Detail confirm/create responses attach the created or matched batch. */
+  batch?: {
+    id: string
+    batchNumber: string
+    expiryDate: string
+  } | null
 }
 
 export interface GoodsReceiptDto {

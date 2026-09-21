@@ -9,6 +9,7 @@ import {
   deleteGoodsReceipt,
   type GoodsReceiptDto,
   type GoodsReceiptStatus,
+  type GoodsReceiptListSummary,
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
@@ -38,6 +39,7 @@ export default function GoodsReceiptsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptDto | null>(null)
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
+  const [grSummary, setGrSummary] = useState<GoodsReceiptListSummary | null>(null)
 
   const PAGE_SIZE = 20
 
@@ -67,6 +69,7 @@ export default function GoodsReceiptsPage() {
       setReceipts(res.data)
       setTotalPages(res.meta.totalPages)
       setTotalCount(res.meta.total)
+      if (res.summary) setGrSummary(res.summary)
     } catch (e) {
       setError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to load goods receipts.")
     } finally {
@@ -109,11 +112,12 @@ export default function GoodsReceiptsPage() {
     )
   }, [receipts, search, supplierName])
 
+  // Status counts come from the server (over the filtered dataset) when available.
   const summary = {
     total: totalCount,
-    matched: visibleReceipts.filter((r) => r.status === "MATCHED").length,
-    discrepancy: visibleReceipts.filter((r) => r.status === "DISCREPANCY").length,
-    resolved: visibleReceipts.filter((r) => r.status === "RESOLVED").length,
+    matched: grSummary?.matched ?? visibleReceipts.filter((r) => r.status === "MATCHED").length,
+    discrepancy: grSummary?.discrepancy ?? visibleReceipts.filter((r) => r.status === "DISCREPANCY").length,
+    resolved: grSummary?.resolved ?? visibleReceipts.filter((r) => r.status === "RESOLVED").length,
   }
 
   return (

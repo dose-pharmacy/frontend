@@ -3,7 +3,10 @@
 //   GET    /api/v1/purchasing/purchase-orders                     (list, filter)
 //   POST   /api/v1/purchasing/purchase-orders                     (create)
 //   GET    /api/v1/purchasing/purchase-orders/{id}                (detail)
-//   PATCH  /api/v1/purchasing/purchase-orders/{id}                (update)
+//   PATCH  /api/v1/purchasing/purchase-orders/{id}                (update — dates/notes only)
+//   PATCH  /api/v1/purchasing/purchase-orders/items/{itemId}      (update item)
+//   DELETE /api/v1/purchasing/purchase-orders/items/{itemId}      (remove item)
+//   POST   /api/v1/purchasing/purchase-orders/items/{itemId}/accept-shortage (accept shortage)
 //   POST   /api/v1/purchasing/purchase-orders/{id}/mark-awaiting-delivery (→ AWAITING_DELIVERY)
 //   POST   /api/v1/purchasing/purchase-orders/{id}/cancel         (→ CANCELLED)
 //   POST   /api/v1/purchasing/purchase-orders/{id}/close          (→ CLOSED)
@@ -12,7 +15,6 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
-import type { RequirementProductRefDto } from "./requirementsApi";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
@@ -24,14 +26,41 @@ export type POStatus =
   | "CANCELLED"
   | (string & {});
 
+/** Derived (never persisted) payment status of a purchase order. */
+export type POPaymentStatus =
+  | "NOT_INVOICED"
+  | "UNPAID"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "ALL";
+
+export interface POItemRequirementRefDto {
+  id: string;
+  quantityNeeded: number;
+  quantityDelivered: number;
+  status: string;
+  requirement: { id: string; reference: string; status: string };
+}
+
 export interface POItemDto {
   id: string;
   productId: string;
   quantityOrdered: number;
+  /** Base-unit snapshot of `quantityOrdered` (present on detail responses). */
+  quantityOrderedBase?: number;
+  quantityReceived?: number;
+  quantityShort?: number;
+  shortReason?: string | null;
+  /** Unit the ordered quantity is expressed in. */
+  unitId?: string | null;
+  unit?: { id: string; name: string; symbol: string } | null;
   unitCost: number;
   requirementLineId: string | null;
   /** Embedded on detail responses (and from-requirement creates). */
   product?: { id: string; name: string; sku: string } | null;
+  /** Embedded on PO detail and returned by item update endpoints. */
+  requirementLine?: POItemRequirementRefDto | null;
+  allocations?: { id: string; requirementLineId: string; quantityAllocated: number }[];
 }
 
 export interface POSupplierRefDto {
@@ -42,6 +71,33 @@ export interface POSupplierRefDto {
   phone?: string | null;
   email?: string | null;
   paymentTerms?: string | null;
+}
+
+export interface POReceivingSummaryDto {
+  orderedQuantity: number;
+  receivedQuantity: number;
+  shortQuantity: number;
+  remainingQuantity: number;
+}
+
+export interface POGoodsSummaryDto {
+  /** Commercial value of the PO: SUM(quantityOrdered × unitCost). */
+  orderedGoodsValue: number;
+  /** Value of goods actually received (shortages never count). */
+  receivedGoodsValue: number;
+  /** Value of received goods already billed on invoices. */
+  goodsInvoicedAmount: number;
+  /** receivedGoodsValue − goodsInvoicedAmount (still available to invoice). */
+  remainingGoodsToInvoice: number;
+}
+
+export interface POPaymentSummaryDto {
+  status: POPaymentStatus;
+  invoiceCount: number;
+  /** SUM of invoice totalAmounts (never the goods amount). */
+  invoicedAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
 }
 
 /** PO header + items — shape of list rows, POST and GET /purchase-orders/{id}. */
@@ -60,6 +116,20 @@ export interface PurchaseOrderDto {
   /** List rows carry `_count.items` instead of a full items array. */
   _count?: { items?: number };
   items?: POItemDto[];
+  /** Present on every list row and detail response. */
+  paymentSummary?: POPaymentSummaryDto;
+  /** Detail-only summaries (receiving/goods); also on list in future. */
+  receivingSummary?: POReceivingSummaryDto;
+  goodsSummary?: POGoodsSummaryDto;
+  goodsReceipts?: { id: string; receiptNumber: string; status: string; receivedDate: string }[];
+  supplierInvoices?: {
+    id: string;
+    invoiceNumber: string;
+    goodsAmount: number;
+    totalAmount: number;
+    outstandingBalance: number;
+    status: string;
+  }[];
 }
 
 export interface POListMeta {
@@ -69,10 +139,20 @@ export interface POListMeta {
   totalPages: number;
 }
 
+/** Server-computed status counts over the FILTERED dataset (not just the page). */
+export interface POListSummaryDto {
+  registered: number;
+  awaitingDelivery: number;
+  received: number;
+  closed: number;
+  cancelled: number;
+}
+
 export interface PurchaseOrderListResult {
   data: PurchaseOrderDto[];
   /** The backend returns the page meta under `meta`. */
   meta: POListMeta;
+  summary?: POListSummaryDto;
 }
 
 export interface PurchaseOrdersQuery {
@@ -80,6 +160,7 @@ export interface PurchaseOrdersQuery {
   limit?: number;
   supplierId?: string;
   status?: string;
+  paymentStatus?: POPaymentStatus;
   search?: string;
 }
 
@@ -98,12 +179,27 @@ export interface CreatePurchaseOrderInput {
   items: CreatePurchaseOrderItemInput[];
 }
 
-/** Body for PATCH /purchase-orders/{id} — all fields optional. */
+/**
+ * Body for PATCH /purchase-orders/{id} — header only. The backend only accepts
+ * `expectedDeliveryDate` and `notes`; supplier and item changes are performed
+ * through their own endpoints (items: PATCH/DELETE /purchase-orders/items/:id).
+ */
 export interface UpdatePurchaseOrderInput {
-  supplierId?: string;
   expectedDeliveryDate?: string | null;
   notes?: string | null;
-  items?: CreatePurchaseOrderItemInput[];
+}
+
+/** Body for PATCH /purchase-orders/items/{itemId} — at least one field required. */
+export interface UpdatePurchaseOrderItemInput {
+  quantityOrdered?: number;
+  unitCost?: number;
+}
+
+/** Body for POST /purchase-orders/items/{itemId}/accept-shortage. */
+export interface AcceptShortageInput {
+  /** Omit to default to the full remaining quantity (ordered − received − short). */
+  quantityShort?: number;
+  shortReason?: string | null;
 }
 
 /** Body for POST /purchase-orders/from-requirement — create PO from requirement lines. */
@@ -116,23 +212,6 @@ export interface CreatePurchaseOrderFromRequirementInput {
     quantityOrdered: number;
     unitCost: number;
   }[];
-}
-
-/** Response for PO item operations. */
-export interface POItemDto {
-  id: string;
-  productId: string;
-  quantityOrdered: number;
-  unitCost: number;
-  requirementLineId: string | null;
-  product?: RequirementProductRefDto | null;
-  requirementLine?: {
-    id: string;
-    requirementId: string;
-    productId: string;
-    quantityNeeded: number;
-    quantityRemaining: number;
-  } | null;
 }
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
@@ -247,7 +326,7 @@ function unwrapEnvelope<T>(raw: unknown, fallbackData: T): T {
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-/** GET /purchase-orders — paginated list with supplier/status/search filters. */
+/** GET /purchase-orders — paginated list with supplier/status/payment/search filters. */
 export async function listPurchaseOrders(
   query: PurchaseOrdersQuery = {},
 ): Promise<PurchaseOrderListResult> {
@@ -257,6 +336,7 @@ export async function listPurchaseOrders(
     limit: query.limit,
     supplierId: query.supplierId,
     status: query.status,
+    paymentStatus: query.paymentStatus,
     search: query.search,
   })) {
     if (value !== undefined && value !== "") params.set(key, String(value));
@@ -266,12 +346,14 @@ export async function listPurchaseOrders(
     data?: PurchaseOrderDto[] | null;
     meta?: POListMeta;
     pagination?: POListMeta;
+    summary?: POListSummaryDto;
   }>(qs ? `?${qs}` : "");
   return {
     data: Array.isArray(result?.data) ? result.data : [],
     meta:
       result?.meta ??
       result?.pagination ?? { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
+    summary: result?.summary,
   };
 }
 
@@ -388,14 +470,37 @@ export async function createPurchaseOrderFromRequirement(
 
 /**
  * PATCH /purchase-orders/items/{itemId} — update a PO item (quantity, unit cost).
+ * Only allowed while the order is REGISTERED or AWAITING_DELIVERY.
  */
 export async function updatePurchaseOrderItem(
   itemId: string,
-  patch: { quantityOrdered?: number; unitCost?: number },
+  patch: UpdatePurchaseOrderItemInput,
 ): Promise<POItemDto> {
   const raw = await poRequest<unknown>(`/items/${encodeURIComponent(itemId)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+  const data = unwrapEnvelope<POItemDto>(raw, null as unknown as POItemDto);
+  if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");
+  return data;
+}
+
+/**
+ * POST /purchase-orders/items/{itemId}/accept-shortage — record the
+ * unreceived remainder of an item as an explicit shortage. When all items are
+ * accounted for (received + short covers ordered) the backend moves the order
+ * to RECEIVED.
+ */
+export async function acceptPurchaseOrderShortage(
+  itemId: string,
+  input: AcceptShortageInput,
+): Promise<POItemDto> {
+  const raw = await poRequest<unknown>(`/items/${encodeURIComponent(itemId)}/accept-shortage`, {
+    method: "POST",
+    body: JSON.stringify({
+      ...(input.quantityShort !== undefined ? { quantityShort: input.quantityShort } : {}),
+      ...(input.shortReason !== undefined ? { shortReason: input.shortReason } : {}),
+    }),
   });
   const data = unwrapEnvelope<POItemDto>(raw, null as unknown as POItemDto);
   if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");

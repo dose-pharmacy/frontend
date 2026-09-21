@@ -9,7 +9,6 @@
 //   POST   /api/v1/purchasing/requirements/generate-from-reorder  (auto-generate)
 //   POST   /api/v1/purchasing/requirements/{id}/lines             (add line)
 //   PATCH  /api/v1/purchasing/requirements/lines/{lineId}         (update line)
-//   POST   /api/v1/purchasing/requirements/lines/{lineId}/assign-supplier
 //   DELETE /api/v1/purchasing/requirements/lines/{lineId}         (remove line)
 //
 // All requests require the authenticated session cookie
@@ -19,8 +18,18 @@ import { API_BASE_URL } from "../auth/authApi";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
-export type RequirementStatus = "OPEN" | "CLOSED" | (string & {});
-export type RequirementLineStatus = "OPEN" | "CLOSED" | (string & {});
+export type RequirementStatus =
+  | "OPEN"
+  | "PARTIALLY_FULFILLED"
+  | "FULFILLED"
+  | "CLOSED"
+  | (string & {});
+export type RequirementLineStatus =
+  | "OPEN"
+  | "PARTIALLY_FULFILLED"
+  | "FULFILLED"
+  | "CLOSED"
+  | (string & {});
 export type RequirementReasonCode =
   | "LOW_STOCK"
   | "REORDER_ALERT"
@@ -38,10 +47,28 @@ export interface RequirementSupplierRefDto {
   name: string;
 }
 
-export interface RequirementPoItemDto {
+/**
+ * One purchase-order allocation against a requirement line. Returned by the
+ * backend inside `RequirementLineDto.allocations` (never as fabricated
+ * `purchaseOrderItems`).
+ */
+export interface RequirementAllocationDto {
   id: string;
+  /** Base-unit quantity allocated to this line by the PO item. */
+  quantityAllocated: number;
+  /** False when the allocation's purchase order has been cancelled. */
+  active: boolean;
+  purchaseOrderItemId: string;
   purchaseOrderId: string;
+  purchaseOrderNumber: string;
+  purchaseOrderStatus: string;
+  supplier: RequirementSupplierRefDto | null;
+  /** PO item's ordered quantity in its own unit. */
   quantityOrdered: number;
+  quantityReceived: number;
+  unitCost: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** Row of the requirement `lines` array. */
@@ -49,10 +76,13 @@ export interface RequirementLineDto {
   id: string;
   requirementId: string;
   productId: string;
+  requiredQuantity: number;
   quantityNeeded: number;
   quantityOrdered: number;
+  orderedQuantity: number;
   quantityDelivered: number;
   quantityRemaining: number;
+  remainingQuantity: number;
   remainingToOrder: number;
   remainingToReceive: number;
   reasonCode: RequirementReasonCode | null;
@@ -61,7 +91,7 @@ export interface RequirementLineDto {
   createdAt: string;
   updatedAt: string;
   product?: RequirementProductRefDto | null;
-  purchaseOrderItems?: RequirementPoItemDto[];
+  allocations?: RequirementAllocationDto[];
   activeOrderCount?: number;
 }
 
@@ -75,7 +105,7 @@ export interface RequirementDto {
   id: string;
   reference: string;
   status: RequirementStatus;
-  requiredBy: string;
+  requiredBy: string | null;
   notes: string | null;
   createdById: string;
   createdAt: string;
@@ -91,9 +121,19 @@ export interface RequirementListMeta {
   totalPages: number;
 }
 
+/** Server-computed status counts over the FILTERED dataset (not just the page). */
+export interface RequirementSummaryDto {
+  open: number;
+  partiallyFulfilled: number;
+  fulfilled: number;
+  closed: number;
+  total: number;
+}
+
 export interface RequirementListResult {
   data: RequirementDto[];
   meta: RequirementListMeta;
+  summary?: RequirementSummaryDto;
 }
 
 export interface RequirementsQuery {
@@ -127,12 +167,14 @@ export interface UpdateRequirementInput {
 /** Body for POST /requirements/{id}/lines. */
 export type CreateRequirementLineBody = CreateRequirementLineInput;
 
-/** Body for PATCH /requirements/lines/{lineId} — all fields optional. */
+/**
+ * Body for PATCH /requirements/lines/{lineId} — all fields optional. Fulfillment
+ * status is derived by the backend and can never be supplied by the client body.
+ */
 export interface UpdateRequirementLineInput {
   quantityNeeded?: number;
   reasonCode?: RequirementReasonCode | null;
   notes?: string | null;
-  status?: RequirementLineStatus;
 }
 
 /** Response from GET /requirements/lines/{lineId}/order-preview. */

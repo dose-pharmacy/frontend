@@ -20,6 +20,7 @@ import {
   type RequirementLineDto,
   type RequirementStatus as RequirementStatusType,
   type OrderPreviewDto,
+  type RequirementAllocationDto,
 } from "../../features/purchasing/requirementsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
@@ -47,8 +48,8 @@ interface RequirementLine {
   activeOrderCount: number
   /** Set when the line already has purchase orders (blocks edits/removal). */
   hasPo: boolean
-  /** Purchase order items linked to this requirement line. */
-  purchaseOrderItems?: { purchaseOrderId: string; quantityOrdered: number }[]
+  /** Purchase order allocations against this requirement line (real supplier/order data). */
+  allocations: RequirementAllocationDto[]
 }
 
 interface Requirement {
@@ -96,9 +97,9 @@ function mapLine(l: RequirementLineDto): RequirementLine {
     reasonCode: l.reasonCode,
     notes: l.notes ?? "",
     status: l.status,
-    activeOrderCount: l.activeOrderCount ?? (l.purchaseOrderItems?.length ?? 0),
-    hasPo: (l.purchaseOrderItems?.length ?? 0) > 0,
-    purchaseOrderItems: l.purchaseOrderItems,
+    activeOrderCount: l.activeOrderCount ?? (l.allocations?.length ?? 0),
+    hasPo: (l.allocations?.length ?? 0) > 0,
+    allocations: l.allocations ?? [],
   }
 }
 
@@ -241,15 +242,26 @@ export default function PurchaseRequirementsPage() {
         setReqs(result.data.map(mapRequirement))
         setTotalPages(result.meta.totalPages)
         setTotalCount(result.meta.total)
-        // Calculate summary from current page data (approximation) - in a real app you'd fetch summary separately
-        const counts = { open: 0, partiallyFulfilled: 0, fulfilled: 0, closed: 0, total: result.meta.total }
-        result.data.forEach((r) => {
-          if (r.status === "OPEN") counts.open++
-          else if (r.status === "PARTIALLY_FULFILLED") counts.partiallyFulfilled++
-          else if (r.status === "FULFILLED") counts.fulfilled++
-          else if (r.status === "CLOSED") counts.closed++
-        })
-        setSummary(counts)
+        // Summary comes from the server (computed over the filtered dataset)
+        // when present; otherwise fall back to the current page's rows.
+        if (result.summary) {
+          setSummary({
+            open: result.summary.open,
+            partiallyFulfilled: result.summary.partiallyFulfilled,
+            fulfilled: result.summary.fulfilled,
+            closed: result.summary.closed,
+            total: result.summary.total,
+          })
+        } else {
+          const counts = { open: 0, partiallyFulfilled: 0, fulfilled: 0, closed: 0, total: result.meta.total }
+          result.data.forEach((r) => {
+            if (r.status === "OPEN") counts.open++
+            else if (r.status === "PARTIALLY_FULFILLED") counts.partiallyFulfilled++
+            else if (r.status === "FULFILLED") counts.fulfilled++
+            else if (r.status === "CLOSED") counts.closed++
+          })
+          setSummary(counts)
+        }
       })
       .catch((e) => { if (!cancelled) setLoadError(errMessage(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -736,16 +748,17 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
           <div className="p-5">
             {(() => {
               const allAllocations = req.lines.flatMap((line) =>
-                (line.purchaseOrderItems ?? []).map((poItem) => ({
-                  poNumber: poItem.purchaseOrderId,
-                  supplier: "—",
-                  status: "ACTIVE",
-                  allocatedQuantity: poItem.quantityOrdered,
-                  orderedQuantity: poItem.quantityOrdered,
-                  receivedQuantity: 0,
-                  unitCost: 0,
-                  active: true,
-                  created: "",
+                (line.allocations ?? []).map((alloc) => ({
+                  poNumber: alloc.purchaseOrderNumber,
+                  poId: alloc.purchaseOrderId,
+                  supplier: alloc.supplier?.name ?? "—",
+                  status: alloc.purchaseOrderStatus ?? "ACTIVE",
+                  allocatedQuantity: alloc.quantityAllocated,
+                  orderedQuantity: alloc.quantityOrdered,
+                  receivedQuantity: alloc.quantityReceived,
+                  unitCost: alloc.unitCost,
+                  active: alloc.active,
+                  created: alloc.createdAt,
                   lineProduct: line.product,
                   lineSku: line.sku,
                 }))
@@ -760,8 +773,8 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <span className="font-semibold text-[#333333]">{alloc.poNumber}</span>
-                          <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                            {alloc.active ? "ACTIVE" : "CANCELLED"}
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${alloc.active ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                            {alloc.status}
                           </span>
                         </div>
                         <span className="text-xs text-[#999]">{alloc.lineProduct} ({alloc.lineSku})</span>
@@ -781,8 +794,12 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                         </div>
                         <div>
                           <p className="text-[#999]">Unit Cost</p>
-                          <p className="font-semibold text-[#333333]">{alloc.unitCost.toFixed(2)} ETB</p>
+                          <p className="font-semibold text-[#333333]">{(alloc.unitCost ?? 0).toFixed(2)} ETB</p>
                         </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-[#666666]">
+                        <span>Supplier: {alloc.supplier}</span>
+                        <span>{fmtDate(alloc.created)}</span>
                       </div>
                       {!alloc.active && (
                         <p className="mt-2 text-xs text-red-600 font-medium">

@@ -10,6 +10,8 @@ interface GRItemRow {
   purchaseOrderItemId: string;
   productName: string;
   quantityOrdered: number;
+  quantityReceived: number;
+  quantityShort: number;
   locationId: string;
   deliveredQty: number;
   actualQty: number;
@@ -40,8 +42,11 @@ export default function DeliveryRegistrationPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    listPurchaseOrders({ status: "AWAITING_DELIVERY", limit: 100 })
-      .then((r) => setOrders(r.data))
+    listPurchaseOrders({ limit: 100 })
+      .then((r) => {
+        // Receipts can only be registered for orders in these two statuses.
+        setOrders(r.data.filter((o) => o.status === "AWAITING_DELIVERY" || o.status === "REGISTERED"))
+      })
       .catch(() => {})
       .finally(() => setOrdersLoading(false));
   }, []);
@@ -49,8 +54,8 @@ export default function DeliveryRegistrationPage() {
   // Reload POs filtered by selected supplier
   useEffect(() => {
     const controller = new AbortController()
-    listPurchaseOrders({ status: "AWAITING_DELIVERY", limit: 100, supplierId: supplierFilter || undefined })
-      .then((r) => { if (!controller.signal.aborted) setOrders(r.data) })
+    listPurchaseOrders({ limit: 100, supplierId: supplierFilter || undefined })
+      .then((r) => { if (!controller.signal.aborted) setOrders(r.data.filter((o) => o.status === "AWAITING_DELIVERY" || o.status === "REGISTERED")) })
       .catch(() => {})
     return () => controller.abort()
   }, [supplierFilter]);
@@ -76,17 +81,26 @@ export default function DeliveryRegistrationPage() {
       const po = await getPurchaseOrder(poId);
       setSelectedPo(po);
       setItems(
-        (po.items ?? []).map((item: POItemDto) => ({
-          purchaseOrderItemId: item.id,
-          productName: (item as any).product?.name ?? `Product (${item.productId.slice(0, 8)})`,
-          quantityOrdered: item.quantityOrdered,
-          locationId: locations[0]?.id ?? "",
-          deliveredQty: item.quantityOrdered,
-          actualQty: item.quantityOrdered,
-          batchNumber: "",
-          manufacturingDate: "",
-          expiryDate: "",
-        }))
+        (po.items ?? []).map((item: POItemDto) => {
+          const ordered = item.quantityOrdered ?? 0;
+          const received = item.quantityReceived ?? 0;
+          const short = item.quantityShort ?? 0;
+          // Default to what's still outstanding (ordered − received − shortage).
+          const remaining = Math.max(0, ordered - received - short);
+          return {
+            purchaseOrderItemId: item.id,
+            productName: (item as any).product?.name ?? `Product (${item.productId.slice(0, 8)})`,
+            quantityOrdered: ordered,
+            quantityReceived: received,
+            quantityShort: short,
+            locationId: locations[0]?.id ?? "",
+            deliveredQty: remaining,
+            actualQty: remaining,
+            batchNumber: "",
+            manufacturingDate: "",
+            expiryDate: "",
+          };
+        })
       );
     } catch (e) {
       setError("Failed to load purchase order details.");
@@ -101,7 +115,7 @@ export default function DeliveryRegistrationPage() {
     );
   }
 
-  const hasDiscrepancy = items.some((item) => item.actualQty !== item.quantityOrdered);
+  const hasDiscrepancy = items.some((item) => item.actualQty !== item.deliveredQty);
 
   async function handleSubmit() {
     if (!selectedPoId) {
@@ -195,7 +209,7 @@ export default function DeliveryRegistrationPage() {
                   disabled={ordersLoading}
                   className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
                 >
-                  <option value="">{ordersLoading ? "Loading…" : "— Select PO (Awaiting Delivery) —"}</option>
+                  <option value="">{ordersLoading ? "Loading…" : "— Select PO (Registered / Awaiting Delivery) —"}</option>
                   {orders.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.poNumber} — {o.supplier?.name ?? o.supplierId}
@@ -235,19 +249,20 @@ export default function DeliveryRegistrationPage() {
               <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="bg-[#ABDBE3]">
-                    {["#", "Product", "Ordered", "Location", "Delivered Qty", "Actual Qty", "Batch #", "Mfg Date", "Expiry Date"].map((h) => (
+                    {["#", "Product", "Ordered", "Received", "Location", "Delivered Qty", "Actual Qty", "Batch #", "Mfg Date", "Expiry Date"].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, i) => {
-                    const isDiscrepancy = item.actualQty !== item.quantityOrdered;
+                    const isDiscrepancy = item.actualQty !== item.deliveredQty;
                     return (
                       <tr key={item.purchaseOrderItemId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
                         <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                         <td className="px-3 py-2.5 font-medium text-[#333333]">{item.productName}</td>
                         <td className="px-3 py-2.5 text-[#333333] font-semibold">{item.quantityOrdered}</td>
+                        <td className="px-3 py-2.5 text-[#666666]">{item.quantityReceived}</td>
                         <td className="px-3 py-2.5">
                           <select
                             value={item.locationId}

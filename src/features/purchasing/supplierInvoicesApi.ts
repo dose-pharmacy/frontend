@@ -32,6 +32,27 @@ export interface InvoicePaymentDto {
   }
 }
 
+/** One invoice line — a PO item allocation (PO-linked invoices only). */
+export interface SupplierInvoiceItemDto {
+  id: string
+  supplierInvoiceId: string
+  purchaseOrderItemId: string
+  /** Quantity invoiced, in the PO item's ordered unit. */
+  quantity: number
+  unitId: string | null
+  unitCost: number
+  goodsAmount: number
+  purchaseOrderItem?: {
+    id: string
+    productId: string
+    quantityOrdered: number
+    quantityReceived: number
+    product?: { id: string; name: string; sku: string }
+    unit?: { id: string; name: string; symbol: string }
+  } | null
+  unit?: { id: string; name: string; symbol: string } | null
+}
+
 export interface SupplierInvoiceDto {
   id: string
   invoiceNumber: string
@@ -39,8 +60,16 @@ export interface SupplierInvoiceDto {
   purchaseOrderId: string | null
   invoiceDate: string | null
   dueDate: string | null
+  /** Value of received goods being billed. */
+  goodsAmount: number
+  taxAmount: number
+  additionalChargesAmount: number
+  discountAmount: number
+  /** totalAmount = goods + tax + charges − discount (never negative). */
+  totalAmount: number
+  /** Backend legacy alias mirroring `totalAmount`. */
   invoiceAmount: number
-  /** Backend reports the remaining balance. Paid amount = invoiceAmount - outstandingBalance. */
+  /** Backend reports the remaining balance. Paid amount = totalAmount − outstandingBalance. */
   outstandingBalance: number
   status: SupplierInvoiceStatus
   paymentTerms: string | null
@@ -60,14 +89,17 @@ export interface SupplierInvoiceDto {
     name: string
   }
   payments?: InvoicePaymentDto[]
+  /** Detail responses embed the goods allocation lines. */
+  items?: SupplierInvoiceItemDto[]
 }
 
-export function invoiceOutstanding(inv: Pick<SupplierInvoiceDto, "invoiceAmount" | "outstandingBalance">): number {
-  return typeof inv.outstandingBalance === "number" ? inv.outstandingBalance : inv.invoiceAmount
+export function invoiceOutstanding(inv: Pick<SupplierInvoiceDto, "totalAmount" | "invoiceAmount" | "outstandingBalance">): number {
+  return typeof inv.outstandingBalance === "number" ? inv.outstandingBalance : inv.totalAmount ?? inv.invoiceAmount
 }
 
-export function invoicePaid(inv: Pick<SupplierInvoiceDto, "invoiceAmount" | "outstandingBalance">): number {
-  return Math.max(0, inv.invoiceAmount - invoiceOutstanding(inv))
+export function invoicePaid(inv: Pick<SupplierInvoiceDto, "totalAmount" | "invoiceAmount" | "outstandingBalance">): number {
+  const total = inv.totalAmount ?? inv.invoiceAmount
+  return Math.max(0, total - invoiceOutstanding(inv))
 }
 
 export class SupplierInvoicesApiError extends Error {
@@ -101,6 +133,8 @@ async function invoiceRequest<T>(endpoint: string, options: RequestInit = {}): P
       msg = "An invoice with this number already exists for this supplier."
     if (code === "SUPPLIER_INVOICE_NOT_FOUND")
       msg = "This supplier invoice no longer exists."
+    if (code === "SUPPLIER_INVOICE_EXCEEDS_RECEIVED")
+      msg = "The invoiced quantity exceeds the received-but-not-yet-invoiced quantity for one or more items."
     if (code === "SUPPLIER_INVOICE_PAYMENT_EXCEEDS_BALANCE")
       msg = "The payment amount cannot exceed the outstanding balance."
     if (code === "SUPPLIER_NOT_FOUND") msg = "The selected supplier was not found."
@@ -138,14 +172,32 @@ export async function getSupplierInvoice(id: string): Promise<SupplierInvoiceDto
   return result.data
 }
 
+/**
+ * Body for POST /supplier-invoices.
+ * PO-linked invoices (purchaseOrderId present) MUST allocate their goods via
+ * `items`; the backend derives goodsAmount from those allocations and prevents
+ * double-invoicing of received goods. Non-PO invoices supply `goodsAmount`
+ * directly and must not include `items`. The backend computes:
+ *   totalAmount = goodsAmount + taxAmount + additionalChargesAmount − discountAmount
+ */
 export interface CreateSupplierInvoiceInput {
   supplierId: string
   purchaseOrderId?: string
   invoiceNumber: string
   invoiceDate?: string
   dueDate?: string
-  invoiceAmount: number
+  goodsAmount?: number
+  taxAmount?: number
+  additionalChargesAmount?: number
+  discountAmount?: number
   paymentTerms?: string
+  items?: {
+    purchaseOrderItemId: string
+    /** Quantity invoiced, in the PO item's ordered unit. */
+    quantity: number
+    /** Optional per-item unit-cost override; defaults to the PO item's unitCost. */
+    unitCost?: number
+  }[]
 }
 
 export async function createSupplierInvoice(input: CreateSupplierInvoiceInput): Promise<SupplierInvoiceDto> {

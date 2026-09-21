@@ -27,20 +27,15 @@ import {
  * - purchaseOrders
  * - supplierInvoices
  * - counts
- * - totalOutstanding
+ * - totalOutstanding (detail only — the LIST response does not aggregate it)
  *
- * There is currently NO confirmed global supplier-invoice-list endpoint
- * or payment endpoint in the API file supplied.
- *
- * Therefore invoice-listing/payment functionality that depended on:
- * - getInvoices()
- * - Invoice
- * - invoice date
- * - due date
- * - paid amount
- * - payment POST endpoint
- *
- * has intentionally been commented out rather than invented.
+ * Payables are driven by the separate invoices/payments endpoints:
+ * - GET      /api/v1/purchasing/supplier-invoices
+ * - POST     /api/v1/purchasing/supplier-invoices
+ * - PATCH    /api/v1/purchasing/supplier-invoices (dueDate/paymentTerms)
+ * - DELETE   /api/v1/purchasing/supplier-invoices
+ * - POST     /api/v1/purchasing/supplier-invoices/{id}/payments
+ * See supplierInvoicesApi.ts for those.
  */
 
 const PAGE_SIZE = 5;
