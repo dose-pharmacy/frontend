@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
+import Button from "../../components/ui/Button";
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
 import {
   createPurchaseReturn,
   listPurchaseReturns,
@@ -8,9 +10,11 @@ import {
   type PurchaseReturnReason,
   PurchaseReturnsApiError,
 } from "../../features/purchasing/purchaseReturnsApi";
-import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
-import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
 import { listBatches, type BatchDto } from "../../features/inventory/batchesApi";
+import { searchProducts, searchSuppliers, searchLocations } from "../../features/inventory/searchSelectors";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
+import SearchableSelect from "../../components/ui/SearchableSelect";
+import type { SearchableOption } from "../../components/ui/SearchableSelect";
 
 const REASON_LABELS: Record<PurchaseReturnReason, string> = {
   EXPIRED: "Expired",
@@ -38,6 +42,7 @@ export default function PurchaseReturnPage() {
   const [supplierId, setSupplierId] = useState("");
   const [productId, setProductId] = useState("");
   const [batchId, setBatchId] = useState("");
+  const [locationId, setLocationId] = useState("");
   const [reason, setReason] = useState<PurchaseReturnReason>("EXPIRED");
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState("");
@@ -45,8 +50,6 @@ export default function PurchaseReturnPage() {
   const [notes, setNotes] = useState("");
 
   // Reference data
-  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
-  const [products, setProducts] = useState<ProductDto[]>([]);
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [batchesLoading, setBatchesLoading] = useState(false);
 
@@ -61,6 +64,7 @@ export default function PurchaseReturnPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const loadReturns = useCallback(async () => {
     setReturnsLoading(true);
@@ -77,15 +81,28 @@ export default function PurchaseReturnPage() {
     }
   }, []);
 
+  const supplierSearch = useSearchableResource(searchSuppliers, showForm);
+  const productSearch = useSearchableResource(searchProducts, showForm);
+  const locationSearch = useSearchableResource(searchLocations, showForm);
+  const selectedSupplierOption = supplierSearch.options.find((o) => o.value === supplierId) ?? null;
+  const supplierOptions: SearchableOption[] = selectedSupplierOption
+    ? [selectedSupplierOption, ...supplierSearch.options.filter((o) => o.value !== supplierId)]
+    : supplierSearch.options;
+  const selectedProductOption = productSearch.options.find((o) => o.value === productId) ?? null;
+  const productOptions: SearchableOption[] = selectedProductOption
+    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
+    : productSearch.options;
+  const selectedLocationOption = locationSearch.options.find((o) => o.value === locationId) ?? null;
+  const locationOptions: SearchableOption[] = selectedLocationOption
+    ? [selectedLocationOption, ...locationSearch.options.filter((o) => o.value !== locationId)]
+    : locationSearch.options;
+  const selectedSupplierName = selectedSupplierOption?.label ?? supplierId;
+  const selectedProductName = selectedProductOption?.label ?? productId;
+  const selectedLocationName = selectedLocationOption?.label ?? locationId;
+
   useEffect(() => {
-    listSuppliers({ limit: 100, isActive: true })
-      .then((r) => setSuppliers(r.data))
-      .catch(() => {})
-    listProducts({ limit: 200, isActive: true })
-      .then((r) => setProducts(r.data))
-      .catch((e) => { console.error('Failed to load products:', e) })
-    void loadReturns()
-  }, [])
+    void loadReturns();
+  }, [loadReturns])
 
   // Product selection drives the batch list: batches are fetched per product
   // (GET /inventory/products/{productId}/batches or ?productId= on /batches).
@@ -111,22 +128,42 @@ export default function PurchaseReturnPage() {
   }
 
   const selectedBatch = batches.find((b) => b.id === batchId) ?? null;
-  const selectedProduct = products.find((p) => p.id === productId) ?? null;
   const parsedUnitCost = parseFloat(unitCost) || 0;
   const parsedDebit = parseFloat(debitNoteAmount) || 0;
   const estimatedValue = Number(quantity) * parsedUnitCost;
-  const batchQuantityUsed = batchId && parsedUnitCost === 0;
 
   const canSubmit =
     !!supplierId &&
     !!productId &&
+    !!locationId &&
     quantity > 0 &&
     parsedUnitCost > 0 &&
     (!batchId || getAvailableStock(batchId) >= quantity);
 
+  function confirmAndSubmit() {
+    if (!supplierId || !productId || !locationId) {
+      setError("Supplier, Product and Location are required.");
+      return;
+    }
+    if (quantity <= 0 || parsedUnitCost <= 0) {
+      setError("Quantity and Unit Cost must be greater than zero.");
+      return;
+    }
+    if (batchId) {
+      const available = getAvailableStock(batchId);
+      if (quantity > available) {
+        setError(`Insufficient stock for the selected batch. Available: ${available}, Requested: ${quantity}`);
+        return;
+      }
+    }
+    setError("");
+    setSuccess("");
+    setConfirmOpen(true);
+  }
+
   async function handleSubmit() {
-    if (!supplierId || !productId) {
-      setError("Supplier and Product are required.");
+    if (!supplierId || !productId || !locationId) {
+      setError("Supplier, Product and Location are required.");
       return;
     }
     if (quantity <= 0 || parsedUnitCost <= 0) {
@@ -151,6 +188,7 @@ export default function PurchaseReturnPage() {
         supplierId,
         productId,
         batchId: batchId || null,
+        locationId,
         reason,
         quantity: Number(quantity),
         unitCost: parsedUnitCost,
@@ -159,9 +197,11 @@ export default function PurchaseReturnPage() {
       });
       setSuccess("Purchase return recorded successfully.");
       setShowForm(false);
+      setConfirmOpen(false);
       setSupplierId("");
       setProductId("");
       setBatchId("");
+      setLocationId("");
       setBatches([]);
       setReason("EXPIRED");
       setQuantity(1);
@@ -218,22 +258,51 @@ export default function PurchaseReturnPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
-                  <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={inputClass}>
-                    <option value="">— Select Supplier —</option>
-                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={supplierId || null}
+                    onChange={setSupplierId}
+                    options={supplierOptions}
+                    onSearch={supplierSearch.setTerm}
+                    loading={supplierSearch.loading}
+                    error={supplierSearch.error}
+                    onRetry={supplierSearch.retry}
+                    placeholder="— Select Supplier —"
+                    searchPlaceholder="Search suppliers..."
+                    emptyMessage="No suppliers found"
+                    noResultsMessage="No suppliers matching your search"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Product *</label>
-                  <select value={productId} onChange={(e) => handleProductChange(e.target.value)} className={inputClass}>
-                    <option value="">— Select Product —</option>
-                    {products.length === 0 && (
-                      <option value="" disabled>Loading products…</option>
-                    )}
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={productId || null}
+                    onChange={(v) => handleProductChange(v)}
+                    options={productOptions}
+                    onSearch={productSearch.setTerm}
+                    loading={productSearch.loading}
+                    error={productSearch.error}
+                    onRetry={productSearch.retry}
+                    placeholder="— Select Product —"
+                    searchPlaceholder="Search by name or SKU..."
+                    emptyMessage="No products found"
+                    noResultsMessage="No products matching your search"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">Location *</label>
+                  <SearchableSelect
+                    value={locationId || null}
+                    onChange={setLocationId}
+                    options={locationOptions}
+                    onSearch={locationSearch.setTerm}
+                    loading={locationSearch.loading}
+                    error={locationSearch.error}
+                    onRetry={locationSearch.retry}
+                    placeholder="— Select Location —"
+                    searchPlaceholder="Search locations..."
+                    emptyMessage="No locations found"
+                    noResultsMessage="No locations matching your search"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Batch <span className="text-xs font-normal">(optional)</span></label>
@@ -280,13 +349,11 @@ export default function PurchaseReturnPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Quantity *</label>
+                  <label className="block text-sm text-[#666666] mb-1">Quantity (base units) *</label>
                   <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">
-                    Unit Cost * <span className="text-xs font-normal">(defaults to the batch cost when left empty)</span>
-                  </label>
+                  <label className="block text-sm text-[#666666] mb-1">Unit Cost *</label>
                   <input type="number" min={0.01} step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0.00" className={inputClass} />
                 </div>
                 <div>
@@ -301,25 +368,23 @@ export default function PurchaseReturnPage() {
 
               {productId && quantity > 0 && parsedUnitCost > 0 && (
                 <div className="mt-4 p-3 rounded-lg bg-[#DBEFF3] text-sm text-[#333333]">
-                  <strong>Summary:</strong> Return {quantity} × {selectedProduct?.name ?? "?"} — Total Value: <strong>{fmtMoney(estimatedValue)}</strong>
+                  <strong>Summary:</strong> Return {quantity} × {selectedProductName || "?"} — Total Value: <strong>{fmtMoney(estimatedValue)}</strong>
                   {selectedBatch && ` · Batch: ${selectedBatch.batchNumber}`}
                 </div>
               )}
 
               <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[#DBEFF3]">
-                <button onClick={() => setShowForm(false)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmit}
+                <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button
+                  onClick={confirmAndSubmit}
                   disabled={saving || !canSubmit}
-                  title={!canSubmit ? "Select a supplier and product, and enter a quantity and unit cost greater than zero." : undefined}
-                  className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saving ? "Recording…" : "Record Return"}
-                </button>
-                {batchQuantityUsed && !saving && canSubmit && (
-                  <span className="text-xs text-[#666666]">Unit cost will be taken from the selected batch.</span>
+                </Button>
+                {canSubmit && !saving && (
+                  <span className="text-xs text-[#666666]">
+                    Recording a return deducts {quantity} from stock immediately and cannot be undone.
+                  </span>
                 )}
               </div>
             </div>
@@ -386,6 +451,18 @@ export default function PurchaseReturnPage() {
           </div>
         </div>
       </div>
+
+      {/* Stock-impact confirmation */}
+      <ConfirmationDialog
+        open={confirmOpen}
+        title="Confirm Purchase Return?"
+        message={`Return ${quantity} × ${selectedProductName || "product"} to ${selectedBatch ? `batch ${selectedBatch.batchNumber} · ` : ""}${selectedSupplierName || "supplier"}. This will permanently reduce stock at ${selectedLocationName || "the selected location"} by ${quantity} base units — the movement is recorded in the stock ledger and cannot be reversed.`}
+        confirmLabel="Record Return"
+        danger
+        loading={saving}
+        onConfirm={() => void handleSubmit()}
+        onCancel={() => { setConfirmOpen(false); setError(""); }}
+      />
     </div>
   );
 }

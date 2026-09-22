@@ -1,14 +1,11 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
-import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import {
   getPurchaseReturn,
-  deletePurchaseReturn,
   type PurchaseReturnDto,
   type PurchaseReturnReason,
-  PurchaseReturnsApiError,
 } from "../../features/purchasing/purchaseReturnsApi"
 
 function fmtDate(d: string | null | undefined) {
@@ -40,12 +37,6 @@ export default function PurchaseReturnDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState("")
-
-  const [successMsg, setSuccessMsg] = useState("")
-
   useEffect(() => {
     if (!id) return
     setLoading(true)
@@ -55,22 +46,6 @@ export default function PurchaseReturnDetailPage() {
       .catch(() => setError("Failed to load purchase return."))
       .finally(() => setLoading(false))
   }, [id])
-
-  async function handleDelete() {
-    if (!returnRecord) return
-    setDeleting(true)
-    setDeleteError("")
-    try {
-      await deletePurchaseReturn(returnRecord.id)
-      setSuccessMsg("Purchase return deleted successfully.")
-      setTimeout(() => navigate("/purchasing/returns"), 1500)
-    } catch (e) {
-      setDeleteError(e instanceof PurchaseReturnsApiError ? e.message : "Failed to delete purchase return.")
-    } finally {
-      setDeleting(false)
-      setDeleteOpen(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -109,12 +84,6 @@ export default function PurchaseReturnDetailPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6">
-        {successMsg && (
-          <div className="mb-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm border border-green-200">
-            {successMsg}
-          </div>
-        )}
-
         {/* Header info */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-5 mb-5">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -171,30 +140,18 @@ export default function PurchaseReturnDetailPage() {
           </div>
         </div>
 
-        {/* Delete action */}
+        {/* Immutability note */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
           <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Actions</p>
-          <div className="flex items-center gap-3">
-            <Button onClick={() => setDeleteOpen(true)} className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100">
-              Delete Return
-            </Button>
-            <span className="text-xs text-[#999]">Note: Deleting a return does NOT reverse the stock movement. The inventory reduction is preserved for audit purposes.</span>
+          <div className="flex items-start gap-3">
+            <span className="text-xs text-[#666666]">
+              Purchase returns are permanent and cannot be deleted — the stock reduction below was
+              applied immediately when the return was recorded and is preserved for the stock-ledger
+              audit trail. If a correction is needed, record a new stock adjustment for this product.
+            </span>
           </div>
         </div>
       </div>
-
-      {/* Delete Modal */}
-      <Modal open={deleteOpen} title="Delete Purchase Return?" onClose={() => { setDeleteOpen(false); setDeleteError("") }} size="sm">
-        <p className="text-sm text-[#666666]">Delete {returnRecord.returnNumber}?</p>
-        <p className="mt-2 text-xs text-[#999]">This action cannot be undone. The inventory stock movement will NOT be reversed.</p>
-        {deleteError && <p className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{deleteError}</p>}
-        <div className="flex gap-3 justify-end mt-6">
-          <Button variant="secondary" onClick={() => { setDeleteOpen(false); setDeleteError("") }}>Cancel</Button>
-          <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
-            {deleting ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      </Modal>
     </div>
   )
 }

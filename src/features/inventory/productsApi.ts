@@ -11,6 +11,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { cacheRead, invalidateCache, invalidateCachePrefix } from "./apiCache";
 
 // ─── Types (mirror the backend response shapes) ──────────────────────────────
 
@@ -357,13 +358,17 @@ export async function listInventoryProducts(
     stockStatus: query.stockStatus,
     isActive: query.isActive,
   });
-  const result = await inventoryProductsRequest<InventoryProductListResult>(qs);
-  return (
-    result ?? {
-      data: [],
-      meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
-    }
-  );
+  // Reference list used by pickers all over the app — cache briefly; the
+  // product mutations below invalidate on create/update/deactivate.
+  return cacheRead(`inventory-products:${qs}`, async () => {
+    const result = await inventoryProductsRequest<InventoryProductListResult>(qs);
+    return (
+      result ?? {
+        data: [],
+        meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
+      }
+    );
+  });
 }
 
 /** POST /inventory/products — create a product with its units & pricing. */
@@ -383,15 +388,23 @@ export async function createProduct(input: CreateProductInput): Promise<ProductD
       units: input.units,
     }),
   });
+  invalidateCachePrefix("inventory-products:");
+  if (result?.data) invalidateCache(`product:${result.data.id}`);
   return result.data;
 }
 
 /** GET /inventory/products/{id} — full product detail incl. units & stock. */
 export async function getProduct(id: string): Promise<ProductDetailDto> {
-  const result = await productsRequest<{ data: ProductDetailDto }>(
-    `/${encodeURIComponent(id)}`,
-  );
-  return result.data;
+  // Cached briefly: pickers/modal loads call this repeatedly. Invalidated by
+  // product mutations (below) and by stock-changing mutations (stockApi,
+  // purchaseReturnsApi) so stock figures stay fresh.
+  return cacheRead(`product:${id}`, async () => {
+    const result = await productsRequest<{ data: ProductDetailDto }>(
+      `/${encodeURIComponent(id)}`,
+    );
+    if (!result?.data) throw new ProductsApiError("Product not found.");
+    return result.data;
+  });
 }
 
 /**
@@ -421,16 +434,18 @@ export async function updateProduct(
     `/${encodeURIComponent(id)}`,
     { method: "PATCH", body: JSON.stringify(body) },
   );
+  invalidateCache(`product:${id}`);
+  invalidateCachePrefix("inventory-products:");
   return result.data;
 }
 
 /**
  * DELETE /inventory/products/{id} — soft delete (deactivate).
- * NOTE: the backend's Swagger response example looks copied from the Stores
- * endpoint, so we only rely on the success flag here.
  */
 export async function deactivateProduct(id: string): Promise<void> {
   await productsRequest<unknown>(`/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+  invalidateCache(`product:${id}`);
+  invalidateCachePrefix("inventory-products:");
 }

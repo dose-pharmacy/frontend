@@ -1,4 +1,8 @@
 import type { LocationDto } from "../../features/inventory/locationsApi";
+import { searchLocations } from "../../features/inventory/searchSelectors";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
+import SearchableSelect from "../../components/ui/SearchableSelect";
+import type { SearchableOption } from "../../components/ui/SearchableSelect";
 
 interface ReportFilterBarProps {
   dateFrom: string;
@@ -30,6 +34,14 @@ export default function ReportFilterBar({
   showLocation = true,
   extra,
 }: ReportFilterBarProps) {
+  const locationSearch = useSearchableResource(searchLocations, true);
+  const selectedLocation = locationSearch.options.find((o) => o.value === locationId) ?? null;
+  const locationOptions: SearchableOption[] = [
+    ...(selectedLocation ? [selectedLocation] : []),
+    ...locationSearch.options,
+    ...(locations ?? []).map((loc) => ({ value: loc.id, label: loc.name })),
+  ].filter((o, i, arr) => arr.findIndex((x) => x.value === o.value) === i);
+
   return (
     <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
       <div className="flex flex-wrap gap-3 items-end">
@@ -44,17 +56,20 @@ export default function ReportFilterBar({
         {showLocation && (
           <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
             <label className="text-sm font-medium text-[#333333]">Location</label>
-            <select
-              value={locationId ?? ""}
-              onChange={(e) => onLocationChange?.(e.target.value)}
-              className={inputClass}
-              disabled={locationsLoading}
-            >
-              <option value="">All Locations</option>
-              {locations?.map((loc) => (
-                <option key={loc.id} value={loc.id}>{loc.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={locationId || null}
+              onChange={(v) => onLocationChange?.(v)}
+              options={locationOptions}
+              onSearch={locationSearch.setTerm}
+              loading={locationSearch.loading}
+              error={locationSearch.error}
+              onRetry={locationSearch.retry}
+              allowClear
+              placeholder="All Locations"
+              searchPlaceholder="Search locations..."
+              emptyMessage="No locations found"
+              noResultsMessage="No locations matching your search"
+            />
           </div>
         )}
         {extra}

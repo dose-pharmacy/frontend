@@ -13,6 +13,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { invalidateCachePrefix } from "./apiCache";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
@@ -64,14 +65,26 @@ export interface ProductStockRowDto {
   baseUnit?: { id: string; name?: string } | Record<string, never>;
 }
 
+/**
+ * Stock transaction types returned by the backend (StockTransactionType
+ * enum). Mirrors the Prisma enum exactly — the frontend renders these
+ * verbatim, so keep the union in sync with the backend schema.
+ */
 export type TransactionTypeDto =
-  | "RECEIPT"
-  | "TRANSFER"
-  | "SALE"
-  | "ADJUSTMENT"
   | "OPENING"
+  | "PURCHASE"
+  | "SALE"
+  | "TRANSFER_OUT"
+  | "TRANSFER_IN"
+  | "ADJUSTMENT_IN"
+  | "ADJUSTMENT_OUT"
+  | "RETURN_IN"
+  | "RETURN_OUT"
+  | "EXPIRY"
   | "DISPOSAL"
-  | "RETURN";
+  | "CORRECTION"
+  | "RETURN_TO_SUPPLIER"
+  | "CLEARANCE_SALE";
 
 export type TransactionDirectionDto = "IN" | "OUT";
 
@@ -120,6 +133,11 @@ export interface BinCardResult {
   openingBalance: number;
   transactions: BinCardTransactionDto[];
   closingBalance: number;
+  /** Pagination info returned by the backend (query params are page + pageSize). */
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
 }
 
 /** Body for POST /inventory/opening-stock. */
@@ -145,8 +163,10 @@ export interface OpeningStockDto {
 
 /**
  * Body for POST /inventory/stock-adjustments.
- * ⚠️ Exact request schema not yet confirmed from Swagger — keep payloads
- * minimal and validate against the live backend before extending.
+ * direction is the backend StockDirection enum ("IN" | "OUT"); quantity is
+ * in the unit referenced by unitId (server converts to base units).
+ * reason is REQUIRED. notes is not part of the schema — it is stripped by
+ * the backend, but harmless to send.
  */
 export interface StockAdjustmentInput {
   productId: string;
@@ -346,31 +366,29 @@ export async function getBatchTransactions(
 }
 
 /**
- * GET /inventory/bin-card — bin card for a product (optionally per batch).
- * Swagger shows query params for product/batch selection; pass at least the
- * batch the UI opened the card for.
+ * GET /inventory/bin-card — bin card for a product at a location, optionally
+ * per batch and a date range.
+ * Query params: productId, locationId, batchId, startDate, endDate, page,
+ * pageSize. (NOTE: the backend uses `pageSize`, not `limit` — sending
+ * `limit` makes it reject the request with HTTP 422.)
+ * The backend computes opening/closing balances and each row's running
+ * balance for the filtered range, so the UI renders them verbatim.
  */
-export async function getBinCard(
-  query: { 
-    productId: string; 
-    locationId: string;
-    batchId?: string;
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    limit?: number;
-  },
-): Promise<BinCardResult> {
+export async function getBinCard(query: {
+  productId: string;
+  locationId: string;
+  batchId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<BinCardResult> {
   const qs = buildQueryString(query as Record<string, string | number | undefined>);
-  const result = await stockRequest<BinCardResult>(`/bin-card${qs}`);
-  return (
-    result ?? {
-      baseUnit: null,
-      openingBalance: 0,
-      transactions: [],
-      closingBalance: 0,
-    }
+  const result = await stockRequest<{ success: boolean; data?: BinCardResult }>(
+    `/bin-card${qs}`,
   );
+  if (!result?.data) throw new StockApiError("Unexpected response from the server.");
+  return result.data;
 }
 
 /** POST /inventory/opening-stock — record stock already physically available. */
@@ -398,14 +416,17 @@ export async function createOpeningStock(input: OpeningStockInput): Promise<Open
       }),
     },
   );
+  // Product-detail responses embed stock — drop cached copies so the next
+  // read shows the new balance.
+  invalidateCachePrefix("product:");
   if (!result?.data) throw new StockApiError("Unexpected response from the server.");
   return result.data;
 }
 
 /**
- * POST /inventory/stock-adjustments — adjust recorded stock.
- * ⚠️ Exact request/response schema unconfirmed — adjust the payload once the
- * Swagger definition is available.
+ * POST /inventory/stock-adjustments — adjust recorded stock. The backend
+ * derives the StockTransactionType (ADJUSTMENT_IN/ADJUSTMENT_OUT) from the
+ * direction and returns the created transaction + updated stock row.
  */
 export async function createStockAdjustment(
   input: StockAdjustmentInput,
@@ -414,6 +435,7 @@ export async function createStockAdjustment(
     "/stock-adjustments",
     { method: "POST", body: JSON.stringify(input) },
   );
+  invalidateCachePrefix("product:");
   if (!result?.data) throw new StockApiError("Unexpected response from the server.");
   return result.data;
 }

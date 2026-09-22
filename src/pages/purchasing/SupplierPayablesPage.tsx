@@ -27,20 +27,15 @@ import {
  * - purchaseOrders
  * - supplierInvoices
  * - counts
- * - totalOutstanding
+ * - totalOutstanding (detail only — the LIST response does not aggregate it)
  *
- * There is currently NO confirmed global supplier-invoice-list endpoint
- * or payment endpoint in the API file supplied.
- *
- * Therefore invoice-listing/payment functionality that depended on:
- * - getInvoices()
- * - Invoice
- * - invoice date
- * - due date
- * - paid amount
- * - payment POST endpoint
- *
- * has intentionally been commented out rather than invented.
+ * Payables are driven by the separate invoices/payments endpoints:
+ * - GET      /api/v1/purchasing/supplier-invoices
+ * - POST     /api/v1/purchasing/supplier-invoices
+ * - PATCH    /api/v1/purchasing/supplier-invoices (dueDate/paymentTerms)
+ * - DELETE   /api/v1/purchasing/supplier-invoices
+ * - POST     /api/v1/purchasing/supplier-invoices/{id}/payments
+ * See supplierInvoicesApi.ts for those.
  */
 
 const PAGE_SIZE = 5;
@@ -698,7 +693,8 @@ export default function SupplierPayablesPage() {
 
         <div className="px-4 sm:px-6 py-4">
           <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="bg-[#ABDBE3]">
                   {[
@@ -751,11 +747,10 @@ export default function SupplierPayablesPage() {
                     <tr
                       key={supplier.id}
                       onClick={() => void openSupplierDetail(supplier)}
-                      className={`cursor-pointer hover:bg-[#DBEFF3]/60 transition-colors ${
-                        index % 2 === 0
+                      className={`cursor-pointer hover:bg-[#DBEFF3]/60 transition-colors ${index % 2 === 0
                           ? "bg-white"
                           : "bg-[#DBEFF3]/20"
-                      }`}
+                        }`}
                     >
                       <td className="px-4 py-3">
                         <div>
@@ -777,7 +772,7 @@ export default function SupplierPayablesPage() {
                         {supplier.phone ?? "—"}
                       </td>
 
-                     
+
 
                       <td className="px-4 py-3 text-[#333333]">
                         {supplier._count?.supplierInvoices ?? 0}
@@ -785,11 +780,10 @@ export default function SupplierPayablesPage() {
 
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                            supplier.isActive
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${supplier.isActive
                               ? "bg-green-500 text-white"
                               : "bg-gray-400 text-white"
-                          }`}
+                            }`}
                         >
                           {supplier.isActive ? "Active" : "Inactive"}
                         </span>
@@ -869,6 +863,7 @@ export default function SupplierPayablesPage() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Pagination */}
@@ -899,11 +894,10 @@ export default function SupplierPayablesPage() {
                     type="button"
                     key={pageNumber}
                     onClick={() => setPage(pageNumber)}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                      pageNumber === page
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${pageNumber === page
                         ? "bg-[#49B0C1] text-white"
                         : "text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3]"
-                    }`}
+                      }`}
                   >
                     {pageNumber}
                   </button>
@@ -936,18 +930,7 @@ export default function SupplierPayablesPage() {
          * we can restore this section and connect it to the backend.
          */}
 
-        <div className="px-4 sm:px-6 pb-6">
-          <div className="rounded-xl border border-dashed border-[#ABDBE3] bg-[#DBEFF3]/30 p-4">
-            <p className="font-bold text-[#333333]">
-              Invoice Payments
-            </p>
 
-            <p className="text-sm text-[#666666] mt-1">
-              Payment recording is temporarily unavailable until the
-              supplier-invoice payment endpoint is connected.
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* ------------------------------------------------------------------ */}
@@ -1096,11 +1079,10 @@ function EditSupplierModal({
               value={form.name}
               onChange={(e) => onChange("name", e.target.value)}
               placeholder="ABC Pharmaceuticals Ltd"
-              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
-                errors.name
+              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${errors.name
                   ? "border-red-400"
                   : "border-[#ABDBE3] focus:border-[#49B0C1]"
-              }`}
+                }`}
             />
 
             {errors.name && (
@@ -1135,11 +1117,10 @@ function EditSupplierModal({
               value={form.email}
               onChange={(e) => onChange("email", e.target.value)}
               placeholder="jane@abc.com"
-              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
-                errors.email
+              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${errors.email
                   ? "border-red-400"
                   : "border-[#ABDBE3] focus:border-[#49B0C1]"
-              }`}
+                }`}
             />
 
             {errors.email && (
@@ -1495,11 +1476,10 @@ function SupplierDetailModal({
                   </h3>
 
                   <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      data.isActive
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${data.isActive
                         ? "bg-green-500 text-white"
                         : "bg-gray-400 text-white"
-                    }`}
+                      }`}
                   >
                     {data.isActive ? "Active" : "Inactive"}
                   </span>
@@ -1604,10 +1584,9 @@ function SupplierDetailModal({
 
                           <td className="px-5 py-3">
                             <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                PO_BADGE[po.status] ??
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${PO_BADGE[po.status] ??
                                 "bg-gray-400 text-white"
-                              }`}
+                                }`}
                             >
                               {po.status}
                             </span>
@@ -1686,10 +1665,9 @@ function SupplierDetailModal({
 
                           <td className="px-5 py-3">
                             <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                INV_BADGE[invoice.status] ??
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${INV_BADGE[invoice.status] ??
                                 "bg-gray-400 text-white"
-                              }`}
+                                }`}
                             >
                               {invoice.status.replace("_", " ")}
                             </span>
@@ -1700,11 +1678,10 @@ function SupplierDetailModal({
                           </td>
 
                           <td
-                            className={`px-5 py-3 font-semibold ${
-                              invoice.outstandingBalance > 0
+                            className={`px-5 py-3 font-semibold ${invoice.outstandingBalance > 0
                                 ? "text-red-500"
                                 : "text-green-600"
-                            }`}
+                              }`}
                           >
                             {fmtMoney(invoice.outstandingBalance)}
                           </td>
@@ -1771,9 +1748,8 @@ function InfoRow({
       </p>
 
       <p
-        className={`text-sm text-[#333333] ${
-          mono ? "font-mono" : ""
-        } break-all`}
+        className={`text-sm text-[#333333] ${mono ? "font-mono" : ""
+          } break-all`}
       >
         {value}
       </p>

@@ -6,8 +6,10 @@ import {
   ReorderApiError,
   type ReorderConfigDto,
 } from "../../features/inventory/reorderApi";
-import { fetchProductOptions } from "../../features/inventory/inventoryService";
+import { searchProducts } from "../../features/inventory/searchSelectors";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
 import PageHeader from "../../components/ui/PageHeader";
+import SearchableSelect from "../../components/ui/SearchableSelect";
 import Select from "../../components/ui/Select";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
@@ -41,20 +43,17 @@ function validate(c: Config): Partial<Record<keyof Config, string>> {
 
 export default function ReorderConfigPage() {
   const navigate = useNavigate();
-  const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
+  const productSearch = useSearchableResource(searchProducts, true);
+  const selectedProductOption = productSearch.options.find((o) => o.value === selectedProduct) ?? null;
+  const productOptions = selectedProductOption
+    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== selectedProduct)]
+    : productSearch.options;
   const [selectedProduct, setSelectedProduct] = useState("");
   const [config, setConfig] = useState<Config>(empty());
   const [errors, setErrors] = useState<Partial<Record<keyof Config, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    fetchProductOptions().then((p) => {
-      setProducts(p);
-      if (p.length) setSelectedProduct(p[0].id);
-    });
-  }, []);
 
   // Load the product's current reorder configuration whenever the selection changes.
   useEffect(() => {
@@ -126,9 +125,20 @@ export default function ReorderConfigPage() {
       <div className="p-6 max-w-2xl flex flex-col gap-6">
         <FormError message={formError} />
 
-        <Select label="Product" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </Select>
+        <SearchableSelect
+          label="Product"
+          value={selectedProduct || null}
+          onChange={setSelectedProduct}
+          options={productOptions}
+          onSearch={productSearch.setTerm}
+          loading={productSearch.loading}
+          error={productSearch.error}
+          onRetry={productSearch.retry}
+          placeholder="Search and select a product..."
+          searchPlaceholder="Search by name or SKU..."
+          emptyMessage="No products found"
+          noResultsMessage="No products matching your search"
+        />
 
         {/* Current settings */}
         <div className="bg-[#DBEFF3] rounded-xl p-5 flex flex-col gap-4">

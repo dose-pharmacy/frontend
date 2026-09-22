@@ -8,6 +8,14 @@ export interface PaginatedResponse<T> {
     total: number
     totalPages: number
   }
+  /** Server-computed status counts over the FILTERED dataset (list responses). */
+  summary?: GoodsReceiptListSummary
+}
+
+export interface GoodsReceiptListSummary {
+  matched: number
+  discrepancy: number
+  resolved: number
 }
 
 export type GoodsReceiptStatus = "MATCHED" | "DISCREPANCY" | "RESOLVED"
@@ -21,6 +29,10 @@ export interface GRItemDto {
   deliveredQty: number
   actualQty: number
   unitCost: number
+  /** Unit the quantities are expressed in (snapshotted from the PO item). */
+  unitId: string | null
+  /** Embedded on create/confirm/detail responses (and PO receiving detail). */
+  unit?: { id: string; name: string; symbol: string } | null
   batchNumber: string | null
   manufacturingDate: string | null
   expiryDate: string | null
@@ -40,6 +52,12 @@ export interface GRItemDto {
     id: string
     name: string
   }
+  /** Detail confirm/create responses attach the created or matched batch. */
+  batch?: {
+    id: string
+    batchNumber: string
+    expiryDate: string
+  } | null
 }
 
 export interface GoodsReceiptDto {
@@ -51,10 +69,17 @@ export interface GoodsReceiptDto {
   status: GoodsReceiptStatus
   discrepancyNote: string | null
   createdAt: string
+  updatedAt: string
   createdById: string
-  confirmedAt: string | null
   confirmedById: string | null
+  /** Detail responses embed the items; the LIST response omits them (use `_count.items`). */
   items: GRItemDto[]
+  /** Item count as reported by the backend `_count.items` on list rows. */
+  _count?: { items: number }
+  /** Confirmation flag — null / absent until the receipt is confirmed. */
+  confirmedBy?: { id: string; name: string } | null
+  /** Backward-compatible alias used by detail/reconcile pages. */
+  confirmedAt?: string | null
   purchaseOrder?: {
     id: string
     poNumber: string
@@ -65,10 +90,6 @@ export interface GoodsReceiptDto {
     }
   }
   createdBy?: {
-    id: string
-    name: string
-  }
-  confirmedBy?: {
     id: string
     name: string
   }
@@ -132,14 +153,12 @@ export async function listGoodsReceipts(params: {
   limit?: number
   purchaseOrderId?: string
   status?: GoodsReceiptStatus
-  search?: string
 } = {}): Promise<PaginatedResponse<GoodsReceiptDto>> {
   const q = new URLSearchParams()
   if (params.page) q.set("page", params.page.toString())
   if (params.limit) q.set("limit", params.limit.toString())
   if (params.purchaseOrderId) q.set("purchaseOrderId", params.purchaseOrderId)
   if (params.status) q.set("status", params.status)
-  if (params.search) q.set("search", params.search)
 
   const qs = q.toString()
   return await grRequest<PaginatedResponse<GoodsReceiptDto>>(qs ? `?${qs}` : "")

@@ -10,6 +10,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { cacheRead, invalidateCachePrefix } from "../inventory/apiCache";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
@@ -192,8 +193,11 @@ export async function listSuppliers(query: SuppliersQuery = {}): Promise<Supplie
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
   const qs = params.toString();
-  const result = await suppliersRequest<SupplierListResult>(qs ? `?${qs}` : "");
-  return result ?? { data: [], meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } };
+  const key = `suppliers:list:${qs}`;
+  return cacheRead(key, async () => {
+    const result = await suppliersRequest<SupplierListResult>(qs ? `?${qs}` : "");
+    return result ?? { data: [], meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } };
+  });
 }
 
 /** POST /suppliers — create a supplier (only `name` is required). */
@@ -203,16 +207,19 @@ export async function createSupplier(input: CreateSupplierInput): Promise<Suppli
     body: JSON.stringify(input),
   });
   if (!result?.data) throw new SuppliersApiError("Unexpected response from the server.");
+  invalidateCachePrefix("suppliers:");
   return result.data;
 }
 
 /** GET /suppliers/{id} — supplier detail with POs, invoices and counts. */
 export async function getSupplierById(id: string): Promise<SupplierDetailDto> {
-  const result = await suppliersRequest<{ success: boolean; data: SupplierDetailDto }>(
-    `/${encodeURIComponent(id)}`,
-  );
-  if (!result?.data) throw new SuppliersApiError("Unexpected response from the server.");
-  return result.data;
+  return cacheRead(`suppliers:detail:${id}`, async () => {
+    const result = await suppliersRequest<{ success: boolean; data: SupplierDetailDto }>(
+      `/${encodeURIComponent(id)}`,
+    );
+    if (!result?.data) throw new SuppliersApiError("Unexpected response from the server.");
+    return result.data;
+  });
 }
 
 /** PATCH /suppliers/{id} — partial update; returns the full detail shape. */
@@ -225,6 +232,7 @@ export async function updateSupplier(
     { method: "PATCH", body: JSON.stringify(patch) },
   );
   if (!result?.data) throw new SuppliersApiError("Unexpected response from the server.");
+  invalidateCachePrefix("suppliers:");
   return result.data;
 }
 
@@ -236,4 +244,5 @@ export async function deleteSupplier(id: string): Promise<void> {
   await suppliersRequest<{ success: boolean; data: null }>(`/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+  invalidateCachePrefix("suppliers:");
 }

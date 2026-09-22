@@ -332,15 +332,22 @@ function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
 
 function TxTypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    RECEIPT: { label: "Received", cls: "bg-green-100 text-green-700" },
-    SALE: { label: "Sale", cls: "bg-blue-100 text-blue-700" },
-    TRANSFER: { label: "Transfer", cls: "bg-purple-100 text-purple-700" },
-    ADJUSTMENT: { label: "Adjustment", cls: "bg-orange-100 text-orange-700" },
     OPENING: { label: "Opening", cls: "bg-[#DBEFF3] text-[#49B0C1]" },
+    PURCHASE: { label: "Purchase", cls: "bg-green-100 text-green-700" },
+    SALE: { label: "Sale", cls: "bg-blue-100 text-blue-700" },
+    TRANSFER_IN: { label: "Transfer In", cls: "bg-purple-100 text-purple-700" },
+    TRANSFER_OUT: { label: "Transfer Out", cls: "bg-purple-100 text-purple-700" },
+    ADJUSTMENT_IN: { label: "Adjustment In", cls: "bg-orange-100 text-orange-700" },
+    ADJUSTMENT_OUT: { label: "Adjustment Out", cls: "bg-orange-100 text-orange-700" },
+    RETURN_IN: { label: "Return In", cls: "bg-yellow-100 text-yellow-700" },
+    RETURN_OUT: { label: "Return Out", cls: "bg-yellow-100 text-yellow-700" },
+    RETURN_TO_SUPPLIER: { label: "Return To Supplier", cls: "bg-yellow-100 text-yellow-700" },
+    EXPIRY: { label: "Expiry", cls: "bg-amber-100 text-amber-700" },
     DISPOSAL: { label: "Disposal", cls: "bg-red-100 text-red-700" },
-    RETURN: { label: "Return", cls: "bg-yellow-100 text-yellow-700" },
+    CORRECTION: { label: "Correction", cls: "bg-slate-200 text-slate-700" },
+    CLEARANCE_SALE: { label: "Clearance Sale", cls: "bg-cyan-100 text-cyan-700" },
   }
-  const cfg = map[type] ?? { label: type, cls: "bg-gray-100 text-gray-700" }
+  const cfg = map[type] ?? { label: type.replace(/_/g, " "), cls: "bg-gray-100 text-gray-700" }
   return (
     <span className={`text-xs font-semibold rounded-full px-2 py-0.5 capitalize ${cfg.cls}`}>
       {cfg.label}

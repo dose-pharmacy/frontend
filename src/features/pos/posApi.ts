@@ -11,7 +11,7 @@ import type { POSProduct, POSUnit } from "./posMock";
 // ─── Types (mirror the backend response) ─────────────────────────────────────
 
 export interface PosUnitDto {
-  /** ProductUnit row id — this is the `unitId` the sale endpoint expects. */
+  /** Master Unit id — this is the `unitId` the sale endpoint expects. */
   id: string;
   /** Master unit id (Unit table). */
   unitId: string;

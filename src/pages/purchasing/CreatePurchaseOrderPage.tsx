@@ -11,6 +11,9 @@ import {
   createPurchaseOrder,
   createPurchaseOrderFromRequirement,
   updatePurchaseOrder,
+  updatePurchaseOrderItem,
+  deletePurchaseOrderItem,
+  acceptPurchaseOrderShortage,
   markPurchaseOrderAwaitingDelivery,
   cancelPurchaseOrder,
   closePurchaseOrder,
@@ -19,11 +22,17 @@ import {
   type PurchaseOrderDto,
   type CreatePurchaseOrderItemInput,
   type CreatePurchaseOrderFromRequirementInput,
+  type UpdatePurchaseOrderItemInput,
 } from "../../features/purchasing/purchaseOrdersApi"
-import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { listSuppliers, getSupplierById, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
 import { listRequirements, type RequirementLineDto } from "../../features/purchasing/requirementsApi"
 import type { POItem, POStatus } from "./PurchaseOrdersPage"
+import SearchableSelect, { type SearchableOption } from "../../components/ui/SearchableSelect"
+import { useSearchableResource } from "../../hooks/useSearchableResource"
+import { searchProducts, searchSuppliers } from "../../features/inventory/searchSelectors"
+import { useProductUnits } from "../../features/inventory/useProductUnits"
+import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions"
 
 // ─── Shared local data ────────────────────────────────────────────────────────
 
@@ -92,40 +101,67 @@ function StatusTimeline({ current, cancelled }: { current: POStatus; cancelled?:
 
 // ─── Add Product Modal ────────────────────────────────────────────────────────
 
-function AddProductModal({ open, products, reqLines, existingProductIds, onClose, onAdd }: {
+function AddProductModal({ open, reqLines, existingProductIds, onClose, onAdd }: {
   open: boolean
-  products: ProductDto[]
   reqLines: ReqLineOption[]
   existingProductIds: string[]
   onClose: () => void
   onAdd: (item: POItem) => void
 }) {
+  const productSearch = useSearchableResource(searchProducts, open)
   const [product, setProduct] = useState("")
+  const [unitId, setUnitId] = useState("")
   const [quantity, setQuantity] = useState("")
   const [unitCost, setUnitCost] = useState("")
   const [reqLineId, setReqLineId] = useState("")
   const [error, setError] = useState("")
 
-  const selectedProduct = products.find((p) => p.id === product)
+  const unitProducts = useProductUnits(product || null)
+  const baseUnit = unitProducts.baseUnit
+  const unitOptions = unitProducts.options
+  const [unitFilter, setUnitFilter] = useState("")
+
+  const selectedProductOption: SearchableOption[] =
+    product && !productSearch.options.some((o) => o.value === product) && unitProducts.product
+      ? [{ value: unitProducts.product.id, label: unitProducts.product.name, sub: unitProducts.product.sku }]
+      : []
+  const productOptions = [...selectedProductOption, ...productSearch.options]
+
+  const visibleUnitOptions = unitOptions.filter(
+    (o) => !unitFilter || o.label.toLowerCase().includes(unitFilter.toLowerCase()),
+  )
+
+  const selectedProductName =
+    productSearch.options.find((o) => o.value === product)?.label ??
+    unitProducts.product?.name ??
+    ""
+
+  const qty = parseFloat(quantity) || 0
+  const productUnit = unitProducts.units.find((u) => u.unitId === unitId)
+  const baseQty = toBaseQuantity(qty, productUnit)
+  const showPreview = !!product && !!unitId && qty > 0 && baseQty !== null && !!baseUnit
 
   useEffect(() => {
-    if (open) { setProduct(""); setQuantity(""); setUnitCost(""); setReqLineId(""); setError("") }
+    if (open) { setProduct(""); setUnitId(""); setQuantity(""); setUnitCost(""); setReqLineId(""); setError("") }
   }, [open])
 
   function handleAdd() {
     if (!product) { setError("Please select a product."); return }
-    if (!quantity || parseInt(quantity) <= 0) { setError("Quantity must be greater than zero."); return }
     if (existingProductIds.includes(product)) { setError("This product is already in the order."); return }
+    if (!qty || qty <= 0) { setError("Quantity must be greater than zero."); return }
+    if (!unitId) { setError("Please select a unit."); return }
     setError("")
     onAdd({
       id: `draft-${product}`,
       productId: product,
-      product: selectedProduct?.name ?? "",
+      product: selectedProductName,
+      unitId,
+      unitLabel: productUnit?.unit?.name ?? "",
       requirementLineId: reqLineId || null,
-      quantity: parseInt(quantity),
+      quantity: qty,
       unitCost: parseFloat(unitCost) || 0,
     })
-    setProduct(""); setQuantity(""); setUnitCost(""); setReqLineId("")
+    setProduct(""); setUnitId(""); setQuantity(""); setUnitCost(""); setReqLineId("")
   }
 
   const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
@@ -136,21 +172,52 @@ function AddProductModal({ open, products, reqLines, existingProductIds, onClose
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Product</label>
-          <select value={product} onChange={(e) => setProduct(e.target.value)} className={SC}>
-            <option value="">Select product...</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <SearchableSelect
+            value={product}
+            onChange={(v) => { setProduct(v); setUnitId("") }}
+            options={productOptions}
+            onSearch={productSearch.setTerm}
+            loading={productSearch.loading}
+            error={productSearch.error}
+            onRetry={productSearch.retry}
+            placeholder="Search and select a product..."
+            searchPlaceholder="Search by name or SKU..."
+            emptyMessage="No products to choose from"
+            noResultsMessage="No products matching your search"
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-medium text-[#333333] block mb-1.5">Quantity Ordered</label>
-            <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder="0" />
+            <input type="number" min={1} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder="0" />
           </div>
           <div>
-            <label className="text-sm font-medium text-[#333333] block mb-1.5">Unit Cost (ETB)</label>
-            <input type="number" min={0} step={0.01} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className={SC} placeholder="0.00" />
+            <label className="text-sm font-medium text-[#333333] block mb-1.5">Unit</label>
+            <SearchableSelect
+              value={unitId || null}
+              onChange={(v) => setUnitId(v)}
+              options={visibleUnitOptions}
+              onSearch={(t) => setUnitFilter(t)}
+              loading={unitProducts.loading}
+              error={unitProducts.error}
+              onRetry={unitProducts.refresh}
+              allowClear
+              placeholder={unitProducts.loading ? "Loading units..." : (product ? "Select a unit..." : "Select a product first")}
+              emptyMessage={product ? "No units configured for this product" : "Select a product first"}
+            />
           </div>
         </div>
+        <div>
+          <label className="text-sm font-medium text-[#333333] block mb-1.5">Unit Cost (ETB)</label>
+          <input type="number" min={0} step={0.01} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className={SC} placeholder="0.00" />
+        </div>
+        {showPreview && (
+          <div className="rounded-lg bg-[#DBEFF3]/50 px-4 py-2.5 text-sm">
+            {qty} {productUnit?.unit?.name ?? ""} ={" "}
+            <span className="font-semibold text-[#49B0C1]">{baseQty} {baseUnit?.name ?? ""}</span>
+            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
+          </div>
+        )}
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Requirement Line <span className="text-[#999] text-xs font-normal">(optional)</span></label>
           <select value={reqLineId} onChange={(e) => setReqLineId(e.target.value)} className={SC}>
@@ -161,12 +228,111 @@ function AddProductModal({ open, products, reqLines, existingProductIds, onClose
         {product && quantity && unitCost && (
           <div className="rounded-lg bg-[#DBEFF3]/50 px-4 py-2.5 flex items-center justify-between text-sm">
             <span className="text-[#666666]">Line Total</span>
-            <span className="font-bold text-[#333333]">{fmtMoney(parseInt(quantity || "0") * parseFloat(unitCost || "0"))}</span>
+            <span className="font-bold text-[#333333]">{fmtMoney(qty * (parseFloat(unitCost) || 0))}</span>
           </div>
         )}
         <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleAdd}>Add Product</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Edit Item Modal ──────────────────────────────────────────────────────────
+
+function EditItemModal({ item, error, onClose, onSave }: {
+  item: POItem | null
+  error: string
+  onClose: () => void
+  onSave: (patch: UpdatePurchaseOrderItemInput, onDone: () => void) => void
+}) {
+  const [quantity, setQuantity] = useState("")
+  const [unitCost, setUnitCost] = useState("")
+  const [fieldError, setFieldError] = useState("")
+
+  useEffect(() => {
+    if (item) {
+      setQuantity(String(item.quantity ?? ""))
+      setUnitCost(String(item.unitCost ?? ""))
+      setFieldError("")
+    }
+  }, [item])
+
+  function handleSave() {
+    const q = parseFloat(quantity)
+    const c = parseFloat(unitCost)
+    if (!q || q <= 0) { setFieldError("Quantity must be greater than zero."); return }
+    if (!c || c <= 0) { setFieldError("Unit cost must be greater than zero."); return }
+    setFieldError("")
+    onSave(
+      { quantityOrdered: q, unitCost: c },
+      () => { setQuantity(""); setUnitCost("") },
+    )
+  }
+
+  const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
+
+  return (
+    <Modal open={!!item} title="Edit Order Item" onClose={onClose} size="sm">
+      <div className="flex flex-col gap-4">
+        {(fieldError || error) && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{fieldError || error}</p>}
+        <div>
+          <label className="text-sm font-medium text-[#333333] block mb-1.5">Quantity Ordered</label>
+          <input type="number" min={1} step={0.01} value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-[#333333] block mb-1.5">Unit Cost (ETB)</label>
+          <input type="number" min={0} step={0.01} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className={SC} />
+        </div>
+        {quantity && unitCost && (
+          <div className="rounded-lg bg-[#DBEFF3]/50 px-4 py-2.5 flex items-center justify-between text-sm">
+            <span className="text-[#666666]">Line Total</span>
+            <span className="font-bold text-[#333333]">{fmtMoney(parseFloat(quantity || "0") * parseFloat(unitCost || "0"))}</span>
+          </div>
+        )}
+        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave}>Save Item</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Accept Shortage Modal ────────────────────────────────────────────────────
+
+function AcceptShortageModal({ target, quantity, reason, error, setQuantity, setReason, onClose, onConfirm }: {
+  target: { productName: string; remaining: number } | null
+  quantity: string
+  reason: string
+  error: string
+  setQuantity: (v: string) => void
+  setReason: (v: string) => void
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
+  return (
+    <Modal open={!!target} title="Accept Shortage" onClose={onClose} size="sm">
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-[#666666]">
+          The supplier will not deliver the full ordered quantity for <span className="font-semibold text-[#333333]">{target?.productName}</span>.
+          Accepting the shortage reconciles the remaining <span className="font-semibold text-[#333333]">{target?.remaining}</span> unit{target?.remaining !== 1 ? "s" : ""} against the order without receiving stock.
+        </p>
+        {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        <div>
+          <label className="text-sm font-medium text-[#333333] block mb-1.5">Shortage Quantity</label>
+          <input type="number" min={1} step={0.01} value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder={`Up to ${target?.remaining ?? 0}`} />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-[#333333] block mb-1.5">Reason <span className="text-[#999] text-xs font-normal">(optional)</span></label>
+          <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" placeholder="e.g. Supplier short-shipped this line" />
+        </div>
+        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={onConfirm}>Accept Shortage</Button>
         </div>
       </div>
     </Modal>
@@ -249,7 +415,14 @@ export default function CreatePurchaseOrderPage() {
   const [cancelOpen, setCancelOpen]             = useState(false)
   const [actionError, setActionError]           = useState("")
 
+  // Item edit + shortage state
+  const [editingItem, setEditingItem] = useState<POItem | null>(null)
+  const [shortageTarget, setShortageTarget] = useState<{ itemId: string; productName: string; remaining: number } | null>(null)
+  const [shortageQty, setShortageQty] = useState("")
+  const [shortageReason, setShortageReason] = useState("")
+
   // Load suppliers + products + open requirement lines once.
+  const supplierSearch = useSearchableResource(searchSuppliers, isNew || editMode)
   useEffect(() => {
     let active = true
     listSuppliers({ limit: 100, isActive: true })
@@ -310,7 +483,9 @@ export default function CreatePurchaseOrderPage() {
           (dto.items ?? []).map((it: POItemDto) => ({
             id: it.id,
             productId: it.productId,
-            product: "",
+            product: it.product?.name ?? "",
+            unitId: it.unitId ?? null,
+            unitLabel: it.unit?.name ?? "",
             requirementLineId: it.requirementLineId ?? null,
             quantity: it.quantityOrdered ?? 0,
             unitCost: it.unitCost ?? 0,
@@ -331,6 +506,11 @@ export default function CreatePurchaseOrderPage() {
   const supplierView = supplier ?? (poState?.supplier
     ? { id: poState.supplier.id, name: poState.supplier.name, contactPerson: poState.supplier.contactPerson ?? "", phone: poState.supplier.phone ?? "", email: poState.supplier.email ?? "", paymentTerms: poState.supplier.paymentTerms ?? "" }
     : null)
+
+  const supplierSearchOptions: SearchableOption[] = [
+    ...suppliers.map((s) => ({ value: s.id, label: s.name, sub: s.contactPerson ?? (s.email ?? undefined) })),
+    ...supplierSearch.options.filter((o) => !suppliers.some((s) => s.id === o.value)),
+  ]
   const total = orderTotal(items)
   const isReadOnly = !editMode || status === "CLOSED" || status === "CANCELLED"
 
@@ -345,6 +525,7 @@ export default function CreatePurchaseOrderPage() {
       quantityOrdered: it.quantity,
       unitCost: it.unitCost,
       ...(it.requirementLineId ? { requirementLineId: it.requirementLineId } : {}),
+      ...(it.unitId ? { unitId: it.unitId } : {}),
     }))
   }
 
@@ -400,11 +581,11 @@ export default function CreatePurchaseOrderPage() {
     setSaving(true)
     setSaveError("")
     try {
+      // The backend only accepts expectedDeliveryDate + notes on the header.
+      // Item edits flow through PATCH/DELETE /purchase-orders/items/{itemId}.
       const updated = await updatePurchaseOrder(poState.id, {
-        supplierId: suppId,
         expectedDeliveryDate: delivDate || null,
         notes: notes || null,
-        items: itemsToDto(),
       })
       setPOState(updated)
       setEditMode(false)
@@ -414,6 +595,93 @@ export default function CreatePurchaseOrderPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  /** Re-fetch the PO detail (used after item mutations so quantities/summaries stay fresh). */
+  function refreshPO() {
+    if (!poState) return
+    getPurchaseOrder(poState.id)
+      .then((dto) => {
+        setPOState(dto)
+        setItems(
+          (dto.items ?? []).map((it: POItemDto) => ({
+            id: it.id,
+            productId: it.productId,
+            product: it.product?.name ?? "",
+            unitId: it.unitId ?? null,
+            unitLabel: it.unit?.name ?? "",
+            requirementLineId: it.requirementLineId ?? null,
+            quantity: it.quantityOrdered ?? 0,
+            unitCost: it.unitCost ?? 0,
+          })),
+        )
+      })
+      .catch(() => { /* keep current state — the toast from the action still informs the user */ })
+  }
+
+  /** Persisted item removal — only allowed by the backend on REGISTERED orders. */
+  async function handleRemoveItem(item: POItem) {
+    if (!poState) return
+    setActionError("")
+    try {
+      await deletePurchaseOrderItem(item.id)
+      setToast("Item removed from the purchase order.")
+      refreshPO()
+    } catch (err) {
+      setActionError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to remove the item. Please try again.")
+    }
+  }
+
+  async function handleSaveItem(itemId: string, patch: UpdatePurchaseOrderItemInput, onDone: () => void) {
+    setActionError("")
+    try {
+      await updatePurchaseOrderItem(itemId, patch)
+      setToast("Item updated successfully.")
+      refreshPO()
+      onDone()
+    } catch (err) {
+      setActionError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to update the item. Please try again.")
+    }
+  }
+
+  /** Open the shortage modal with the item's unreceived remainder. */
+  function openShortage(item: POItem) {
+    const dtoItem = poState?.items?.find((it) => it.id === item.id)
+    const remaining = Math.max(
+      0,
+      (dtoItem?.quantityOrdered ?? item.quantity) - (dtoItem?.quantityReceived ?? 0) - (dtoItem?.quantityShort ?? 0),
+    )
+    setShortageTarget({ itemId: item.id, productName: item.product, remaining })
+    setShortageQty(String(remaining || ""))
+    setShortageReason("")
+    setActionError("")
+  }
+
+  async function handleAcceptShortage() {
+    if (!shortageTarget) return
+    setActionError("")
+    try {
+      await acceptPurchaseOrderShortage(shortageTarget.itemId, {
+        quantityShort: parseFloat(shortageQty) || undefined,
+        ...(shortageReason.trim() ? { shortReason: shortageReason.trim() } : {}),
+      })
+      setShortageTarget(null)
+      setShortageQty("")
+      setShortageReason("")
+      setToast("Shortage accepted — the item is reconciled against the order.")
+      refreshPO()
+    } catch (err) {
+      setActionError(err instanceof PurchaseOrdersApiError ? err.message : "Failed to accept the shortage. Please try again.")
+    }
+  }
+
+  /** Remaining quantity of a detail item (for the shortage / progress rendering). */
+  function itemRemaining(item: POItem): number {
+    const dtoItem = poState?.items?.find((it) => it.id === item.id)
+    return Math.max(
+      0,
+      (dtoItem?.quantityOrdered ?? item.quantity) - (dtoItem?.quantityReceived ?? 0) - (dtoItem?.quantityShort ?? 0),
+    )
   }
 
   /** Confirmed status transition against the real endpoint. */
@@ -568,10 +836,19 @@ export default function CreatePurchaseOrderPage() {
               {isReadOnly ? (
                 <div className={ROC}>{supplierView?.name ?? "—"}</div>
               ) : (
-                <select value={suppId} onChange={(e) => setSuppId(e.target.value)} className={SC}>
-                  <option value="">Select supplier...</option>
-                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={suppId || null}
+                  onChange={(v) => setSuppId(v)}
+                  options={supplierSearchOptions}
+                  onSearch={supplierSearch.setTerm}
+                  loading={supplierSearch.loading}
+                  error={supplierSearch.error}
+                  onRetry={supplierSearch.retry}
+                  placeholder="Search and select a supplier..."
+                  searchPlaceholder="Search by name, contact or email..."
+                  emptyMessage="No suppliers available"
+                  noResultsMessage="No suppliers matching your search"
+                />
               )}
               {supplierView && (
                 <div className="mt-4 rounded-xl bg-[#DBEFF3]/50 p-4 grid sm:grid-cols-2 gap-3">
@@ -597,14 +874,14 @@ export default function CreatePurchaseOrderPage() {
                   <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Order Items</p>
                   <p className="text-xs text-[#999] mt-0.5">Products included in this purchase order.</p>
                 </div>
-                {!isReadOnly && (
+                {isNew && (
                   <button onClick={() => setAddProductOpen(true)} className="text-xs font-semibold text-[#49B0C1] hover:underline">+ Add Product</button>
                 )}
               </div>
               {items.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-sm text-[#999]">No products added yet.</p>
-                  {!isReadOnly && (
+                  {isNew && (
                     <button onClick={() => setAddProductOpen(true)} className="mt-3 text-xs font-semibold text-[#49B0C1] hover:underline">+ Add Product</button>
                   )}
                 </div>
@@ -631,12 +908,29 @@ export default function CreatePurchaseOrderPage() {
                             <td className="px-4 py-3 text-[#666666] font-mono text-xs hidden sm:table-cell">
                               {reqLine?.label ?? (item.requirementLineId ? item.requirementLineId.slice(0, 8) : <span className="text-[#999]">—</span>)}
                             </td>
-                            <td className="px-4 py-3 text-right text-[#333333]">{item.quantity}</td>
+                            <td className="px-4 py-3 text-right text-[#333333]">
+                              {item.quantity}
+                              {item.unitLabel && <span className="ml-1 text-xs text-[#999]">{item.unitLabel}</span>}
+                              {!isNew && !editMode && itemRemaining(item) > 0 && (status === "REGISTERED" || status === "AWAITING_DELIVERY") && (
+                                <div className="mt-0.5">
+                                  <button onClick={() => openShortage(item)} className="text-[11px] font-semibold text-yellow-700 hover:underline">
+                                    Accept Shortage
+                                  </button>
+                                </div>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(item.unitCost)}</td>
                             <td className="px-4 py-3 text-right font-bold text-[#333333]">{fmtMoney(itemTotal(item))}</td>
                             {!isReadOnly && (
                               <td className="px-4 py-3">
-                                <button onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} className="text-xs text-red-400 hover:text-red-600 font-medium">Remove</button>
+                                {isNew ? (
+                                  <button onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} className="text-xs text-red-400 hover:text-red-600 font-medium">Remove</button>
+                                ) : (
+                                  <div className="flex items-center gap-3 justify-end">
+                                    <button onClick={() => { setActionError(""); setEditingItem(item) }} className="text-xs text-[#49B0C1] hover:underline font-medium">Edit</button>
+                                    <button onClick={() => handleRemoveItem(item)} className="text-xs text-red-400 hover:text-red-600 font-medium">Remove</button>
+                                  </div>
+                                )}
                               </td>
                             )}
                           </tr>
@@ -716,7 +1010,10 @@ export default function CreatePurchaseOrderPage() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                           <div>
                             <p className="text-[#999]">Allocated Qty</p>
-                            <p className="font-semibold text-[#333333]">{item.quantity}</p>
+                            <p className="font-semibold text-[#333333]">
+                              {item.quantity}
+                              {item.unitLabel && <span className="ml-1 text-xs font-normal text-[#999]">{item.unitLabel}</span>}
+                            </p>
                           </div>
                           <div>
                             <p className="text-[#999]">Unit Cost</p>
@@ -761,6 +1058,67 @@ export default function CreatePurchaseOrderPage() {
                   <p className="text-xs text-[#999]">Supplier Payment Terms</p>
                   <p className="text-sm font-semibold text-[#333333] mt-0.5">{supplierView.paymentTerms || "—"}</p>
                   <p className="text-xs text-[#999] mt-1">Payment is managed through Supplier Payables.</p>
+                </div>
+              )}
+
+              {/* Receiving summary (detail only) */}
+              {!isNew && poState?.receivingSummary && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">Receiving</p>
+                  <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+                    {([
+                      ["Ordered", poState.receivingSummary.orderedQuantity],
+                      ["Received", poState.receivingSummary.receivedQuantity],
+                      ["Shortage", poState.receivingSummary.shortQuantity],
+                      ["Remaining", poState.receivingSummary.remainingQuantity],
+                    ] as [string, number][]).map(([label, val]) => (
+                      <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
+                        <span className="text-[#666666]">{label}</span>
+                        <span className="font-semibold text-[#333333]">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Goods value summary (detail only) */}
+              {!isNew && poState?.goodsSummary && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">Goods Value</p>
+                  <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+                    {([
+                      ["Ordered Goods", poState.goodsSummary.orderedGoodsValue],
+                      ["Received Goods", poState.goodsSummary.receivedGoodsValue],
+                      ["Goods Invoiced", poState.goodsSummary.goodsInvoicedAmount],
+                      ["Still to Invoice", poState.goodsSummary.remainingGoodsToInvoice],
+                    ] as [string, number][]).map(([label, val]) => (
+                      <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
+                        <span className="text-[#666666]">{label}</span>
+                        <span className="font-semibold text-[#333333]">{fmtMoney(val)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment summary (detail only) */}
+              {!isNew && poState?.paymentSummary && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">Payment</p>
+                  <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+                    {([
+                      ["Status", poState.paymentSummary.status === "NOT_INVOICED" ? "Not Invoiced" : poState.paymentSummary.status === "PARTIALLY_PAID" ? "Partially Paid" : poState.paymentSummary.status === "UNPAID" ? "Unpaid" : poState.paymentSummary.status === "PAID" ? "Paid" : poState.paymentSummary.status],
+                      ["Invoices", String(poState.paymentSummary.invoiceCount)],
+                      ["Invoiced", poState.paymentSummary.invoicedAmount],
+                      ["Paid", poState.paymentSummary.paidAmount],
+                      ["Outstanding", poState.paymentSummary.outstandingAmount],
+                    ] as [string, string | number][]).map(([label, val]) => (
+                      <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
+                        <span className="text-[#666666]">{label}</span>
+                        <span className={`font-semibold ${val === 0 && label === "Outstanding" ? "text-green-600" : "text-[#333333]"}`}>{typeof val === "number" ? fmtMoney(val) : val}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -832,11 +1190,28 @@ export default function CreatePurchaseOrderPage() {
       {/* Modals */}
       <AddProductModal
         open={addProductOpen}
-        products={products}
         reqLines={reqLines}
         existingProductIds={items.map((i) => i.productId)}
         onClose={() => setAddProductOpen(false)}
         onAdd={(item) => { setItems((prev) => [...prev, item]); setAddProductOpen(false) }}
+      />
+
+      <EditItemModal
+        item={editingItem}
+        error={actionError}
+        onClose={() => { setEditingItem(null); setActionError("") }}
+        onSave={(patch, onDone) => { if (editingItem) void handleSaveItem(editingItem.id, patch, onDone) }}
+      />
+
+      <AcceptShortageModal
+        target={shortageTarget}
+        quantity={shortageQty}
+        reason={shortageReason}
+        error={actionError}
+        setQuantity={setShortageQty}
+        setReason={setShortageReason}
+        onClose={() => { setShortageTarget(null); setActionError("") }}
+        onConfirm={() => void handleAcceptShortage()}
       />
 
       <ConfirmModal

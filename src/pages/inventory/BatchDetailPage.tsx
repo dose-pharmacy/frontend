@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
   fetchBatchById,
-  getTransactions,
   daysUntilExpiry,
   updateBatch,
   deleteBatch,
   type BatchDetail,
 } from "../../features/inventory/inventoryService";
-import type { Transaction } from "../../features/inventory/inventoryMock";
+import { getBatchTransactions, type StockTransactionDto } from "../../features/inventory/stockApi";
 import Breadcrumb from "../../components/ui/Breadcrumb";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Button from "../../components/ui/Button";
@@ -24,11 +23,40 @@ interface EditBatchForm {
   supplierReference: string;
 }
 
+interface TxRow {
+  id: string;
+  type: string;
+  direction: "IN" | "OUT";
+  quantity: number;
+  balanceAfter: number;
+  date: string;
+  reference: string;
+}
+
+function adaptTx(tx: StockTransactionDto): TxRow {
+  return {
+    id: tx.id,
+    type: tx.transactionType,
+    direction: tx.direction,
+    quantity: tx.quantity,
+    balanceAfter: tx.balanceAfter,
+    date: tx.createdAt,
+    reference: [tx.referenceType, tx.referenceId].filter(Boolean).join(" · ") || "—",
+  };
+}
+
+function prettyTxType(t: string) {
+  if (!t) return "";
+  const spaced = t.replace(/_/g, " ");
+  if (spaced === spaced.toUpperCase()) return spaced.charAt(0) + spaced.slice(1).toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 export default function BatchDetailPage() {
   const { batchId } = useParams<{ batchId: string }>();
   const navigate = useNavigate();
   const [batch, setBatch] = useState<BatchDetail | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<TxRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -60,11 +88,10 @@ export default function BatchDetailPage() {
           return;
         }
         setBatch(b);
-        // Transactions aren't exposed by the batches endpoints yet — mock
-        // data until that endpoint ships.
-        const t = await getTransactions(b.productId);
+        // GET /inventory/batches/{id}/transactions — real ledger for this batch.
+        const t = await getBatchTransactions(batchId as string, { limit: 100 });
         if (cancelled) return;
-        setTransactions(t.filter((tx) => tx.batchId === batchId));
+        setTransactions(t.data.map(adaptTx));
         setLoading(false);
       })
       .catch((err) => {
@@ -237,7 +264,7 @@ export default function BatchDetailPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#DBEFF3]">
-                      {["Date", "Type", "Quantity", "Reference"].map((h) => (
+                      {["Date", "Type", "Movement", "Balance After", "Reference"].map((h) => (
                         <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
                       ))}
                     </tr>
@@ -245,9 +272,14 @@ export default function BatchDetailPage() {
                   <tbody>
                     {transactions.map((t, i) => (
                       <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
-                        <td className="px-4 py-3 text-[#666666]">{t.date}</td>
-                        <td className="px-4 py-3 capitalize text-[#333333]">{t.type}</td>
-                        <td className="px-4 py-3 font-semibold text-[#333333]">{t.quantity}</td>
+                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
+                          {new Date(t.date).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </td>
+                        <td className="px-4 py-3 capitalize text-[#333333]">{prettyTxType(t.type)}</td>
+                        <td className={`px-4 py-3 font-semibold ${t.direction === "IN" ? "text-green-700" : "text-red-700"}`}>
+                          {t.direction === "IN" ? "+" : "−"}{t.quantity.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-[#666666]">{t.balanceAfter.toLocaleString()}</td>
                         <td className="px-4 py-3 font-mono text-xs text-[#666666]">{t.reference}</td>
                       </tr>
                     ))}

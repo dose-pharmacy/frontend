@@ -11,8 +11,14 @@ import {
   closePurchaseOrder,
   PurchaseOrdersApiError,
   type PurchaseOrderDto,
+  type POListSummaryDto,
+  type POPaymentStatus,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { searchSuppliers } from "../../features/inventory/searchSelectors"
+import { useSearchableResource } from "../../hooks/useSearchableResource"
+import SearchableSelect from "../../components/ui/SearchableSelect"
+import type { SearchableOption } from "../../components/ui/SearchableSelect"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +30,10 @@ export interface POItem {
   /** Product display name when known (list rows from the API only carry the id). */
   product: string
   requirementLineId: string | null
+  /** Unit the ordered quantity is expressed in; null = base unit. */
+  unitId?: string | null
+  /** Display label for the unit (base-unit lines show blank). */
+  unitLabel?: string
   quantity: number
   unitCost: number
 }
@@ -41,6 +51,8 @@ export interface PurchaseOrder {
   /** Item count as reported by the backend `_count.items` (list rows). */
   itemsCount: number
   notes: string
+  /** Payment phase derived per-order by the backend's `paymentSummary`. */
+  paymentStatus: POPaymentStatus
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,6 +85,7 @@ export function toUiPO(dto: PurchaseOrderDto): PurchaseOrder {
     notes: dto.notes ?? "",
     itemsCount: dto._count?.items ?? items.length,
     items,
+    paymentStatus: dto.paymentSummary?.status ?? "NOT_INVOICED",
   }
 }
 
@@ -86,6 +99,18 @@ const STATUS_CFG: Record<POStatus, { label: string; cls: string }> = {
 
 export function StatusBadge({ status }: { status: POStatus }) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.REGISTERED
+  return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${cfg.cls}`}>{cfg.label}</span>
+}
+
+const PAY_CFG: Partial<Record<POPaymentStatus, { label: string; cls: string }>> = {
+  NOT_INVOICED:    { label: "Not Invoiced",  cls: "bg-gray-100 text-gray-500" },
+  UNPAID:          { label: "Unpaid",        cls: "bg-orange-100 text-orange-700" },
+  PARTIALLY_PAID:  { label: "Partially Paid", cls: "bg-yellow-100 text-yellow-700" },
+  PAID:            { label: "Paid",          cls: "bg-green-100 text-green-700" },
+}
+
+export function PaymentBadge({ status }: { status: POPaymentStatus }) {
+  const cfg = PAY_CFG[status] ?? { label: "Not Invoiced", cls: "bg-gray-100 text-gray-500" }
   return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${cfg.cls}`}>{cfg.label}</span>
 }
 
@@ -168,10 +193,12 @@ export default function PurchaseOrdersPage() {
   const [reloadTick, setReloadTick] = useState(0)
   const [suppFilter, setSuppFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
+  const [paymentFilter, setPaymentFilter] = useState("")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [poSummary, setPoSummary] = useState<POListSummaryDto | null>(null)
   const [toast, setToast] = useState("")
   const [actionError, setActionError] = useState("")
   const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "markDelivery" | "close" | "cancel" } | null>(null)
@@ -187,6 +214,12 @@ export default function PurchaseOrdersPage() {
     return () => { active = false }
   }, [])
 
+  const supplierSearch = useSearchableResource(searchSuppliers)
+  const supplierFilterOptions: SearchableOption[] = [
+    ...suppliers.map((s) => ({ value: s.id, label: s.name, sub: s.contactPerson ?? (s.email ?? undefined) })),
+    ...supplierSearch.options.filter((o) => !suppliers.some((s) => s.id === o.value)),
+  ]
+
   // Real purchase orders with backend pagination.
   useEffect(() => {
     let active = true
@@ -196,12 +229,14 @@ export default function PurchaseOrdersPage() {
     if (search) params.search = search
     if (suppFilter) params.supplierId = suppFilter
     if (statusFilter) params.status = statusFilter
+    if (paymentFilter) params.paymentStatus = paymentFilter
     listPurchaseOrders(params)
       .then((res) => {
         if (!active) return
         setOrders(res.data.map(toUiPO))
         setTotalPages(res.meta.totalPages)
         setTotalCount(res.meta.total)
+        if (res.summary) setPoSummary(res.summary)
       })
       .catch((err) => {
         if (!active) return
@@ -209,16 +244,18 @@ export default function PurchaseOrdersPage() {
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [reloadTick, page, search, suppFilter, statusFilter])
+  }, [reloadTick, page, search, suppFilter, statusFilter, paymentFilter])
 
   function refresh() { setReloadTick((t) => t + 1) }
 
+  // Summary counts come from the server (computed over the filtered dataset).
+  // Fall back to the current page's rows if the server didn't send them.
   const summary = {
     total:    totalCount,
-    registered:    orders.filter((o) => o.status === "REGISTERED").length,
-    awaiting: orders.filter((o) => o.status === "AWAITING_DELIVERY").length,
-    received: orders.filter((o) => o.status === "RECEIVED").length,
-    closed:   orders.filter((o) => o.status === "CLOSED").length,
+    registered: poSummary?.registered ?? orders.filter((o) => o.status === "REGISTERED").length,
+    awaiting: poSummary?.awaitingDelivery ?? orders.filter((o) => o.status === "AWAITING_DELIVERY").length,
+    received: poSummary?.received ?? orders.filter((o) => o.status === "RECEIVED").length,
+    closed:   poSummary?.closed ?? orders.filter((o) => o.status === "CLOSED").length,
   }
 
   // For backward compatibility with table rendering
@@ -288,10 +325,22 @@ export default function PurchaseOrdersPage() {
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
           <div className="flex flex-wrap gap-3 items-center">
-            <select value={suppFilter} onChange={(e) => { setSuppFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
-              <option value="">All Suppliers</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <div className="flex-1 min-w-[160px]">
+              <SearchableSelect
+                value={suppFilter || null}
+                onChange={(v) => { setSuppFilter(v); setPage(1) }}
+                options={supplierFilterOptions}
+                onSearch={supplierSearch.setTerm}
+                loading={supplierSearch.loading}
+                error={supplierSearch.error}
+                onRetry={supplierSearch.retry}
+                allowClear
+                placeholder="All Suppliers"
+                searchPlaceholder="Search by name, contact or email..."
+                emptyMessage="No suppliers available"
+                noResultsMessage="No suppliers matching your search"
+              />
+            </div>
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="REGISTERED">Registered</option>
@@ -300,8 +349,15 @@ export default function PurchaseOrdersPage() {
               <option value="CLOSED">Closed</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
-            {(search || suppFilter || statusFilter) && (
-              <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPage(1) }} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+            <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+              <option value="">All Payment Statuses</option>
+              <option value="NOT_INVOICED">Not Invoiced</option>
+              <option value="UNPAID">Unpaid</option>
+              <option value="PARTIALLY_PAID">Partially Paid</option>
+              <option value="PAID">Paid</option>
+            </select>
+            {(search || suppFilter || statusFilter || paymentFilter) && (
+              <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-xs font-semibold text-[#49B0C1] hover:underline">
                 Clear Filters
               </button>
             )}
@@ -330,13 +386,13 @@ export default function PurchaseOrdersPage() {
               <div className="text-center">
                 <p className="font-semibold text-[#333333]">No purchase orders found</p>
                 <p className="text-sm text-[#666666] mt-1">
-                  {(search || suppFilter || statusFilter)
+                  {(search || suppFilter || statusFilter || paymentFilter)
                     ? "No purchase orders match your filters."
                     : "Purchase orders will appear here once they are created."}
                 </p>
               </div>
-              {(search || suppFilter || statusFilter) ? (
-                <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPage(1) }} className="text-sm font-semibold text-[#49B0C1] hover:underline">Clear Filters</button>
+              {(search || suppFilter || statusFilter || paymentFilter) ? (
+                <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-sm font-semibold text-[#49B0C1] hover:underline">Clear Filters</button>
               ) : (
                 <Button onClick={() => navigate("/purchasing/orders/new")}>+ Create Purchase Order</Button>
               )}
@@ -347,7 +403,7 @@ export default function PurchaseOrdersPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#DBEFF3] text-left">
-                      {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Items", "Status", "Actions"].map((h) => (
+                      {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Items", "Status", "Payment", "Actions"].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
                     </tr>
@@ -363,6 +419,7 @@ export default function PurchaseOrdersPage() {
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.expectedDeliveryDate)}</td>
                         <td className="px-4 py-3 text-[#666666]">{po.itemsCount} item{po.itemsCount !== 1 ? "s" : ""}</td>
                         <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
+                        <td className="px-4 py-3"><PaymentBadge status={po.paymentStatus} /></td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">View →</button>

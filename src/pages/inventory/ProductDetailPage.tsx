@@ -572,11 +572,11 @@ export default function ProductDetailPage() {
                           </td>
 
                           <td className="px-4 py-3 text-[#333333]">
-                            ₱{(u.sellPrice ?? 0).toFixed(2)}
+                            {Number(u.sellPrice ?? 0).toFixed(2)} ETB
                           </td>
 
                           <td className="px-4 py-3 text-[#333333]">
-                            ₱{(u.purchasePrice ?? 0).toFixed(2)}
+                            {Number(u.purchasePrice ?? 0).toFixed(2)} ETB
                           </td>
 
                           <td className="px-4 py-3">

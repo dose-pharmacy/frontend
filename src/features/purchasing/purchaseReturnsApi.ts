@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../auth/authApi"
+import { invalidateCachePrefix } from "../inventory/apiCache"
 
 export interface PaginatedResponse<T> {
   data: T[]
@@ -139,17 +140,22 @@ export async function getPurchaseReturn(id: string): Promise<PurchaseReturnDto> 
 }
 
 /**
- * Body for POST /purchase-returns — batchId, unitCost, debitNoteAmount and
- * notes are optional per the backend contract; the backend derives the
- * location from the batch and stamps returnedDate/returnNumber itself.
+ * Body for POST /purchase-returns — locationId is REQUIRED by the backend
+ * (it was missing before, which caused 422).  batchId is optional; when
+ * omitted the backend picks the first batch with stock at the location.
+ * unitCost is REQUIRED (positive money); debitNoteAmount / notes are
+ * optional (debitNoteAmount defaults to quantity × unitCost).
+ * NOTE: quantity is expressed in the product's base units — the backend
+ * records the total stock movement as given and has no per-return unitId.
  */
 export interface CreatePurchaseReturnInput {
   supplierId: string
   productId: string
   batchId?: string | null
+  locationId: string
   reason: PurchaseReturnReason
   quantity: number
-  unitCost?: number
+  unitCost: number
   debitNoteAmount?: number
   notes?: string | null
 }
@@ -158,11 +164,12 @@ export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Pr
   const body: Record<string, unknown> = {
     supplierId: input.supplierId,
     productId: input.productId,
+    locationId: input.locationId,
     reason: input.reason,
     quantity: input.quantity,
   }
   if (input.batchId) body.batchId = input.batchId
-  if (input.unitCost != null) body.unitCost = input.unitCost
+  body.unitCost = input.unitCost
   if (input.debitNoteAmount != null) body.debitNoteAmount = input.debitNoteAmount
   if (input.notes) body.notes = input.notes
 
@@ -170,13 +177,8 @@ export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Pr
     method: "POST",
     body: JSON.stringify(body),
   })
+  // A return reduces stock — drop cached product-detail copies.
+  invalidateCachePrefix("product:")
   if (!result?.data) throw new PurchaseReturnsApiError("Unexpected response from the server.")
   return result.data
-}
-
-// NOTE: Deleting a purchase return is considered unsafe and throws an error in the backend
-// to preserve the stock ledger audit trail. However, we provide the method for cases where it's explicitly allowed.
-
-export async function deletePurchaseReturn(id: string): Promise<void> {
-  await returnRequest(`/${encodeURIComponent(id)}`, { method: "DELETE" })
 }
