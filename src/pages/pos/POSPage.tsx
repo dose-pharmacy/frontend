@@ -212,13 +212,13 @@ export default function POSPage() {
       )}
 
       {/* POS sub-header */}
-      <div className="bg-[#49B0C1] px-6 py-2.5 flex items-center justify-between border-t border-white/10">
+      <div className="bg-[#E6ECE2] px-6 py-2.5 flex items-center justify-between border-t border-[#C6D4BF]">
         <div className="flex items-center gap-4">
-          <span className="text-sm font-semibold text-white">Pharmacy POS</span>
+          <span className="text-sm font-semibold text-[#4F6B4A]">Pharmacy POS</span>
           <select
             value={selectedLocation}
             onChange={(e) => { setSelectedLocation(e.target.value); setPage(1); }}
-            className="text-xs bg-white/20 text-white border border-white/30 rounded-lg px-2.5 py-1.5 focus:outline-none focus:bg-white focus:text-[#333333] transition-colors"
+            className="text-xs bg-white text-[#333333] border border-[#C6D4BF] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#B6C8AF] transition-colors"
           >
             {locations.length === 0 && <option value="">Loading locations...</option>}
             {locations.map((loc) => (
@@ -226,10 +226,10 @@ export default function POSPage() {
             ))}
           </select>
         </div>
-        <span className="text-xs text-white/80">
+        <span className="text-xs text-[#666666]">
           {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {now.toLocaleDateString()}
         </span>
-        <span className="text-xs text-white/80">Cashier: {user?.name}</span>
+        <span className="text-xs text-[#666666]">Cashier: {user?.name}</span>
       </div>
 
       {/* Two-panel layout */}
@@ -237,7 +237,7 @@ export default function POSPage() {
         {/* ─── LEFT: Product browser ──────────────────────── */}
         <div className={`flex flex-col bg-white flex-1 min-w-0 ${cartOpen ? "hidden lg:flex" : "flex"}`}>
           {/* Filters row */}
-          <div className="p-4 flex flex-col gap-3 border-b border-[#DBEFF3]">
+          <div className="p-4 flex flex-col gap-3 border-b border-[#E6ECE2]">
             {/* Search */}
             <div className="relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -248,7 +248,7 @@ export default function POSPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name, brand, SKU..."
-                className="w-full rounded-lg border border-[#ABDBE3] pl-9 pr-4 py-2.5 text-sm text-[#333333] placeholder:text-[#999] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20 transition-all"
+                className="w-full rounded-lg border border-[#C6D4BF] pl-9 pr-4 py-2.5 text-sm text-[#333333] placeholder:text-[#999] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 transition-all"
               />
               {search && (
                 <button
@@ -267,8 +267,8 @@ export default function POSPage() {
                 onClick={() => setSelectedGroupId("")}
                 className={`flex items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                   selectedGroupId === ""
-                    ? "bg-[#49B0C1] text-white shadow-sm"
-                    : "bg-[#ABDBE3]/60 text-[#333333] hover:bg-[#ABDBE3]"
+                    ? "bg-[#B6C8AF] text-[#333333] shadow-sm"
+                    : "bg-[#C6D4BF]/60 text-[#333333] hover:bg-[#C6D4BF]"
                 }`}
               >
                 All Products
@@ -279,8 +279,8 @@ export default function POSPage() {
                   onClick={() => setSelectedGroupId(g.id)}
                   className={`flex items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                     selectedGroupId === g.id
-                      ? "bg-[#49B0C1] text-white shadow-sm"
-                      : "bg-[#ABDBE3]/60 text-[#333333] hover:bg-[#ABDBE3]"
+                      ? "bg-[#B6C8AF] text-[#333333] shadow-sm"
+                      : "bg-[#C6D4BF]/60 text-[#333333] hover:bg-[#C6D4BF]"
                   }`}
                 >
                   {g.name}
@@ -297,7 +297,7 @@ export default function POSPage() {
                 <p className="text-sm text-red-600 mt-1 max-w-sm">{loadError}</p>
                 <button
                   onClick={() => setRetryTick((t) => t + 1)}
-                  className="mt-4 rounded-lg bg-[#49B0C1] text-white px-5 py-2 text-sm font-semibold hover:bg-[#3a9baf] transition-colors"
+                  className="mt-4 rounded-lg bg-[#B6C8AF] text-[#333333] px-5 py-2 text-sm font-semibold hover:bg-[#A5B89E] transition-colors"
                 >
                   Retry
                 </button>
@@ -305,7 +305,7 @@ export default function POSPage() {
             ) : loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className="h-40 rounded-xl bg-[#DBEFF3] animate-pulse" />
+                  <div key={i} className="h-40 rounded-xl bg-[#E6ECE2] animate-pulse" />
                 ))}
               </div>
             ) : products.length === 0 ? (
@@ -314,7 +314,7 @@ export default function POSPage() {
                 <p className="text-sm text-[#666666] mt-1">Try adjusting your search or group filter</p>
                 <button
                   onClick={() => { setSearch(""); setSelectedGroupId(""); }}
-                  className="mt-4 rounded-lg bg-[#49B0C1] text-white px-5 py-2 text-sm font-semibold hover:bg-[#3a9baf] transition-colors"
+                  className="mt-4 rounded-lg bg-[#B6C8AF] text-[#333333] px-5 py-2 text-sm font-semibold hover:bg-[#A5B89E] transition-colors"
                 >
                   Clear Filters
                 </button>
@@ -330,10 +330,10 @@ export default function POSPage() {
                       className={`relative flex flex-col items-start rounded-xl border p-3 text-left transition-all group ${
                         p.status === "out_of_stock"
                           ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
-                          : "border-[#DBEFF3] bg-white hover:border-[#49B0C1] hover:shadow-md"
+                          : "border-[#E6ECE2] bg-white hover:border-[#B6C8AF] hover:shadow-md"
                       }`}
                     >
-                      <div className="h-12 w-12 rounded-lg bg-[#DBEFF3] flex items-center justify-center text-[#49B0C1] mb-2 group-hover:bg-[#ABDBE3]/40 transition-colors">
+                      <div className="h-12 w-12 rounded-lg bg-[#E6ECE2] flex items-center justify-center text-[#7A9076] mb-2 group-hover:bg-[#C6D4BF]/40 transition-colors">
                         <ProductIcon type={p.icon} size={24} />
                       </div>
                       <p className="text-sm font-bold text-[#333333] leading-tight line-clamp-2">{p.name}</p>
@@ -342,9 +342,9 @@ export default function POSPage() {
                         <POSStatusBadge status={p.status} />
                         <span className="text-xs text-[#999]">{p.availableStock} avail.</span>
                       </div>
-                      <p className="text-sm font-bold text-[#49B0C1] mt-1">{fmt(p.units.find((u) => u.isBaseUnit)?.price ?? p.units[0]?.price ?? 0)}</p>
+                      <p className="text-sm font-bold text-[#7A9076] mt-1">{fmt(p.units.find((u) => u.isBaseUnit)?.price ?? p.units[0]?.price ?? 0)}</p>
                       {p.status !== "out_of_stock" && (
-                        <div className="absolute bottom-3 right-3 h-6 w-6 rounded-full bg-[#49B0C1] text-white flex items-center justify-center text-base leading-none shadow-sm group-hover:scale-110 transition-transform">
+                        <div className="absolute bottom-3 right-3 h-6 w-6 rounded-full bg-[#B6C8AF] text-[#333333] flex items-center justify-center text-base leading-none shadow-sm group-hover:scale-110 transition-transform">
                           +
                         </div>
                       )}
@@ -358,7 +358,7 @@ export default function POSPage() {
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page <= 1}
-                      className="rounded-lg border border-[#ABDBE3] px-3 py-1.5 text-xs font-semibold text-[#333333] hover:bg-[#DBEFF3] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#333333] hover:bg-[#E6ECE2] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       Previous
                     </button>
@@ -368,7 +368,7 @@ export default function POSPage() {
                     <button
                       onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
                       disabled={page >= meta.totalPages}
-                      className="rounded-lg border border-[#ABDBE3] px-3 py-1.5 text-xs font-semibold text-[#333333] hover:bg-[#DBEFF3] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#333333] hover:bg-[#E6ECE2] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       Next
                     </button>
@@ -381,16 +381,16 @@ export default function POSPage() {
         </div>
 
         {/* ─── RIGHT: Cart ──────────────────────────────── */}
-        <div className={`flex flex-col bg-[#DBEFF3] border-l border-[#ABDBE3] w-full lg:w-80 xl:w-96 flex-shrink-0 ${!cartOpen ? "hidden lg:flex" : "flex"}`}>
+        <div className={`flex flex-col bg-[#E6ECE2] border-l border-[#C6D4BF] w-full lg:w-80 xl:w-96 flex-shrink-0 ${!cartOpen ? "hidden lg:flex" : "flex"}`}>
           {/* Cart header */}
-          <div className="bg-[#49B0C1] px-4 py-3 flex items-center justify-between">
+          <div className="bg-[#4F6B4A] px-4 py-3 flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-white">Current Sale</p>
               <p className="text-xs text-white/70">{cart.cart.items.length} item{cart.cart.items.length !== 1 ? "s" : ""}</p>
             </div>
             <button
               onClick={() => setCartOpen(false)}
-              className="lg:hidden text-white/70 hover:text-white"
+              className="lg:hidden text-white/80 hover:text-white"
               aria-label="Close cart"
             >
               ✕
@@ -401,7 +401,7 @@ export default function POSPage() {
           <div className="flex-1 overflow-y-auto">
             {cart.cart.items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-                <svg className="h-10 w-10 text-[#ABDBE3] mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                <svg className="h-10 w-10 text-[#C6D4BF] mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
                 </svg>
                 <p className="text-sm font-semibold text-[#333333]">Cart is empty</p>
@@ -410,7 +410,7 @@ export default function POSPage() {
             ) : (
               <div>
                 {cart.cart.items.map((item, i) => (
-                  <div key={item.id} className={`px-4 py-3 border-b border-[#DBEFF3] ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/60"}`}>
+                  <div key={item.id} className={`px-4 py-3 border-b border-[#E6ECE2] ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/60"}`}>
                     <div className="flex gap-3">
                       {/* Left: info */}
                       <div className="flex-1 min-w-0">
@@ -422,7 +422,7 @@ export default function POSPage() {
                         <p className="text-sm font-bold text-[#333333]">{fmt(cart.lineTotal(item))}</p>
                         <button
                           onClick={() => cart.removeItem(item.id)}
-                          className="text-[#ABDBE3] hover:text-red-500 transition-colors"
+                          className="text-[#C6D4BF] hover:text-red-500 transition-colors"
                           aria-label="Remove item"
                         >
                           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -435,14 +435,14 @@ export default function POSPage() {
                     <div className="flex items-center gap-1 mt-2">
                       <button
                         onClick={() => cart.updateQuantity(item.id, item.quantity - 1)}
-                        className="h-6 w-6 rounded bg-[#ABDBE3] text-xs font-bold hover:bg-[#9acbd5] transition-colors"
+                        className="h-6 w-6 rounded bg-[#C6D4BF] text-xs font-bold hover:bg-[#B5C6AE] transition-colors"
                       >
                         −
                       </button>
                       <span className="text-xs w-8 text-center font-semibold">{item.quantity}</span>
                       <button
                         onClick={() => cart.updateQuantity(item.id, item.quantity + 1)}
-                        className="h-6 w-6 rounded bg-[#49B0C1] text-white text-xs font-bold hover:bg-[#3a9baf] transition-colors"
+                        className="h-6 w-6 rounded bg-[#B6C8AF] text-[#333333] text-xs font-bold hover:bg-[#A5B89E] transition-colors"
                       >
                         +
                       </button>
@@ -454,7 +454,7 @@ export default function POSPage() {
           </div>
 
           {/* Totals & actions */}
-          <div className="bg-white border-t-2 border-[#49B0C1] p-4 flex flex-col gap-3">
+          <div className="bg-white border-t-2 border-[#B6C8AF] p-4 flex flex-col gap-3">
             {/* Subtotal */}
             <div className="flex flex-col gap-1.5 text-sm">
               <div className="flex items-center justify-between">
@@ -463,13 +463,13 @@ export default function POSPage() {
               </div>
 
               {/* Inline discount control */}
-              <div className="rounded-lg border border-[#ABDBE3] p-2.5 flex flex-col gap-2">
+              <div className="rounded-lg border border-[#C6D4BF] p-2.5 flex flex-col gap-2">
                 <p className="text-xs font-semibold text-[#666666]">Bill Discount</p>
                 <div className="flex gap-2">
                   <select
                     value={discountType}
                     onChange={(e) => setDiscountType(e.target.value as "PERCENTAGE" | "FIXED_AMOUNT")}
-                    className="flex-shrink-0 rounded border border-[#ABDBE3] px-2 py-1 text-xs focus:border-[#49B0C1] focus:outline-none"
+                    className="flex-shrink-0 rounded border border-[#C6D4BF] px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none"
                   >
                     <option value="PERCENTAGE">%</option>
                     <option value="FIXED_AMOUNT">Fixed</option>
@@ -481,19 +481,19 @@ export default function POSPage() {
                     value={discountValue}
                     onChange={(e) => setDiscountValue(e.target.value)}
                     placeholder="0"
-                    className="flex-1 min-w-0 rounded border border-[#ABDBE3] px-2 py-1 text-xs focus:border-[#49B0C1] focus:outline-none"
+                    className="flex-1 min-w-0 rounded border border-[#C6D4BF] px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none"
                   />
                   <button
                     onClick={applyDiscount}
                     disabled={cart.cart.items.length === 0}
-                    className="rounded bg-[#49B0C1] text-white px-2.5 py-1 text-xs font-semibold hover:bg-[#3a9baf] disabled:opacity-40 transition-colors"
+                    className="rounded bg-[#B6C8AF] text-[#333333] px-2.5 py-1 text-xs font-semibold hover:bg-[#A5B89E] disabled:opacity-40 transition-colors"
                   >
                     Apply
                   </button>
                   {cart.cart.billDiscount && (
                     <button
                       onClick={clearDiscount}
-                      className="rounded bg-[#ABDBE3] text-[#333333] px-2 py-1 text-xs font-semibold hover:bg-[#9acbd5] transition-colors"
+                      className="rounded bg-[#C6D4BF] text-[#333333] px-2 py-1 text-xs font-semibold hover:bg-[#B5C6AE] transition-colors"
                     >
                       ✕
                     </button>
@@ -507,9 +507,9 @@ export default function POSPage() {
               </div>
 
               {/* Total */}
-              <div className="flex items-center justify-between rounded-lg bg-[#DBEFF3] px-3 py-2 mt-1">
+              <div className="flex items-center justify-between rounded-lg bg-[#E6ECE2] px-3 py-2 mt-1">
                 <span className="text-base font-bold text-[#333333]">TOTAL</span>
-                <span className="text-2xl font-bold text-[#49B0C1]">{fmt(cart.total)}</span>
+                <span className="text-2xl font-bold text-[#7A9076]">{fmt(cart.total)}</span>
               </div>
             </div>
 
@@ -518,16 +518,16 @@ export default function POSPage() {
               <button
                 onClick={cart.clearCart}
                 disabled={cart.cart.items.length === 0}
-                className="flex-1 rounded-lg bg-[#ABDBE3] px-3 py-2.5 text-xs font-semibold text-[#333333] hover:bg-[#9acbd5] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg bg-[#C6D4BF] px-3 py-2.5 text-xs font-semibold text-[#333333] hover:bg-[#B5C6AE] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Clear
               </button>
               <button
                 onClick={() => setModal("payment")}
                 disabled={cart.cart.items.length === 0}
-                className={`flex-[2] rounded-xl py-2.5 text-sm font-bold text-white transition-all ${
+                className={`flex-[2] rounded-xl py-2.5 text-sm font-bold text-[#333333] transition-all ${
                   cart.cart.items.length > 0
-                    ? "bg-[#49B0C1] hover:bg-[#3a9baf] shadow-md hover:shadow-lg active:scale-[0.98]"
+                    ? "bg-[#B6C8AF] hover:bg-[#A5B89E] shadow-md hover:shadow-lg active:scale-[0.98]"
                     : "bg-gray-300 cursor-not-allowed"
                 }`}
               >
@@ -542,7 +542,7 @@ export default function POSPage() {
       {!cartOpen && cart.cart.items.length > 0 && (
         <button
           onClick={() => setCartOpen(true)}
-          className="lg:hidden fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-full bg-[#49B0C1] text-white px-5 py-3 text-sm font-bold shadow-xl hover:bg-[#3a9baf] transition-all"
+          className="lg:hidden fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-full bg-[#B6C8AF] text-[#333333] px-5 py-3 text-sm font-bold shadow-xl hover:bg-[#A5B89E] transition-all"
         >
           Cart ({cart.cart.items.length}) · {fmt(cart.total)}
         </button>

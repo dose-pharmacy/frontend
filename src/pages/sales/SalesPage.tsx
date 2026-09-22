@@ -201,13 +201,13 @@ export default function SalesPage() {
           <div className="flex gap-2">
             <button
               onClick={() => alert("Export — backend integration pending")}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors"
             >
               <DownloadIcon /> Export
             </button>
             <button
               onClick={() => alert("Print — backend integration pending")}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors"
             >
               <PrintIcon /> Print
             </button>
@@ -231,7 +231,7 @@ export default function SalesPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput
             value={search}
             onChange={(v) => { setSearch(v); setPage(1) }}
@@ -254,7 +254,7 @@ export default function SalesPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {loading ? (
             <LoadingSkeleton />
           ) : sales.length === 0 ? (
@@ -264,7 +264,7 @@ export default function SalesPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       <th className="px-4 py-3 font-semibold text-[#333333] whitespace-nowrap">Date &amp; Time</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Invoice #</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Items</th>
@@ -282,7 +282,7 @@ export default function SalesPage() {
                       <tr
                         key={sale.id}
                         onClick={() => setSelected(sale)}
-                        className={`cursor-pointer hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/10"}`}
+                        className={`cursor-pointer hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/10"}`}
                       >
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
                           <span className="block text-xs text-[#999]">{sale.date}</span>
@@ -319,7 +319,7 @@ export default function SalesPage() {
                         <td className="px-4 py-3">
                           <button
                             onClick={(e) => { e.stopPropagation(); setSelected(sale) }}
-                            className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap"
+                            className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
                           >
                             View
                           </button>
@@ -432,10 +432,10 @@ function SaleDetailModal({
         {/* Items */}
         <div>
           <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-2">Items</p>
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
             {detailLoading ? (
               <div className="p-4 space-y-2 animate-pulse">
-                {[...Array(3)].map((_, i) => <div key={i} className="h-8 rounded-lg bg-[#DBEFF3]" />)}
+                {[...Array(3)].map((_, i) => <div key={i} className="h-8 rounded-lg bg-[#E6ECE2]" />)}
               </div>
             ) : view.items.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-[#666666]">
@@ -445,7 +445,7 @@ function SaleDetailModal({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {["Product", "Brand", "Batch", "Unit", "Qty", "Unit Price", "Line Total"].map((h) => (
                         <th key={h} className="px-3 py-2.5 font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                       ))}
@@ -453,7 +453,7 @@ function SaleDetailModal({
                   </thead>
                   <tbody>
                     {view.items.map((item, i) => (
-                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                         <td className="px-3 py-2.5 font-medium text-[#333333]">{item.product}</td>
                         <td className="px-3 py-2.5 text-[#666666]">{item.brand}</td>
                         <td className="px-3 py-2.5 font-mono text-xs text-[#666666]">{item.batch}</td>
@@ -475,16 +475,16 @@ function SaleDetailModal({
         {/* Summary + Payment side by side */}
         <div className="grid sm:grid-cols-2 gap-4">
           {/* Summary */}
-          <div className="bg-[#DBEFF3]/40 rounded-xl p-4 flex flex-col gap-2">
+          <div className="bg-[#E6ECE2]/40 rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Financial Summary</p>
             <SummaryRow label="Subtotal" value={`${view.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} />
             {view.discount > 0 && (
               <SummaryRow label="Bill Discount" value={`−${view.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} accent />
             )}
-            <div className="border-t border-[#ABDBE3] pt-2 mt-1">
+            <div className="border-t border-[#C6D4BF] pt-2 mt-1">
               <SummaryRow label="Total" value={`${view.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} bold />
             </div>
-            <div className="border-t border-[#ABDBE3] pt-2 mt-1">
+            <div className="border-t border-[#C6D4BF] pt-2 mt-1">
               <SummaryRow label="Paid" value={`${view.paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} />
               {view.changeAmount > 0 && (
                 <SummaryRow label="Change" value={`${view.changeAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} />
@@ -493,7 +493,7 @@ function SaleDetailModal({
           </div>
 
           {/* Payment breakdown */}
-          <div className="bg-[#DBEFF3]/40 rounded-xl p-4 flex flex-col gap-2">
+          <div className="bg-[#E6ECE2]/40 rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Payment</p>
             {view.payments.length === 0 ? (
               <p className="text-sm text-[#999]">No payments recorded.</p>
@@ -502,7 +502,7 @@ function SaleDetailModal({
                 {view.payments.map((p, idx) => (
                   <SummaryRow key={`${p.method}-${idx}`} label={p.method} value={`${p.amount.toLocaleString()} ETB`} />
                 ))}
-                <div className="border-t border-[#ABDBE3] pt-2 mt-1">
+                <div className="border-t border-[#C6D4BF] pt-2 mt-1">
                   <SummaryRow
                     label="Total Paid"
                     value={`${view.payments.reduce((a, p) => a + p.amount, 0).toLocaleString()} ETB`}
@@ -515,7 +515,7 @@ function SaleDetailModal({
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap gap-2 justify-between border-t border-[#DBEFF3] pt-4">
+        <div className="flex flex-wrap gap-2 justify-between border-t border-[#E6ECE2] pt-4">
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => window.print()}>
               <PrintIcon /> Print Receipt
@@ -570,7 +570,7 @@ function SaleDetailModal({
 
 function SummaryCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+    <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
       <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">{label}</p>
       <p className={`text-xl font-bold mt-1 ${accent ?? "text-[#333333]"}`}>{value}</p>
     </div>
@@ -612,7 +612,7 @@ function PaymentBadge({ method }: { method: PaymentMethod }) {
     Cash: "bg-green-100 text-green-700",
     Card: "bg-blue-100 text-blue-700",
     "Digital Transfer": "bg-purple-100 text-purple-700",
-    Insurance: "bg-[#DBEFF3] text-[#49B0C1]",
+    Insurance: "bg-[#E6ECE2] text-[#7A9076]",
   }
   return (
     <span className={`text-xs font-semibold rounded-full px-2 py-0.5 whitespace-nowrap ${cfg[method]}`}>{method}</span>
@@ -622,7 +622,7 @@ function PaymentBadge({ method }: { method: PaymentMethod }) {
 function LoadingSkeleton() {
   return (
     <div className="p-6 space-y-3 animate-pulse">
-      {[...Array(6)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />)}
+      {[...Array(6)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#E6ECE2]" />)}
     </div>
   )
 }

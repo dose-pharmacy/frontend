@@ -43,9 +43,9 @@ function SortHeader<T extends string>({
 }) {
   return (
     <th className={`px-4 py-3 font-semibold text-[#333333] ${align === "right" ? "text-right" : ""}`}>
-      <button onClick={onClick} className={`inline-flex items-center gap-1.5 hover:text-[#49B0C1] ${align === "right" ? "flex-row-reverse" : ""}`}>
+      <button onClick={onClick} className={`inline-flex items-center gap-1.5 hover:text-[#7A9076] ${align === "right" ? "flex-row-reverse" : ""}`}>
         {children}
-        <span className={active ? "text-[#49B0C1]" : "text-[#ABDBE3]"}>{active ? (order === "asc" ? "↑" : "↓") : "↕"}</span>
+        <span className={active ? "text-[#7A9076]" : "text-[#C6D4BF]"}>{active ? (order === "asc" ? "↑" : "↓") : "↕"}</span>
       </button>
     </th>
   );
@@ -53,12 +53,12 @@ function SortHeader<T extends string>({
 
 function PageNav({ page, totalPages, onPage }: { page: number; totalPages: number; onPage: (p: number) => void }) {
   return (
-    <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-end gap-1">
-      <button disabled={page === 1} onClick={() => onPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
+    <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-end gap-1">
+      <button disabled={page === 1} onClick={() => onPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
       {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-        <button key={p} onClick={() => onPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+        <button key={p} onClick={() => onPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
       ))}
-      <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+      <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
     </div>
   );
 }
@@ -66,7 +66,7 @@ function PageNav({ page, totalPages, onPage }: { page: number; totalPages: numbe
 function LoadingState({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
-      <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+      <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
       <p className="text-sm text-[#666666]">{label}</p>
     </div>
   );
@@ -166,7 +166,7 @@ function ProfitabilitySection({
           <>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
               <label className="text-sm font-medium text-[#333333]">Group By</label>
-              <select value={groupBy} onChange={(e) => { setGroupBy(e.target.value as ProfitabilityGroupBy); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all">
+              <select value={groupBy} onChange={(e) => { setGroupBy(e.target.value as ProfitabilityGroupBy); setPage(1); }} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#B6C8AF] focus:outline-none transition-all">
                 {GROUP_BY_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
@@ -174,7 +174,7 @@ function ProfitabilitySection({
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
               <label className="text-sm font-medium text-[#333333]">Product Group</label>
-              <select value={productGroupId} onChange={(e) => { setProductGroupId(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all">
+              <select value={productGroupId} onChange={(e) => { setProductGroupId(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#B6C8AF] focus:outline-none transition-all">
                 <option value="">All Product Groups</option>
                 {productGroups.map((g) => (
                   <option key={g.id} value={g.id}>{g.name}</option>
@@ -188,15 +188,15 @@ function ProfitabilitySection({
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {summaryLoading
           ? Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
-                <div className="h-3 w-20 rounded bg-[#DBEFF3]/60 animate-pulse" />
-                <div className="h-6 w-24 rounded bg-[#DBEFF3]/40 animate-pulse mt-3" />
+              <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+                <div className="h-3 w-20 rounded bg-[#E6ECE2]/60 animate-pulse" />
+                <div className="h-6 w-24 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
               </div>
             ))
           : summaryError && !summary.length
             ? null
             : summary.map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                <div key={s.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                   <p className="text-xs font-medium text-[#666666]">{s.label}</p>
                   <p className="text-lg font-bold text-[#333333] mt-0.5 leading-tight">
                     {s.kind === "money" ? fmtMoney(s.value) : s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
@@ -205,12 +205,12 @@ function ProfitabilitySection({
               ))}
       </div>
       {summaryError && !summary.length && (
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
           <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-center">{summaryError}</p>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
         {loading ? (
           <LoadingState label={`Loading ${groupBy.replace(/_/g, " ").toLowerCase()} profitability...`} />
         ) : error ? (
@@ -225,7 +225,7 @@ function ProfitabilitySection({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#DBEFF3] text-left">
+                  <tr className="bg-[#E6ECE2] text-left">
                     <SortHeader<ProfitabilitySortBy> active={sortBy === "value"} order={sortOrder} onClick={() => { setSortBy("value"); if (sortBy === "value") setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>{groupBy.replace(/_/g, " ")}</SortHeader>
                     <SortHeader<ProfitabilitySortBy> active={sortBy === "value"} order={sortOrder} align="right" onClick={() => { setSortBy("value"); if (sortBy === "value") setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>Value</SortHeader>
                     {(["revenue", "cost", "profit", "quantity", "productCount"] as ProfitabilitySortBy[]).map((col) => (
@@ -238,7 +238,7 @@ function ProfitabilitySection({
                 </thead>
                 <tbody>
                   {rows.map((row, i) => (
-                    <tr key={`${row.dimension}-${i}`} className={`${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"} hover:bg-[#DBEFF3]/30 transition-colors`}>
+                    <tr key={`${row.dimension}-${i}`} className={`${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"} hover:bg-[#E6ECE2]/30 transition-colors`}>
                       <td className="px-4 py-3 font-semibold text-[#333333]">{row.dimension}</td>
                       <td className="px-4 py-3 text-right text-[#666666]">{String(row.value)}</td>
                       <td className="px-4 py-3 text-right text-[#333333]">{fmtMoney(row.revenue)}</td>
@@ -246,13 +246,13 @@ function ProfitabilitySection({
                       <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(row.profit)}</td>
                       <td className="px-4 py-3 text-right text-[#666666]">{fmtNumber(row.quantity)}</td>
                       <td className="px-4 py-3 text-right text-[#666666]">{fmtNumber(row.productCount)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-[#49B0C1]">{fmtPercent(row.margin)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-[#7A9076]">{fmtPercent(row.margin)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+            <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
               <p className="text-xs text-[#666666]">Showing {totalCount === 0 ? 0 : Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {fmtNumber(totalCount)} rows</p>
               <PageNav page={page} totalPages={totalPages} onPage={setPage} />
             </div>
@@ -349,7 +349,7 @@ function ProfitMarginSection({
         extra={
           <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
             <label className="text-sm font-medium text-[#333333]">Product Group</label>
-            <select value={productGroupId} onChange={(e) => { setProductGroupId(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all">
+            <select value={productGroupId} onChange={(e) => { setProductGroupId(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#B6C8AF] focus:outline-none transition-all">
               <option value="">All Product Groups</option>
               {productGroups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
@@ -362,15 +362,15 @@ function ProfitMarginSection({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryLoading
           ? Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
-                <div className="h-3 w-20 rounded bg-[#DBEFF3]/60 animate-pulse" />
-                <div className="h-6 w-24 rounded bg-[#DBEFF3]/40 animate-pulse mt-3" />
+              <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+                <div className="h-3 w-20 rounded bg-[#E6ECE2]/60 animate-pulse" />
+                <div className="h-6 w-24 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
               </div>
             ))
           : summaryError && !summary.length
             ? null
             : summary.map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                <div key={s.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                   <p className="text-xs font-medium text-[#666666]">{s.label}</p>
                   <p className={`text-lg font-bold mt-0.5 leading-tight ${s.label === "Below Target" ? "text-orange-600" : "text-[#333333]"}`}>
                     {s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
@@ -379,12 +379,12 @@ function ProfitMarginSection({
               ))}
       </div>
       {summaryError && !summary.length && (
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
           <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-center">{summaryError}</p>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
         {loading ? (
           <LoadingState label="Loading profit margins..." />
         ) : error ? (
@@ -399,7 +399,7 @@ function ProfitMarginSection({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#DBEFF3] text-left">
+                  <tr className="bg-[#E6ECE2] text-left">
                     {([
                       ["productName", "Product"],
                       ["actualMargin", "Actual Margin"],
@@ -422,9 +422,9 @@ function ProfitMarginSection({
                 </thead>
                 <tbody>
                   {rows.map((row, i) => (
-                    <tr key={row.productId} className={`${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"} hover:bg-[#DBEFF3]/30 transition-colors`}>
+                    <tr key={row.productId} className={`${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"} hover:bg-[#E6ECE2]/30 transition-colors`}>
                       <td className="px-4 py-3 font-semibold text-[#333333]">{row.productName}</td>
-                      <td className="px-4 py-3 font-semibold text-[#49B0C1]">{fmtPercent(row.actualMargin)}</td>
+                      <td className="px-4 py-3 font-semibold text-[#7A9076]">{fmtPercent(row.actualMargin)}</td>
                       <td className="px-4 py-3 text-[#666666]">{fmtPercent(row.targetMargin)}</td>
                       <td className="px-4 py-3 text-[#666666]">{row.sku}</td>
                       <td className="px-4 py-3 text-[#666666]">{row.productGroupName}</td>
@@ -438,7 +438,7 @@ function ProfitMarginSection({
                 </tbody>
               </table>
             </div>
-            <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+            <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
               <p className="text-xs text-[#666666]">Showing {totalCount === 0 ? 0 : Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {fmtNumber(totalCount)} products</p>
               <PageNav page={page} totalPages={totalPages} onPage={setPage} />
             </div>
@@ -471,11 +471,11 @@ export default function ProfitabilityDashboardPage() {
       <ReportsSubNav />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        <div className="flex rounded-lg border border-[#ABDBE3] w-fit overflow-hidden">
-          <button onClick={() => setTab("profitability")} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === "profitability" ? "bg-[#49B0C1] text-white" : "bg-white text-[#666666] hover:bg-[#DBEFF3]"}`}>
+        <div className="flex rounded-lg border border-[#C6D4BF] w-fit overflow-hidden">
+          <button onClick={() => setTab("profitability")} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === "profitability" ? "bg-[#B6C8AF] text-[#333333]" : "bg-white text-[#666666] hover:bg-[#E6ECE2]"}`}>
             Profitability
           </button>
-          <button onClick={() => setTab("margin")} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === "margin" ? "bg-[#49B0C1] text-white" : "bg-white text-[#666666] hover:bg-[#DBEFF3]"}`}>
+          <button onClick={() => setTab("margin")} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === "margin" ? "bg-[#B6C8AF] text-[#333333]" : "bg-white text-[#666666] hover:bg-[#E6ECE2]"}`}>
             Profit Margin
           </button>
         </div>

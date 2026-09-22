@@ -142,7 +142,7 @@ export default function BatchManagementPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-3 rounded-xl border border-[#DBEFF3] bg-white p-4 sm:flex-row">
+        <div className="flex flex-col gap-3 rounded-xl border border-[#E6ECE2] bg-white p-4 sm:flex-row">
           <div className="flex-1">
             <SearchInput
               value={search}
@@ -165,13 +165,13 @@ export default function BatchManagementPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-xl border border-[#DBEFF3] bg-white">
+        <div className="overflow-hidden rounded-xl border border-[#E6ECE2] bg-white">
           {loading ? (
             <div className="space-y-3 p-6 animate-pulse">
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-10 rounded-lg bg-[#DBEFF3]"
+                  className="h-10 rounded-lg bg-[#E6ECE2]"
                 />
               ))}
             </div>
@@ -185,7 +185,7 @@ export default function BatchManagementPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3]">
+                    <tr className="bg-[#E6ECE2]">
                       {[
                         "Batch Number",
                         "Product",
@@ -211,7 +211,7 @@ export default function BatchManagementPage() {
                         className={
                           index % 2 === 0
                             ? "bg-white"
-                            : "bg-[#DBEFF3]/30"
+                            : "bg-[#E6ECE2]/30"
                         }
                       >
                         {/* Batch Number */}
@@ -271,7 +271,7 @@ export default function BatchManagementPage() {
                                 `/inventory/batches/${batch.id}`,
                               )
                             }
-                            className="text-xs font-semibold text-[#49B0C1] hover:underline"
+                            className="text-xs font-semibold text-[#7A9076] hover:underline"
                           >
                             View
                           </button>

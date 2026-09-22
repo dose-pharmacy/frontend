@@ -77,7 +77,7 @@ export default function ReorderManagementPage() {
       case "MEDIUM":
         return <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />Medium</span>;
       default:
-        return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#DBEFF3] px-2.5 py-0.5 text-xs font-medium text-[#49B0C1]"><span className="h-1.5 w-1.5 rounded-full bg-[#49B0C1]" aria-hidden />Low</span>;
+        return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6ECE2] px-2.5 py-0.5 text-xs font-medium text-[#7A9076]"><span className="h-1.5 w-1.5 rounded-full bg-[#B6C8AF]" aria-hidden />Low</span>;
     }
   };
 
@@ -108,19 +108,19 @@ export default function ReorderManagementPage() {
         )}
 
         {loading ? (
-          <div className="space-y-3 animate-pulse">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-[#DBEFF3] rounded-xl" />)}</div>
+          <div className="space-y-3 animate-pulse">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-[#E6ECE2] rounded-xl" />)}</div>
         ) : !error ? (
           <>
             {/* Low stock alerts */}
             <section>
-              <div className="bg-[#49B0C1] px-4 py-2.5 rounded-t-xl flex items-center justify-between">
+              <div className="bg-[#B6C8AF] px-4 py-2.5 rounded-t-xl flex items-center justify-between">
                 <p className="text-sm font-bold text-white">LOW STOCK ALERTS ({dashboard.length} items)</p>
               </div>
-              <div className="bg-white rounded-b-xl border border-t-0 border-[#DBEFF3] overflow-hidden">
+              <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-[#DBEFF3]">
+                      <tr className="bg-[#E6ECE2]">
                         {["Product", "Current Stock", "Threshold", "Velocity (units/day)", "Suggested Qty", "Urgency"].map((h) => (
                           <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
                         ))}
@@ -133,7 +133,7 @@ export default function ReorderManagementPage() {
                         </tr>
                       ) : (
                         dashboard.map((d, i) => (
-                          <tr key={d.product.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                          <tr key={d.product.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"}>
                             <td className="px-4 py-3 font-medium text-[#333333]">{d.product.name}</td>
                             <td className={`px-4 py-3 font-bold ${d.currentStock <= d.minimumThreshold ? "text-red-600" : "text-[#333333]"}`}>{d.currentStock}</td>
                             <td className="px-4 py-3 text-[#666666]">{d.minimumThreshold}</td>
@@ -151,14 +151,14 @@ export default function ReorderManagementPage() {
 
             {/* Suggested reorder quantities */}
             <section>
-              <div className="bg-[#ABDBE3] px-4 py-2.5 rounded-t-xl">
+              <div className="bg-[#C6D4BF] px-4 py-2.5 rounded-t-xl">
                 <p className="text-sm font-bold text-[#333333]">SUGGESTED REORDER QUANTITIES</p>
               </div>
-              <div className="bg-white rounded-b-xl border border-t-0 border-[#DBEFF3] overflow-hidden">
+              <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-[#DBEFF3]">
+                      <tr className="bg-[#E6ECE2]">
                         {["Product", "Avg Daily Sales", "Lead Time (days)", "Suggested Qty", "Action"].map((h) => (
                           <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
                         ))}
@@ -171,11 +171,11 @@ export default function ReorderManagementPage() {
                         </tr>
                       ) : (
                         suggestions.map((s, i) => (
-                          <tr key={s.product.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                          <tr key={s.product.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"}>
                             <td className="px-4 py-3 font-medium text-[#333333]">{s.product.name}</td>
                             <td className="px-4 py-3 text-[#666666]">{s.averageDailySales}</td>
                             <td className="px-4 py-3 text-[#666666]">{s.leadTimeDays}</td>
-                            <td className="px-4 py-3 font-semibold text-[#49B0C1]">{s.suggestedQuantity}</td>
+                            <td className="px-4 py-3 font-semibold text-[#7A9076]">{s.suggestedQuantity}</td>
                             <td className="px-4 py-3">
                               <Button onClick={() => alert("Create purchase order — Purchasing module coming soon.")}>Order</Button>
                             </td>

@@ -141,7 +141,7 @@ export default function ReorderConfigPage() {
         />
 
         {/* Current settings */}
-        <div className="bg-[#DBEFF3] rounded-xl p-5 flex flex-col gap-4">
+        <div className="bg-[#E6ECE2] rounded-xl p-5 flex flex-col gap-4">
           <p className="text-sm font-bold text-[#333333]">Current Settings</p>
           {loadingConfig ? (
             <div className="space-y-3 animate-pulse">
@@ -159,14 +159,14 @@ export default function ReorderConfigPage() {
         </div>
 
         {/* Advanced settings */}
-        <div className="bg-white rounded-xl border border-[#ABDBE3] p-5 flex flex-col gap-4">
+        <div className="bg-white rounded-xl border border-[#C6D4BF] p-5 flex flex-col gap-4">
           <p className="text-sm font-bold text-[#333333]">Advanced Settings</p>
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={config.useVelocity}
               onChange={(e) => set("useVelocity", e.target.checked)}
-              className="h-4 w-4 rounded accent-[#49B0C1]"
+              className="h-4 w-4 rounded accent-[#B6C8AF]"
             />
             <span className="text-sm font-medium text-[#333333]">Use sales velocity for reorder calculation</span>
           </label>
@@ -182,8 +182,8 @@ export default function ReorderConfigPage() {
             </div>
           )}
 
-          <div className="rounded-lg bg-[#DBEFF3] px-4 py-3">
-            <p className="text-xs font-semibold text-[#49B0C1] uppercase tracking-wide mb-1">Calculation</p>
+          <div className="rounded-lg bg-[#E6ECE2] px-4 py-3">
+            <p className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide mb-1">Calculation</p>
             <p className="text-sm text-[#333333]">{calcExplanation}</p>
           </div>
         </div>

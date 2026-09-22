@@ -45,7 +45,7 @@ export default function PriceOverrideModal({ productName, originalPrice, onConfi
           </div>
 
           {/* Product info */}
-          <div className="bg-[#DBEFF3] rounded-xl p-4 grid grid-cols-2 gap-3 text-sm">
+          <div className="bg-[#E6ECE2] rounded-xl p-4 grid grid-cols-2 gap-3 text-sm">
             <div className="col-span-2">
               <p className="text-xs text-[#666666]">Product</p>
               <p className="font-bold text-[#333333] text-base">{productName}</p>
@@ -61,7 +61,7 @@ export default function PriceOverrideModal({ productName, originalPrice, onConfi
                 min={0}
                 value={newPrice}
                 onChange={(e) => { setNewPrice(e.target.value); setError(null); }}
-                className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-1.5 text-sm font-bold text-red-600 focus:border-[#49B0C1] focus:outline-none"
+                className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-1.5 text-sm font-bold text-red-600 focus:border-[#B6C8AF] focus:outline-none"
               />
             </div>
             {newPriceNum > 0 && newPriceNum !== originalPrice && (
@@ -84,9 +84,9 @@ export default function PriceOverrideModal({ productName, originalPrice, onConfi
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   placeholder="Enter supervisor password"
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 pr-11 text-sm focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 pr-11 text-sm focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
-                <button type="button" onClick={() => setShowPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-[#49B0C1]" aria-label="Toggle password">
+                <button type="button" onClick={() => setShowPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-[#7A9076]" aria-label="Toggle password">
                   {showPwd ? "🙈" : "👁"}
                 </button>
               </div>
@@ -98,13 +98,13 @@ export default function PriceOverrideModal({ productName, originalPrice, onConfi
                 value={reason}
                 onChange={(e) => { setReason(e.target.value); setError(null); }}
                 placeholder="e.g., Expiry approaching — clearance sale"
-                className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none"
+                className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none"
               />
             </div>
           </div>
 
           {/* Security note */}
-          <div className="bg-[#DBEFF3] rounded-lg px-4 py-2.5 text-xs text-[#666666] flex items-center gap-2">
+          <div className="bg-[#E6ECE2] rounded-lg px-4 py-2.5 text-xs text-[#666666] flex items-center gap-2">
             <span>📋</span> This action will be recorded in the audit log.
           </div>
 
@@ -112,7 +112,7 @@ export default function PriceOverrideModal({ productName, originalPrice, onConfi
         </div>
 
         {/* Footer */}
-        <div className="border-t border-[#DBEFF3] px-6 py-4 flex gap-3 justify-end bg-[#DBEFF3]">
+        <div className="border-t border-[#E6ECE2] px-6 py-4 flex gap-3 justify-end bg-[#E6ECE2]">
           <button onClick={onClose} className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">Cancel</button>
           <button
             onClick={handleConfirm}

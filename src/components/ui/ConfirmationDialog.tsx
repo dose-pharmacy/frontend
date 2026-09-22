@@ -21,7 +21,7 @@ export default function ConfirmationDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal aria-labelledby="dialog-title">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
         <h2 id="dialog-title" className="text-base font-bold text-[#333333]">{title}</h2>
         <p className="mt-2 text-sm text-[#666666]">{message}</p>
         <div className="mt-6 flex gap-3 justify-end">
@@ -31,7 +31,7 @@ export default function ConfirmationDialog({
           <button
             onClick={onConfirm}
             disabled={loading}
-            className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60 ${danger ? "bg-red-500 hover:bg-red-600" : "bg-[#49B0C1] hover:bg-[#3a9baf]"}`}
+            className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] transition-all disabled:opacity-60 ${danger ? "bg-red-500 hover:bg-red-600" : "bg-[#B6C8AF] hover:bg-[#A5B89E]"}`}
           >
             {loading && (
               <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>

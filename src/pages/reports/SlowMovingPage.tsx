@@ -237,7 +237,7 @@ export default function SlowMovingPage() {
   }
 
   const selectClass =
-    "flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all";
+    "flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#B6C8AF] focus:outline-none transition-all";
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -262,7 +262,7 @@ export default function SlowMovingPage() {
           </div>
         )}
         {evaluateResult && (
-          <div className="bg-[#DBEFF3] border border-[#ABDBE3] rounded-xl px-4 py-3">
+          <div className="bg-[#E6ECE2] border border-[#C6D4BF] rounded-xl px-4 py-3">
             <p className="text-sm font-semibold text-[#333333]">Evaluation complete</p>
             <div className="flex flex-wrap gap-x-6 gap-y-1 mt-1 text-xs text-[#666666]">
               <span>Evaluated: <span className="font-bold text-[#333333]">{fmtNumber(evaluateResult.evaluated)}</span></span>
@@ -276,7 +276,7 @@ export default function SlowMovingPage() {
         )}
 
         {/* Report filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
               <label className="text-sm font-medium text-[#333333]">Product Group</label>
@@ -305,7 +305,7 @@ export default function SlowMovingPage() {
               </select>
             </div>
             {(productGroupId || isFlagged || definitionType) && (
-              <button onClick={() => { setProductGroupId(""); setIsFlagged(""); setDefinitionType(""); setReportPage(1); }} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+              <button onClick={() => { setProductGroupId(""); setIsFlagged(""); setDefinitionType(""); setReportPage(1); }} className="text-xs font-semibold text-[#7A9076] hover:underline">
                 Reset
               </button>
             )}
@@ -313,14 +313,14 @@ export default function SlowMovingPage() {
         </div>
 
         {/* Report table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#DBEFF3]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#E6ECE2]">
             <h2 className="text-base font-bold text-[#333333]">Slow-Moving Products</h2>
             <p className="text-xs text-[#666666] mt-0.5">Products that have not sold within their configured threshold.</p>
           </div>
           {reportLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               <p className="text-sm text-[#666666]">Loading report...</p>
             </div>
           ) : reportError ? (
@@ -341,7 +341,7 @@ export default function SlowMovingPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {["Product", "Definition", "Threshold", "Last Sale", "Days Since", "Status", "Stock", "Stock Value"].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
@@ -349,7 +349,7 @@ export default function SlowMovingPage() {
                   </thead>
                   <tbody>
                     {reportRows.map((row, i) => (
-                      <tr key={`${row.product?.id ?? i}-${i}`} className={`${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"} hover:bg-[#DBEFF3]/30 transition-colors`}>
+                      <tr key={`${row.product?.id ?? i}-${i}`} className={`${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"} hover:bg-[#E6ECE2]/30 transition-colors`}>
                         <td className="px-4 py-3">
                           <p className="font-semibold text-[#333333]">{row.product?.name ?? "—"}</p>
                           {row.product?.sku && <p className="text-xs text-[#666666]">{row.product.sku}</p>}
@@ -366,13 +366,13 @@ export default function SlowMovingPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
                 <p className="text-xs text-[#666666]">
                   Showing {reportTotalCount === 0 ? 0 : Math.min((reportPage - 1) * PAGE_SIZE + 1, reportTotalCount)}–{Math.min(reportPage * PAGE_SIZE, reportTotalCount)} of {fmtNumber(reportTotalCount)} products
                 </p>
                 <div className="flex items-center justify-end gap-1">
-                  <button disabled={reportPage === 1} onClick={() => setReportPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
-                  <button disabled={reportPage >= reportTotalPages} onClick={() => setReportPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+                  <button disabled={reportPage === 1} onClick={() => setReportPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
+                  <button disabled={reportPage >= reportTotalPages} onClick={() => setReportPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
                 </div>
               </div>
             </>
@@ -380,8 +380,8 @@ export default function SlowMovingPage() {
         </div>
 
         {/* Configuration */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="text-base font-bold text-[#333333]">Configuration</h2>
               <p className="text-xs text-[#666666] mt-0.5">Per-product slow-moving thresholds.</p>
@@ -395,7 +395,7 @@ export default function SlowMovingPage() {
           )}
           {configsLoading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               <p className="text-sm text-[#666666]">Loading configurations...</p>
             </div>
           ) : configsError ? (
@@ -414,7 +414,7 @@ export default function SlowMovingPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {["Product", "Definition", "Status", "Updated", "Actions"].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
@@ -422,7 +422,7 @@ export default function SlowMovingPage() {
                   </thead>
                   <tbody>
                     {configs.map((cfg, i) => (
-                      <tr key={cfg.id} className={`${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"} hover:bg-[#DBEFF3]/30 transition-colors`}>
+                      <tr key={cfg.id} className={`${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"} hover:bg-[#E6ECE2]/30 transition-colors`}>
                         <td className="px-4 py-3">
                           <p className="font-semibold text-[#333333]">{cfg.product?.name ?? "—"}</p>
                           {cfg.product?.sku && <p className="text-xs text-[#666666]">{cfg.product.sku}</p>}
@@ -432,7 +432,7 @@ export default function SlowMovingPage() {
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(cfg.updatedAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <button onClick={() => openEdit(cfg)} className="text-xs font-semibold text-[#49B0C1] hover:underline">Edit</button>
+                            <button onClick={() => openEdit(cfg)} className="text-xs font-semibold text-[#7A9076] hover:underline">Edit</button>
                             <button onClick={() => setDeleteTarget(cfg)} className="text-xs text-red-500 hover:underline">Delete</button>
                           </div>
                         </td>
@@ -441,11 +441,11 @@ export default function SlowMovingPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
                 <p className="text-xs text-[#666666]">Showing {fmtNumber(configs.length)} of {fmtNumber(configTotalCount)} configurations</p>
                 <div className="flex items-center justify-end gap-1">
-                  <button disabled={configPage === 1} onClick={() => setConfigPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
-                  <button disabled={configPage >= configTotalPages} onClick={() => setConfigPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+                  <button disabled={configPage === 1} onClick={() => setConfigPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
+                  <button disabled={configPage >= configTotalPages} onClick={() => setConfigPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
                 </div>
               </div>
             </>
@@ -465,7 +465,7 @@ export default function SlowMovingPage() {
           <div>
             <label className="block text-sm text-[#666666] mb-1">Product</label>
             {editingConfig ? (
-              <div className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-[#DBEFF3]/30 text-[#333333]">
+              <div className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-[#E6ECE2]/30 text-[#333333]">
                 {editingConfig.product?.name ?? "—"}
               </div>
             ) : (
@@ -474,12 +474,12 @@ export default function SlowMovingPage() {
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
                   placeholder="Search products..."
-                  className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm mb-2 focus:border-[#49B0C1] focus:outline-none"
+                  className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm mb-2 focus:border-[#B6C8AF] focus:outline-none"
                 />
                 <select
                   value={formProductId}
                   onChange={(e) => setFormProductId(e.target.value)}
-                  className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none"
+                  className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#B6C8AF] focus:outline-none"
                 >
                   <option value="">Select a product</option>
                   {productSearch
@@ -500,7 +500,7 @@ export default function SlowMovingPage() {
             <select
               value={formDefinition}
               onChange={(e) => setFormDefinition(e.target.value as SlowMovingDefinitionType)}
-              className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#B6C8AF] focus:outline-none"
             >
               {DEFINITION_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -516,7 +516,7 @@ export default function SlowMovingPage() {
                 max={365}
                 value={formCustomDays}
                 onChange={(e) => setFormCustomDays(e.target.value)}
-                className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
               />
             </div>
           )}

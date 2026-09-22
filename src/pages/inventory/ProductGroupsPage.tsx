@@ -66,8 +66,8 @@ function ToggleSwitch({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#49B0C1] focus:ring-offset-2 ${
-          checked ? "bg-[#49B0C1]" : "bg-gray-300"
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
+          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
         }`}
       >
         <span
@@ -310,9 +310,9 @@ export default function ProductGroupsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {/* Toolbar: search + pagination info */}
-          <div className="px-4 py-3 border-b border-[#DBEFF3] flex flex-wrap items-center justify-between gap-3">
+          <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666666]"
@@ -330,7 +330,7 @@ export default function ProductGroupsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by group name…"
-                className="w-full rounded-lg border border-[#DBEFF3] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#49B0C1]"
+                className="w-full rounded-lg border border-[#E6ECE2] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
               />
               {search && (
                 <button
@@ -355,7 +355,7 @@ export default function ProductGroupsPage() {
           {loading ? (
             <div className="p-6 space-y-3 animate-pulse">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-12 rounded-lg bg-[#DBEFF3]" />
+                <div key={i} className="h-12 rounded-lg bg-[#E6ECE2]" />
               ))}
             </div>
           ) : groups.length === 0 ? (
@@ -379,7 +379,7 @@ export default function ProductGroupsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3]">
+                    <tr className="bg-[#E6ECE2]">
                       {[
                         "Group Name",
                         "Description",
@@ -403,8 +403,8 @@ export default function ProductGroupsPage() {
                         key={g.id}
                         onClick={() => openDetail(g)}
                         className={`cursor-pointer transition-colors ${
-                          i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"
-                        } hover:bg-[#ABDBE3]/30`}
+                          i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"
+                        } hover:bg-[#C6D4BF]/30`}
                       >
                         <td className="px-4 py-3 font-semibold text-[#333333]">
                           {g.name}
@@ -437,7 +437,7 @@ export default function ProductGroupsPage() {
                             <button
                               onClick={() => openEdit(g)}
                               disabled={togglingId === g.id}
-                              className="text-xs font-semibold text-[#49B0C1] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Edit"
                             >
                               ✏️ Edit
@@ -466,7 +466,7 @@ export default function ProductGroupsPage() {
 
               {/* Pagination footer */}
               {totalPages > 1 && (
-                <div className="px-4 py-3 border-t border-[#DBEFF3] bg-[#DBEFF3]/20 flex items-center justify-between">
+                <div className="px-4 py-3 border-t border-[#E6ECE2] bg-[#E6ECE2]/20 flex items-center justify-between">
                   <Button
                     variant="secondary"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -521,7 +521,7 @@ export default function ProductGroupsPage() {
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
               rows={3}
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20 resize-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 resize-none"
             />
           </div>
 
@@ -635,8 +635,8 @@ export default function ProductGroupsPage() {
             </div>
 
             {/* Products under this group (from GET /{id}) */}
-            <div className="rounded-xl bg-[#DBEFF3] p-4">
-              <p className="text-xs font-semibold text-[#49B0C1] uppercase tracking-wide mb-2">
+            <div className="rounded-xl bg-[#E6ECE2] p-4">
+              <p className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide mb-2">
                 Products in Group (
                 {detailTarget.products?.length ??
                   detailTarget._count?.products ??
