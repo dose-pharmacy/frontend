@@ -124,7 +124,7 @@ function mapRequirement(r: RequirementDto): Requirement {
     requiredBy: r.requiredBy?.slice(0, 10) ?? "",
     notes: r.notes ?? "",
     status: r.status,
-    createdBy: r.createdBy?.name ?? "â€”",
+    createdBy: r.createdBy?.name ?? "—",
     createdDate: r.createdAt?.slice(0, 10) ?? "",
     lines: (r.lines ?? []).map(mapLine),
   }
@@ -139,7 +139,7 @@ function errMessage(e: unknown): string {
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtDate(d: string) {
-  if (!d) return "â€”"
+  if (!d) return "—"
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
 }
 
@@ -338,11 +338,25 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
   const paginated = reqs
 
   const pageButtons = (() => {
-    const pages: number[] = []
-    for (let i = 1; i <= totalPages; i++) pages.push(i)
-    return pages.map((p: number) => (
-      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
-    ))
+    // Windowed page numbers: first/last always visible, current ±1, gaps collapsed to …
+    const show = new Set([1, totalPages, page - 1, page, page + 1])
+    const items: (number | "…")[] = []
+    for (let i = 1; i <= totalPages; i++) {
+      if (!show.has(i)) continue
+      if (
+        items.length > 0 &&
+        typeof items[items.length - 1] === "number" &&
+        (items[items.length - 1] as number) !== i - 1
+      ) items.push("…")
+      items.push(i)
+    }
+    return items.map((p, idx) =>
+      p === "…" ? (
+        <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[#666666]">…</span>
+      ) : (
+        <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
+      ),
+    )
   })()
 
   async function confirmDelete() {
@@ -451,7 +465,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <button onClick={() => onSelect(r.id)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
-                              View â†’
+                              View →
                             </button>
                             <OverflowMenu items={[
                               { label: "View", onClick: () => onSelect(r.id) },
@@ -467,12 +481,12 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
               </div>
               <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * 20 + 1, totalCount)}â€“{Math.min(page * 20, totalCount)} of {totalCount} requirements
+                  Showing {Math.min((page - 1) * 20 + 1, totalCount)}–{Math.min(page * 20, totalCount)} of {totalCount} requirements
                 </p>
-<div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Prev</button>
+                <div className="flex gap-1">
+                  <button disabled={page === 1} onClick={() => setPage(page - 1)} aria-label="Previous page" className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
                   {pageButtons}
-                  <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Next</button>
+                  <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Next page" className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
                 </div>
               </div>
             </>
@@ -625,7 +639,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
               ["Created By",   req.createdBy],
               ["Created Date", fmtDate(req.createdDate)],
               ["Status",       reqStatus],
-              ["Notes",        req.notes || "â€”"],
+              ["Notes",        req.notes || "—"],
             ] as [string, string][]).map(([label, value]) => (
               <div key={label}>
                 <p className="text-xs text-[#999] mb-0.5">{label}</p>
@@ -674,7 +688,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                         {line.product}
                         {line.hasPo && <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5 align-middle">PO LINKED</span>}
                       </td>
-                      <td className="px-4 py-3 text-[#666666] font-mono text-xs">{line.sku || "â€”"}</td>
+                      <td className="px-4 py-3 text-[#666666] font-mono text-xs">{line.sku || "—"}</td>
                       <td className="px-4 py-3 text-right font-bold text-[#333333]">
                         {line.quantityNeeded}
                         {line.unitName && <span className="ml-1 text-xs font-normal text-[#999]">{line.unitName}</span>}
@@ -684,7 +698,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                       <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">{line.quantityDelivered}</td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden md:table-cell">{line.remainingToReceive}</td>
                       <td className="px-4 py-3"><LineBadge status={line.status} /></td>
-                      <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{line.reason || "â€”"}</td>
+                      <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{line.reason || "—"}</td>
                       {!isReadOnly && (
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -723,7 +737,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                 (line.allocations ?? []).map((alloc) => ({
                   poNumber: alloc.purchaseOrderNumber,
                   poId: alloc.purchaseOrderId,
-                  supplier: alloc.supplier?.name ?? "â€”",
+                  supplier: alloc.supplier?.name ?? "—",
                   status: alloc.purchaseOrderStatus ?? "ACTIVE",
                   allocatedQuantity: alloc.quantityAllocated,
                   orderedQuantity: alloc.quantityOrdered,
@@ -775,7 +789,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                       </div>
                       {!alloc.active && (
                         <p className="mt-2 text-xs text-red-600 font-medium">
-                          CANCELLED â€” Released allocation: {alloc.allocatedQuantity}
+                          CANCELLED — Released allocation: {alloc.allocatedQuantity}
                         </p>
                       )}
                     </div>
@@ -868,7 +882,7 @@ function NewRequirementModal({ open, onClose, onCreated }: {
     setError("")
     setLoading(true)
     try {
-      // POST /requirements â€” requiredBy and notes are optional; per-line
+      // POST /requirements — requiredBy and notes are optional; per-line
       // reasonCode/notes are omitted (never sent as null) to satisfy the
       // backend's request validator.
       await createRequirement({
@@ -1030,7 +1044,7 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
       <div className="rounded-xl border border-[#E6ECE2] p-4 mb-5 max-h-64 overflow-y-auto">
         <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Products to Purchase</p>
         {suggestions.length === 0 ? (
-          <p className="text-sm text-[#999] py-2">{loadError ? "â€”" : "No reorder suggestions available."}</p>
+          <p className="text-sm text-[#999] py-2">{loadError ? "—" : "No reorder suggestions available."}</p>
         ) : (
           <ul className="space-y-2">
             {suggestions.map((s) => (
@@ -1391,7 +1405,7 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
             </div>
             <div>
               <p className="text-[#999]">SKU</p>
-              <p className="font-semibold text-[#333333]">{line.sku || "â€”"}</p>
+              <p className="font-semibold text-[#333333]">{line.sku || "—"}</p>
             </div>
             <div>
               <p className="text-[#999]">Required</p>

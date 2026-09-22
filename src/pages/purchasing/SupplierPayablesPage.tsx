@@ -792,9 +792,10 @@ export default function SupplierPayablesPage() {
                   type="button"
                   disabled={page === 1}
                   onClick={() => setPage((current) => current - 1)}
+                  aria-label="Previous page"
                   className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#C6D4BF] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors"
                 >
-                  ← Prev
+                  ←
                 </button>
 
                 {Array.from(
@@ -818,9 +819,10 @@ export default function SupplierPayablesPage() {
                   type="button"
                   disabled={page === totalPages}
                   onClick={() => setPage((current) => current + 1)}
+                  aria-label="Next page"
                   className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#C6D4BF] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors"
                 >
-                  Next →
+                  →
                 </button>
               </div>
             </div>

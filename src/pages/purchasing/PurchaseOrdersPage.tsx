@@ -415,23 +415,39 @@ export default function PurchaseOrdersPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
-                <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
-                </p>
-                <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Prev</button>
-                  {(() => {
-                    const pages: number[] = []
-                    for (let i = 1; i <= totalPages; i++) pages.push(i)
-                    return pages.map((p: number) => (
-                      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
-                    ))
-                  })()}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Next</button>
-                </div>
-              </div>
             </>
+          )}
+          {!loading && !error && (
+            <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
+              <p className="text-xs text-[#666666]">
+                Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
+              </p>
+              <div className="flex gap-1">
+                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page" className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
+                {(() => {
+                  // Windowed page numbers: first/last always visible, current ±1, gaps collapsed to …
+                  const show = new Set([1, totalPages, page - 1, page, page + 1])
+                  const items: (number | "…")[] = []
+                  for (let i = 1; i <= totalPages; i++) {
+                    if (!show.has(i)) continue
+                    if (
+                      items.length > 0 &&
+                      typeof items[items.length - 1] === "number" &&
+                      (items[items.length - 1] as number) !== i - 1
+                    ) items.push("…")
+                    items.push(i)
+                  }
+                  return items.map((p, idx) =>
+                    p === "…" ? (
+                      <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[#666666]">…</span>
+                    ) : (
+                      <button key={p} onClick={() => setPage(p)} aria-current={p === page ? "page" : undefined} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
+                    ),
+                  )
+                })()}
+                <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} aria-label="Next page" className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
+              </div>
+            </div>
           )}
         </div>
       </div>
