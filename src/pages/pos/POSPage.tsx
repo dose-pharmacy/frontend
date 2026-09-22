@@ -86,7 +86,7 @@ export default function POSPage() {
 
   // Reference data
   const [groups, setGroups] = useState<ProductGroupDto[]>([])
-  const [locations, setLocations] = useState<{ id: string name: string }[]>([])
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
 
   // UI state
   const [selectedProduct, setSelectedProduct] = useState<POSProduct | null>(
