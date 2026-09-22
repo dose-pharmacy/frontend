@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import ReportsSubNav from "./ReportsSubNav";
+import DashboardSubNav from "../dashboard/DashboardSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import ReportFilterBar from "./ReportFilterBar";
@@ -464,11 +464,11 @@ export default function ProfitabilityDashboardPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
-        breadcrumb="Reports / Profitability"
+        breadcrumb="Dashboard / Profitability"
         title="Profitability"
         subtitle="Profit, margins, and per-product group performance."
       />
-      <ReportsSubNav />
+      <DashboardSubNav />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         <div className="flex rounded-lg border border-[#C6D4BF] w-fit overflow-hidden">

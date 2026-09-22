@@ -174,9 +174,6 @@ const NAV: NavItem[] = [
     label: "Reports",
     icon: <IconChart />,
     children: [
-      { to: "/reports", label: "Overview" },
-      { to: "/reports/sales", label: "Sales" },
-      { to: "/reports/profitability", label: "Profitability" },
       { to: "/reports/slow-moving", label: "Slow Moving" },
       { to: "/reports/narcotics", label: "Narcotics" },
     ],
@@ -212,7 +209,7 @@ function Sidebar({
   const navigate = useNavigate()
 
   function isPathActive(path: string) {
-    if (path === "/dashboard") return location.pathname === "/dashboard"
+    if (path === "/dashboard") return location.pathname.startsWith("/dashboard")
     if (path === "/inventory") return location.pathname === "/inventory"
     if (path === "/sales") return location.pathname === "/sales"
     return location.pathname.startsWith(path)
@@ -447,7 +444,6 @@ function Sidebar({
                     const exactActive =
                       location.pathname === child.to ||
                       (child.to !== "/inventory" &&
-                        child.to !== "/reports/sales" &&
                         location.pathname.startsWith(child.to) &&
                         !item.children!.some(
                           (other) =>
