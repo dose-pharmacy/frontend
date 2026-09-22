@@ -37,9 +37,9 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
         {/* Header */}
-        <div className="bg-[#49B0C1] px-6 py-4 flex items-center justify-between">
-          <h2 id="ps-title" className="text-base font-bold text-white">Add to Sale</h2>
-          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors" aria-label="Close">
+        <div className="bg-[#E6ECE2] px-6 py-4 flex items-center justify-between border-b border-[#C6D4BF]">
+          <h2 id="ps-title" className="text-base font-bold text-[#333333]">Add to Sale</h2>
+          <button onClick={onClose} className="text-[#666666] hover:text-[#333333] transition-colors" aria-label="Close">
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
@@ -47,8 +47,8 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
         </div>
 
         {/* Product info */}
-        <div className="bg-[#DBEFF3] px-6 py-4 flex items-center gap-4">
-          <div className="h-14 w-14 rounded-xl bg-white/70 flex items-center justify-center text-[#49B0C1] flex-shrink-0">
+        <div className="bg-[#E6ECE2] px-6 py-4 flex items-center gap-4">
+          <div className="h-14 w-14 rounded-xl bg-white/70 flex items-center justify-center text-[#7A9076] flex-shrink-0">
             <ProductIcon type={product.icon} size={28} />
           </div>
           <div className="flex-1 min-w-0">
@@ -62,7 +62,7 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
             <StockBadge status={product.status} availableStock={product.availableStock} />
           </div>
           <div className="text-right flex-shrink-0">
-            <p className="text-lg font-bold text-[#49B0C1]">{fmt(selectedUnit?.price ?? 0)}</p>
+            <p className="text-lg font-bold text-[#7A9076]">{fmt(selectedUnit?.price ?? 0)}</p>
             <p className="text-xs text-[#666666]">per {selectedUnit?.name}</p>
           </div>
         </div>
@@ -84,12 +84,12 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
                       disabled={unitAvail <= 0}
                       className={`flex flex-col items-start rounded-lg border-2 px-4 py-2.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         selectedUnit?.id === u.id
-                          ? "border-[#49B0C1] bg-[#DBEFF3]"
-                          : "border-[#ABDBE3] bg-white hover:border-[#49B0C1] hover:bg-[#DBEFF3]/50"
+                          ? "border-[#B6C8AF] bg-[#E6ECE2]"
+                          : "border-[#C6D4BF] bg-white hover:border-[#B6C8AF] hover:bg-[#E6ECE2]/50"
                       }`}
                     >
                       <span className="text-sm font-bold text-[#333333]">{u.name}</span>
-                      <span className="text-xs text-[#49B0C1] font-semibold">{fmt(u.price)}</span>
+                      <span className="text-xs text-[#7A9076] font-semibold">{fmt(u.price)}</span>
                       <span className="text-xs text-[#999]">{unitAvail} avail.</span>
                     </button>
                   );
@@ -105,7 +105,7 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
               <button
                 onClick={decrement}
                 disabled={quantity <= 1}
-                className="h-9 w-9 rounded-full bg-[#ABDBE3] text-[#333333] flex items-center justify-center hover:bg-[#9acbd5] transition-colors disabled:opacity-40 text-xl font-bold leading-none"
+                className="h-9 w-9 rounded-full bg-[#C6D4BF] text-[#333333] flex items-center justify-center hover:bg-[#B5C6AE] transition-colors disabled:opacity-40 text-xl font-bold leading-none"
                 aria-label="Decrease quantity"
               >
                 −
@@ -119,12 +119,12 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
                   const v = Math.min(maxQty, Math.max(1, Number(e.target.value)));
                   setQuantity(isNaN(v) ? 1 : v);
                 }}
-                className="w-16 text-center rounded-lg border border-[#ABDBE3] py-1.5 text-base font-bold focus:border-[#49B0C1] focus:outline-none"
+                className="w-16 text-center rounded-lg border border-[#C6D4BF] py-1.5 text-base font-bold focus:border-[#B6C8AF] focus:outline-none"
               />
               <button
                 onClick={increment}
                 disabled={quantity >= maxQty}
-                className="h-9 w-9 rounded-full bg-[#49B0C1] text-white flex items-center justify-center hover:bg-[#3a9baf] transition-colors disabled:opacity-40 text-xl font-bold leading-none"
+                className="h-9 w-9 rounded-full bg-[#B6C8AF] text-[#333333] flex items-center justify-center hover:bg-[#A5B89E] transition-colors disabled:opacity-40 text-xl font-bold leading-none"
                 aria-label="Increase quantity"
               >
                 +
@@ -134,24 +134,24 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
           </div>
 
           {/* Price preview */}
-          <div className="flex items-center justify-between rounded-lg bg-[#DBEFF3] px-4 py-3">
+          <div className="flex items-center justify-between rounded-lg bg-[#E6ECE2] px-4 py-3">
             <span className="text-sm text-[#666666]">Total</span>
-            <span className="text-xl font-bold text-[#49B0C1]">{fmt(totalPrice)}</span>
+            <span className="text-xl font-bold text-[#7A9076]">{fmt(totalPrice)}</span>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-[#DBEFF3] px-6 py-4 flex gap-3 justify-end bg-white">
+        <div className="border-t border-[#E6ECE2] px-6 py-4 flex gap-3 justify-end bg-white">
           <button
             onClick={onClose}
-            className="rounded-lg px-6 py-2.5 text-sm font-semibold text-[#333333] bg-[#ABDBE3] hover:bg-[#9acbd5] transition-colors"
+            className="rounded-lg px-6 py-2.5 text-sm font-semibold text-[#333333] bg-[#C6D4BF] hover:bg-[#B5C6AE] transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleAdd}
             disabled={isOutOfStock || quantity <= 0 || !selectedUnit}
-            className="rounded-lg px-8 py-2.5 text-sm font-bold text-white bg-[#49B0C1] hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg px-8 py-2.5 text-sm font-bold text-[#333333] bg-[#B6C8AF] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Add to Sale
           </button>

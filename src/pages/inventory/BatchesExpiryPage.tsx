@@ -440,14 +440,14 @@ export default function BatchesExpiryPage() {
       />
 
       {/* Tab bar */}
-      <div className="bg-white border-b border-[#DBEFF3] px-6 flex gap-0">
+      <div className="bg-white border-b border-[#E6ECE2] px-6 flex gap-0">
         {TAB_LABELS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === key
-                ? "border-[#49B0C1] text-[#49B0C1]"
+                ? "border-[#B6C8AF] text-[#7A9076]"
                 : "border-transparent text-[#666666] hover:text-[#333333]"
             }`}
           >
@@ -471,7 +471,7 @@ export default function BatchesExpiryPage() {
         {/* ── ALL BATCHES TAB ── */}
         {tab === "batches" && (
           <>
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1">
                   <SearchInput
@@ -506,7 +506,7 @@ export default function BatchesExpiryPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
               {loading ? (
                 <LoadingSkeleton />
               ) : filteredBatches.length === 0 ? (
@@ -516,7 +516,7 @@ export default function BatchesExpiryPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-[#DBEFF3] text-left">
+                        <tr className="bg-[#E6ECE2] text-left">
                           <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
                           <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
                           <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Received</th>
@@ -532,7 +532,7 @@ export default function BatchesExpiryPage() {
                           const days = daysUntilExpiry(b.expiryDate)
                           const isExpiring = days >= 0 && days <= 30
                           return (
-                            <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                            <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                               <td className="px-4 py-3 font-medium text-[#333333]">{productName(b.productId)}</td>
                               <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
                               <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{formatDate(b.receivedDate)}</td>
@@ -552,7 +552,7 @@ export default function BatchesExpiryPage() {
                               <td className="px-4 py-3">
                                 <button
                                   onClick={() => navigate(`/inventory/batches/${b.id}`)}
-                                  className="text-xs font-semibold text-[#49B0C1] hover:underline"
+                                  className="text-xs font-semibold text-[#7A9076] hover:underline"
                                 >
                                   View
                                 </button>
@@ -830,7 +830,7 @@ export default function BatchesExpiryPage() {
       <Modal open={!!actionBatch} title="Expiry Action" onClose={() => setActionBatch(null)} size="md">
         {actionBatch && (
           <div className="flex flex-col gap-5">
-            <div className="rounded-xl bg-[#DBEFF3] p-4 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-xl bg-[#E6ECE2] p-4 grid grid-cols-2 gap-3 text-sm">
               <div><span className="text-[#666666]">Product: </span><span className="font-semibold text-[#333333]">{actionBatch.product.name}</span></div>
               <div><span className="text-[#666666]">Batch: </span><span className="font-mono font-semibold text-[#333333]">{actionBatch.batchNumber}</span></div>
               <div><span className="text-[#666666]">Qty: </span><span className="font-semibold text-[#333333]">{actionBatch.stock.quantity.toLocaleString()} {productUnit(actionBatch.product.id)}s</span></div>
@@ -844,8 +844,8 @@ export default function BatchesExpiryPage() {
             <div className="flex flex-col gap-2">
               <p className="text-sm font-semibold text-[#333333]">Select Action</p>
               {(["return", "clearance", "dispose"] as ExpiryAction[]).map((a) => (
-                <label key={a} className="flex items-center gap-3 cursor-pointer rounded-lg border border-[#ABDBE3] px-4 py-3 hover:bg-[#DBEFF3]/50 transition-colors">
-                  <input type="radio" name="action" value={a} checked={actionType === a} onChange={() => setActionType(a)} className="accent-[#49B0C1]" />
+                <label key={a} className="flex items-center gap-3 cursor-pointer rounded-lg border border-[#C6D4BF] px-4 py-3 hover:bg-[#E6ECE2]/50 transition-colors">
+                  <input type="radio" name="action" value={a} checked={actionType === a} onChange={() => setActionType(a)} className="accent-[#B6C8AF]" />
                   <span className="text-sm font-medium capitalize text-[#333333]">
                     {a === "return" ? "Return to Supplier" : a === "clearance" ? "Clearance Sale" : "Dispose"}
                   </span>
@@ -896,7 +896,7 @@ function ExpiryGroup({
         <p className="text-sm font-bold text-white">{title}</p>
         <span className="text-xs text-white/80">{batches.length} batch{batches.length !== 1 ? "es" : ""}</span>
       </div>
-      <div className="bg-white rounded-b-xl border border-t-0 border-[#DBEFF3] divide-y divide-[#DBEFF3]">
+      <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] divide-y divide-[#E6ECE2]">
         {batches.map((b) => {
           const days = b.daysRemaining
           return (
@@ -910,7 +910,7 @@ function ExpiryGroup({
                 <p className="text-xs text-[#666666]">{b.stock.quantity.toLocaleString()} {productUnit(b.product.id)}s</p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
-                <button onClick={() => onAction(b, "return")} className="text-xs font-semibold text-[#49B0C1] hover:underline">Return</button>
+                <button onClick={() => onAction(b, "return")} className="text-xs font-semibold text-[#7A9076] hover:underline">Return</button>
                 <button onClick={() => onAction(b, "clearance")} className="text-xs font-semibold text-orange-500 hover:underline">Clearance</button>
                 <button onClick={() => onAction(b, "dispose")} className="text-xs font-semibold text-red-500 hover:underline">Dispose</button>
               </div>
@@ -925,7 +925,7 @@ function ExpiryGroup({
 function LoadingSkeleton() {
   return (
     <div className="p-6 space-y-3 animate-pulse">
-      {[...Array(5)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />)}
+      {[...Array(5)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#E6ECE2]" />)}
     </div>
   )
 }

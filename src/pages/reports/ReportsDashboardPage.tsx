@@ -163,14 +163,14 @@ export default function ReportsDashboardPage() {
 
         {/* Summary KPIs */}
         {summaryLoading ? (
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-6">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-6">
             <div className="flex items-center justify-center py-8 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               <p className="text-sm text-[#666666]">Loading summary...</p>
             </div>
           </div>
         ) : summaryError && !summary ? (
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-6">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-6">
             <div className="flex flex-col items-center justify-center py-8 gap-4">
               <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{summaryError}</p>
               <Button onClick={loadSummary}>Retry</Button>
@@ -179,8 +179,8 @@ export default function ReportsDashboardPage() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
             {kpis.map((k) => (
-              <div key={k.label} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#DBEFF3]/60 text-[#49B0C1]">
+              <div key={k.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#E6ECE2]/60 text-[#7A9076]">
                   {k.icon}
                 </div>
                 <p className="text-xs font-medium text-[#666666] mt-3">{k.label}</p>
@@ -191,7 +191,7 @@ export default function ReportsDashboardPage() {
         )}
 
         {/* Trend chart */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <div>
               <h2 className="text-base font-bold text-[#333333]">Sales Trend</h2>
@@ -199,12 +199,12 @@ export default function ReportsDashboardPage() {
                 Revenue by {period === "DAILY" ? "day" : period === "MONTHLY" ? "month" : "year"}
               </p>
             </div>
-            <div className="flex rounded-lg border border-[#ABDBE3] overflow-hidden">
+            <div className="flex rounded-lg border border-[#C6D4BF] overflow-hidden">
               {PERIODS.map((p) => (
                 <button
                   key={p.value}
                   onClick={() => setPeriod(p.value)}
-                  className={`px-3.5 py-1.5 text-xs font-semibold transition-colors ${period === p.value ? "bg-[#49B0C1] text-white" : "bg-white text-[#666666] hover:bg-[#DBEFF3]"}`}
+                  className={`px-3.5 py-1.5 text-xs font-semibold transition-colors ${period === p.value ? "bg-[#B6C8AF] text-[#333333]" : "bg-white text-[#666666] hover:bg-[#E6ECE2]"}`}
                 >
                   {p.label}
                 </button>
@@ -213,7 +213,7 @@ export default function ReportsDashboardPage() {
           </div>
           {trendLoading ? (
             <div className="flex items-center justify-center py-16 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               <p className="text-sm text-[#666666]">Loading trend...</p>
             </div>
           ) : trendError ? (
@@ -231,15 +231,15 @@ export default function ReportsDashboardPage() {
                 <AreaChart data={trend} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#49B0C1" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#49B0C1" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="#B6C8AF" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#B6C8AF" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DBEFF3" vertical={false} />
-                  <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#666666" }} tickLine={false} axisLine={{ stroke: "#DBEFF3" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E6ECE2" vertical={false} />
+                  <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#666666" }} tickLine={false} axisLine={{ stroke: "#E6ECE2" }} />
                   <YAxis tick={{ fontSize: 11, fill: "#666666" }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} tickLine={false} axisLine={false} width={52} />
-                  <Tooltip formatter={(v: unknown) => fmtMoney(Number(v))} contentStyle={{ borderRadius: 12, borderColor: "#DBEFF3", fontSize: 12 }} />
-                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#49B0C1" strokeWidth={2.5} fill="url(#revenueFill)" />
+                  <Tooltip formatter={(v: unknown) => fmtMoney(Number(v))} contentStyle={{ borderRadius: 12, borderColor: "#E6ECE2", fontSize: 12 }} />
+                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#B6C8AF" strokeWidth={2.5} fill="url(#revenueFill)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -248,19 +248,19 @@ export default function ReportsDashboardPage() {
 
         {/* Payment methods + Top products */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#DBEFF3]">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#E6ECE2]">
               <h2 className="text-base font-bold text-[#333333]">Payment Methods</h2>
               <p className="text-xs text-[#666666] mt-0.5">Share of sales by payment method</p>
             </div>
             {summaryLoading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+                <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               </div>
             ) : !summary || (summary.paymentsByMethod?.length ?? 0) === 0 ? (
               <p className="text-sm text-[#666666] text-center py-12">No payment data for this period.</p>
             ) : (
-              <div className="divide-y divide-[#DBEFF3]">
+              <div className="divide-y divide-[#E6ECE2]">
                 {summary.paymentsByMethod.map((p) => (
                   <div key={p.method} className="flex items-center justify-between px-5 py-3.5">
                     <span className="text-sm font-medium text-[#333333] capitalize">
@@ -278,19 +278,19 @@ export default function ReportsDashboardPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#DBEFF3]">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#E6ECE2]">
               <h2 className="text-base font-bold text-[#333333]">Top Products</h2>
               <p className="text-xs text-[#666666] mt-0.5">Best sellers by quantity and revenue</p>
             </div>
             {summaryLoading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+                <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               </div>
             ) : !summary || (summary.topProducts?.length ?? 0) === 0 ? (
               <p className="text-sm text-[#666666] text-center py-12">No product data for this period.</p>
             ) : (
-              <div className="divide-y divide-[#DBEFF3]">
+              <div className="divide-y divide-[#E6ECE2]">
                 {summary.topProducts.map((p) => (
                   <div key={p.productId} className="flex items-center justify-between gap-4 px-5 py-3.5">
                     <div className="min-w-0">

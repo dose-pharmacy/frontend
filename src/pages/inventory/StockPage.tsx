@@ -169,13 +169,13 @@ export default function StockPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setAddStockOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-white text-[#49B0C1] px-3.5 py-2 text-sm font-semibold hover:bg-[#DBEFF3] transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#B6C8AF] text-[#333333] px-3.5 py-2 text-sm font-semibold hover:bg-[#E6ECE2] transition-colors"
             >
               + Add Stock
             </button>
             <button
               onClick={() => setAdjustOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3.5 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors"
             >
               Adjust Stock
             </button>
@@ -184,7 +184,7 @@ export default function StockPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search product, SKU or batch..." />
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex-1 min-w-[150px]">
@@ -204,14 +204,14 @@ export default function StockPage() {
               />
             </div>
             {(search || locationFilter || productIdQuery) && (
-              <button onClick={reset} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+              <button onClick={reset} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
                 Reset Filters
               </button>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {stockError ? (
             <div className="p-6">
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3">
@@ -226,7 +226,7 @@ export default function StockPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
                       <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Location</th>
@@ -241,7 +241,7 @@ export default function StockPage() {
                     {rows.map((r, i) => {
                       const s = StatusLabel({ status: deriveStatus(r) })
                       return (
-                        <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                        <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                           <td className="px-4 py-3">
                             <p className="font-medium text-[#333333]">{r.productName}</p>
                             {r.productSku && <p className="text-xs text-[#999] font-mono">{r.productSku}</p>}
@@ -260,7 +260,7 @@ export default function StockPage() {
                             <span className={`text-xs font-semibold rounded-full px-2.5 py-0.5 ${s.cls}`}>{s.label}</span>
                           </td>
                           <td className="px-4 py-3">
-                            <button onClick={() => setStockDetail(r)} className="text-xs font-semibold text-[#49B0C1] hover:underline">View</button>
+                            <button onClick={() => setStockDetail(r)} className="text-xs font-semibold text-[#7A9076] hover:underline">View</button>
                           </td>
                         </tr>
                       )
@@ -268,7 +268,7 @@ export default function StockPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
                   Showing {total > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}–{Math.min(page * PAGE_SIZE, total)} of {total} stock records
                 </p>
@@ -379,18 +379,18 @@ function BatchDetailView({
       </Section>
 
       {/* Location stock */}
-      <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-        <div className="px-4 py-2.5 bg-[#DBEFF3]/50">
+      <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="px-4 py-2.5 bg-[#E6ECE2]/50">
           <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide">Location Stock</p>
         </div>
-        <div className="divide-y divide-[#DBEFF3]">
+        <div className="divide-y divide-[#E6ECE2]">
           {locationsForBatch.map((l) => (
             <div key={l.location} className="flex items-center justify-between px-4 py-2.5">
               <span className="text-sm text-[#333333]">{l.location}</span>
               <span className="text-sm font-semibold text-[#333333]">{l.qty.toLocaleString()}</span>
             </div>
           ))}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-[#DBEFF3]/30">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-[#E6ECE2]/30">
             <span className="text-sm font-semibold text-[#333333]">Total</span>
             <span className="text-sm font-bold text-[#333333]">{totalQty.toLocaleString()}</span>
           </div>
@@ -398,7 +398,7 @@ function BatchDetailView({
       </div>
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-2 border-t border-[#DBEFF3] pt-4">
+      <div className="flex flex-wrap gap-2 border-t border-[#E6ECE2] pt-4">
         <Button variant="secondary" onClick={() => navigate(`/inventory/bin-card?productId=${row.productId}&locationId=${row.locationId}&batchId=${row.batchId}`)}>View Bin Card</Button>
       </div>
     </div>
@@ -515,7 +515,7 @@ function AddStockModal({
           <select
             value={batchId}
             onChange={(e) => setBatchId(e.target.value)}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+            className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
             disabled={!productId || batchesLoading}
           >
             <option value="">{batchesLoading ? "Loading batches..." : "Select batch..."}</option>
@@ -549,7 +549,7 @@ function AddStockModal({
             <select
               value={unitId}
               onChange={(e) => setUnitId(e.target.value)}
-              className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
               disabled={!productId || unitsApi.units.length === 0}
             >
               {unitsApi.units.length === 0 ? (
@@ -569,9 +569,9 @@ function AddStockModal({
         )}
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Notes</label>
-          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Initial physical stock..." className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" />
+          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Initial physical stock..." className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none" />
         </div>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSubmit} loading={submitting} disabled={!productId || !batchId || !locationId || !qty}>Add Stock</Button>
         </div>
@@ -703,7 +703,7 @@ function AdjustStockModal({
           <select
             value={batchId}
             onChange={(e) => setBatchId(e.target.value)}
-            className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+            className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
             disabled={!productId || batchesLoading}
           >
             <option value="">{batchesLoading ? "Loading batches..." : "Select batch..."}</option>
@@ -727,7 +727,7 @@ function AdjustStockModal({
         />
 
         {selectedBatch && (
-          <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 flex items-center justify-between">
+          <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 flex items-center justify-between">
             <span className="text-sm text-[#666666]">Current Stock</span>
             <span className="text-sm font-bold text-[#333333]">{currentStock.toLocaleString()} {selectedUnit ? selectedUnit.unit.name : ""}</span>
           </div>
@@ -746,7 +746,7 @@ function AdjustStockModal({
             <select
               value={unitId}
               onChange={(e) => setUnitId(e.target.value)}
-              className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
               disabled={!productId || unitsApi.units.length === 0}
             >
               {unitsApi.units.length === 0 ? (
@@ -775,7 +775,7 @@ function AdjustStockModal({
 
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Reason</label>
-          <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+          <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
             <option value="">Select reason...</option>
             <option>Physical Count Correction</option>
             <option>Damage / Breakage</option>
@@ -786,9 +786,9 @@ function AdjustStockModal({
         </div>
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Notes</label>
-          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" placeholder="Add context about this adjustment..." />
+          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none" placeholder="Add context about this adjustment..." />
         </div>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={() => { reset(); onClose() }}>Cancel</Button>
           <Button onClick={handleSubmit} loading={submitting} disabled={!productId || !batchId || !locationId || !adjustment || !reason || !unitId}>Save Adjustment</Button>
         </div>
@@ -800,11 +800,11 @@ function AdjustStockModal({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-      <div className="px-4 py-2.5 bg-[#DBEFF3]/50">
+    <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+      <div className="px-4 py-2.5 bg-[#E6ECE2]/50">
         <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide">{title}</p>
       </div>
-      <div className="divide-y divide-[#DBEFF3]">{children}</div>
+      <div className="divide-y divide-[#E6ECE2]">{children}</div>
     </div>
   )
 }
@@ -821,7 +821,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 function LoadingSkeleton() {
   return (
     <div className="p-6 space-y-3 animate-pulse">
-      {[...Array(6)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />)}
+      {[...Array(6)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#E6ECE2]" />)}
     </div>
   )
 }

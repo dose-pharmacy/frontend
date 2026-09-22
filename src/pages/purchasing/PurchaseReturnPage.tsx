@@ -333,7 +333,7 @@ export default function PurchaseReturnPage() {
     }
   }
 
-  const inputClass = "w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none disabled:bg-[#DBEFF3]/40 disabled:text-[#999]";
+  const inputClass = "w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none disabled:bg-[#E6ECE2]/40 disabled:text-[#999]";
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -344,7 +344,7 @@ export default function PurchaseReturnPage() {
           !showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="rounded-lg bg-white/20 border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
+              className="rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors"
             >
               + New Return
             </button>
@@ -362,7 +362,7 @@ export default function PurchaseReturnPage() {
         {/* New Return Form */}
         {showForm && (
           <div className="px-4 sm:px-6 py-4">
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-bold text-[#333333]">New Purchase Return</h2>
                 <button onClick={() => setShowForm(false)} className="text-sm text-gray-400 hover:text-gray-600">✕ Cancel</button>
@@ -450,9 +450,9 @@ export default function PurchaseReturnPage() {
                   </select>
                   {batches.length === 0 && productId && !batchesLoading && (
                     <p className="mt-1 text-xs text-[#666666]">
-                      No batches of this product traceable to this supplier have stock at{" "}
-                      {locationId ? "the selected location" : "any location"}. Only supplier-received
-                      batches can be returned.
+                      This product has no batches yet.{" "}
+                      <Link to="/inventory/batches-expiry" className="text-[#49B0C1] hover:underline">Create a batch first</Link>{" "}
+                      to return stock against it.
                     </p>
                   )}
                   {batchId && (
@@ -488,13 +488,13 @@ export default function PurchaseReturnPage() {
               </div>
 
               {productId && quantity > 0 && parsedUnitCost > 0 && (
-                <div className="mt-4 p-3 rounded-lg bg-[#DBEFF3] text-sm text-[#333333]">
+                <div className="mt-4 p-3 rounded-lg bg-[#E6ECE2] text-sm text-[#333333]">
                   <strong>Summary:</strong> Return {quantity} × {selectedProductName || "?"} — Total Value: <strong>{fmtMoney(estimatedValue)}</strong>
                   {selectedBatch && ` · Batch: ${selectedBatch.batchNumber}`}
                 </div>
               )}
 
-              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[#DBEFF3]">
+              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[#E6ECE2]">
                 <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
                 <Button
                   onClick={confirmAndSubmit}
@@ -514,8 +514,8 @@ export default function PurchaseReturnPage() {
 
         {/* Returns history */}
         <div className="px-4 sm:px-6 py-4">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
               <h3 className="font-bold text-[#333333]">Return History</h3>
               <span className="text-sm text-[#666666]">{totalCount} records</span>
             </div>
@@ -524,20 +524,20 @@ export default function PurchaseReturnPage() {
             ) : returnsError ? (
               <div className="py-8 text-center">
                 <p className="text-sm text-red-600 mb-3">{returnsError}</p>
-                <button onClick={() => void loadReturns()} className="text-sm font-semibold text-[#49B0C1] hover:underline">
+                <button onClick={() => void loadReturns()} className="text-sm font-semibold text-[#7A9076] hover:underline">
                   Retry
                 </button>
               </div>
             ) : returns.length === 0 ? (
               <div className="py-8 text-center text-[#666666] text-sm">
                 No purchase returns recorded yet.
-                <button onClick={() => setShowForm(true)} className="ml-2 text-[#49B0C1] hover:underline">+ Record a return</button>
+                <button onClick={() => setShowForm(true)} className="ml-2 text-[#7A9076] hover:underline">+ Record a return</button>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[760px]">
                   <thead>
-                    <tr className="bg-[#DBEFF3]/50">
+                    <tr className="bg-[#E6ECE2]/50">
                       {["Return #", "Supplier", "Product", "Reason", "Qty", "Unit Cost", "Debit Note", "Returned", ""].map((h) => (
                         <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                       ))}
@@ -545,7 +545,7 @@ export default function PurchaseReturnPage() {
                   </thead>
                   <tbody>
                     {returns.map((ret, i) => (
-                      <tr key={ret.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                      <tr key={ret.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                         <td className="px-4 py-3 font-mono text-xs text-[#666666]">{ret.returnNumber}</td>
                         <td className="px-4 py-3 text-[#333333]">{ret.supplier?.name ?? "—"}</td>
                         <td className="px-4 py-3 font-medium text-[#333333]">{ret.product?.name ?? "—"}</td>
@@ -559,7 +559,7 @@ export default function PurchaseReturnPage() {
                         <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(ret.debitNoteAmount)}</td>
                         <td className="px-4 py-3 text-[#666666]">{fmtDate(ret.returnedDate)}</td>
                         <td className="px-4 py-3 text-right">
-                          <Link to={`/purchasing/returns/${ret.id}`} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+                          <Link to={`/purchasing/returns/${ret.id}`} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
                             View →
                           </Link>
                         </td>

@@ -545,7 +545,7 @@ export default function SupplierPayablesPage() {
             <button
               type="button"
               onClick={() => setShowAddSupplier(true)}
-              className="rounded-lg bg-[#49B0C1] border border-[#49B0C1] px-4 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors"
+              className="rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors"
             >
               + Add Supplier
             </button>
@@ -558,7 +558,7 @@ export default function SupplierPayablesPage() {
         {/* Stats                                                           */}
         {/* ---------------------------------------------------------------- */}
 
-        <div className="bg-white px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-[#DBEFF3]">
+        <div className="bg-white px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-[#E6ECE2]">
           {[
             {
               label: "Total Outstanding",
@@ -587,7 +587,7 @@ export default function SupplierPayablesPage() {
           ].map(({ label, value, color, icon }) => (
             <div
               key={label}
-              className="bg-[#DBEFF3] rounded-xl p-4 flex items-center gap-3 border border-[#ABDBE3]/30 shadow-sm"
+              className="bg-[#E6ECE2] rounded-xl p-4 flex items-center gap-3 border border-[#C6D4BF]/30 shadow-sm"
             >
               <span className="text-2xl flex-shrink-0" aria-hidden>
                 {icon}
@@ -620,7 +620,7 @@ export default function SupplierPayablesPage() {
         {/* Filters                                                          */}
         {/* ---------------------------------------------------------------- */}
 
-        <div className="bg-[#DBEFF3] px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 border-b border-[#ABDBE3]">
+        <div className="bg-[#E6ECE2] px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 border-b border-[#C6D4BF]">
           <div className="flex flex-col gap-0.5">
             <span className="text-[10px] text-[#666666] uppercase tracking-wide">
               Supplier
@@ -632,7 +632,7 @@ export default function SupplierPayablesPage() {
                 setSuppFilter(e.target.value);
                 setPage(1);
               }}
-              className="rounded-md border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="rounded-md border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
             >
               <option value="all">All Suppliers</option>
 
@@ -681,7 +681,7 @@ export default function SupplierPayablesPage() {
                   setPage(1);
                 }}
                 placeholder="Search suppliers..."
-                className="w-full rounded-md border border-[#ABDBE3] bg-white pl-8 pr-3 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                className="w-full rounded-md border border-[#C6D4BF] bg-white pl-8 pr-3 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
               />
             </div>
           </div>
@@ -692,11 +692,11 @@ export default function SupplierPayablesPage() {
         {/* ---------------------------------------------------------------- */}
 
         <div className="px-4 sm:px-6 py-4">
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
               <thead>
-                <tr className="bg-[#ABDBE3]">
+                <tr className="bg-[#C6D4BF]">
                   {[
                     "Supplier",
                     "Contact",
@@ -723,12 +723,12 @@ export default function SupplierPayablesPage() {
                       className={
                         i % 2 === 0
                           ? "bg-white"
-                          : "bg-[#DBEFF3]/30"
+                          : "bg-[#E6ECE2]/30"
                       }
                     >
                       {Array.from({ length: 8 }).map((_, j) => (
                         <td key={j} className="px-4 py-3">
-                          <div className="h-4 bg-[#ABDBE3]/40 rounded animate-pulse" />
+                          <div className="h-4 bg-[#C6D4BF]/40 rounded animate-pulse" />
                         </td>
                       ))}
                     </tr>
@@ -747,9 +747,9 @@ export default function SupplierPayablesPage() {
                     <tr
                       key={supplier.id}
                       onClick={() => void openSupplierDetail(supplier)}
-                      className={`cursor-pointer hover:bg-[#DBEFF3]/60 transition-colors ${index % 2 === 0
+                      className={`cursor-pointer hover:bg-[#E6ECE2]/60 transition-colors ${index % 2 === 0
                           ? "bg-white"
-                          : "bg-[#DBEFF3]/20"
+                          : "bg-[#E6ECE2]/20"
                         }`}
                     >
                       <td className="px-4 py-3">
@@ -798,7 +798,7 @@ export default function SupplierPayablesPage() {
                               e.stopPropagation();
                               void openSupplierDetail(supplier);
                             }}
-                            className="text-[#49B0C1] hover:text-[#3a9baf]"
+                            className="text-[#7A9076] hover:text-[#A5B89E]"
                             title="View supplier"
                           >
                             <svg
@@ -822,7 +822,7 @@ export default function SupplierPayablesPage() {
                               e.stopPropagation();
                               void openEdit(supplier);
                             }}
-                            className="text-[#49B0C1] hover:text-[#3a9baf]"
+                            className="text-[#7A9076] hover:text-[#A5B89E]"
                             title="Edit supplier"
                           >
                             <svg
@@ -881,7 +881,7 @@ export default function SupplierPayablesPage() {
                   type="button"
                   disabled={page === 1}
                   onClick={() => setPage((current) => current - 1)}
-                  className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors"
+                  className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#C6D4BF] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors"
                 >
                   ← Prev
                 </button>
@@ -895,8 +895,8 @@ export default function SupplierPayablesPage() {
                     key={pageNumber}
                     onClick={() => setPage(pageNumber)}
                     className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${pageNumber === page
-                        ? "bg-[#49B0C1] text-white"
-                        : "text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3]"
+                        ? "bg-[#B6C8AF] text-[#333333]"
+                        : "text-[#666666] border border-[#C6D4BF] hover:bg-[#E6ECE2]"
                       }`}
                   >
                     {pageNumber}
@@ -907,7 +907,7 @@ export default function SupplierPayablesPage() {
                   type="button"
                   disabled={page === totalPages}
                   onClick={() => setPage((current) => current + 1)}
-                  className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors"
+                  className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#C6D4BF] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors"
                 >
                   Next →
                 </button>
@@ -1026,7 +1026,7 @@ function EditSupplierModal({
         className="w-full max-w-lg rounded-xl bg-white shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#DBEFF3] bg-[#ABDBE3] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[#E6ECE2] bg-[#C6D4BF] px-5 py-4">
           <div>
             <h2 className="text-lg font-bold text-[#333333]">
               Edit Supplier
@@ -1040,7 +1040,7 @@ function EditSupplierModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[#333333] hover:bg-white/40 transition-colors"
+            className="rounded-lg p-1.5 text-[#333333] hover:bg-[#E6ECE2] transition-colors"
             aria-label="Close"
           >
             <svg
@@ -1081,7 +1081,7 @@ function EditSupplierModal({
               placeholder="ABC Pharmaceuticals Ltd"
               className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${errors.name
                   ? "border-red-400"
-                  : "border-[#ABDBE3] focus:border-[#49B0C1]"
+                  : "border-[#C6D4BF] focus:border-[#B6C8AF]"
                 }`}
             />
 
@@ -1103,7 +1103,7 @@ function EditSupplierModal({
                 onChange("contactPerson", e.target.value)
               }
               placeholder="Jane Doe"
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
             />
           </div>
 
@@ -1119,7 +1119,7 @@ function EditSupplierModal({
               placeholder="jane@abc.com"
               className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${errors.email
                   ? "border-red-400"
-                  : "border-[#ABDBE3] focus:border-[#49B0C1]"
+                  : "border-[#C6D4BF] focus:border-[#B6C8AF]"
                 }`}
             />
 
@@ -1139,7 +1139,7 @@ function EditSupplierModal({
               value={form.phone}
               onChange={(e) => onChange("phone", e.target.value)}
               placeholder="+251922345678"
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
             />
           </div>
 
@@ -1153,7 +1153,7 @@ function EditSupplierModal({
               onChange={(e) =>
                 onChange("paymentTerms", e.target.value)
               }
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
             >
               <option value="">No terms specified</option>
               <option value="15 days">15 days</option>
@@ -1177,7 +1177,7 @@ function EditSupplierModal({
                 onChange("address", e.target.value)
               }
               placeholder="Bole, Addis Ababa"
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
             />
           </div>
 
@@ -1189,7 +1189,7 @@ function EditSupplierModal({
               onChange={(e) =>
                 onChange("isActive", e.target.checked)
               }
-              className="h-4 w-4 rounded border-[#ABDBE3] text-[#49B0C1] focus:ring-[#49B0C1]"
+              className="h-4 w-4 rounded border-[#C6D4BF] text-[#7A9076] focus:ring-[#B6C8AF]"
             />
 
             <label
@@ -1201,12 +1201,12 @@ function EditSupplierModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-[#DBEFF3] px-5 py-4 bg-white">
+        <div className="flex items-center justify-end gap-2 border-t border-[#E6ECE2] px-5 py-4 bg-white">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-[#ABDBE3] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#DBEFF3] transition-colors disabled:opacity-40"
+            className="rounded-lg border border-[#C6D4BF] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#E6ECE2] transition-colors disabled:opacity-40"
           >
             Cancel
           </button>
@@ -1215,7 +1215,7 @@ function EditSupplierModal({
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg bg-[#B6C8AF] px-5 py-2 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "✓ Save Changes"}
           </button>
@@ -1300,12 +1300,12 @@ function DeleteSupplierModal({
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-2 border-t border-[#DBEFF3] px-5 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-[#E6ECE2] px-5 py-4">
           <button
             type="button"
             onClick={onClose}
             disabled={deleting}
-            className="rounded-lg border border-[#ABDBE3] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#DBEFF3] transition-colors disabled:opacity-40"
+            className="rounded-lg border border-[#C6D4BF] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#E6ECE2] transition-colors disabled:opacity-40"
           >
             Cancel
           </button>
@@ -1349,7 +1349,7 @@ function SupplierDetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between bg-[#ABDBE3] px-5 py-4 flex-shrink-0">
+        <div className="flex items-center justify-between bg-[#C6D4BF] px-5 py-4 flex-shrink-0">
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-[#333333] truncate">
               {loading
@@ -1365,7 +1365,7 @@ function SupplierDetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[#333333] hover:bg-white/40 transition-colors"
+            className="rounded-lg p-1.5 text-[#333333] hover:bg-[#E6ECE2] transition-colors"
             aria-label="Close"
           >
             <svg
@@ -1383,20 +1383,20 @@ function SupplierDetailModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5 bg-[#FAFDFE]">
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5 bg-[#FAF9F4]">
           {loading && (
             <div className="animate-pulse space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-20 rounded-xl bg-[#DBEFF3]"
+                    className="h-20 rounded-xl bg-[#E6ECE2]"
                   />
                 ))}
               </div>
 
-              <div className="h-32 rounded-xl bg-[#DBEFF3]" />
-              <div className="h-40 rounded-xl bg-[#DBEFF3]" />
+              <div className="h-32 rounded-xl bg-[#E6ECE2]" />
+              <div className="h-40 rounded-xl bg-[#E6ECE2]" />
             </div>
           )}
 
@@ -1444,7 +1444,7 @@ function SupplierDetailModal({
                 ].map(({ label, value, color, icon }) => (
                   <div
                     key={label}
-                    className="bg-[#DBEFF3] rounded-xl p-4 flex items-center gap-3 border border-[#ABDBE3]/30"
+                    className="bg-[#E6ECE2] rounded-xl p-4 flex items-center gap-3 border border-[#C6D4BF]/30"
                   >
                     <span
                       className="text-2xl flex-shrink-0"
@@ -1469,8 +1469,8 @@ function SupplierDetailModal({
               </div>
 
               {/* Supplier information */}
-              <div className="rounded-xl border border-[#DBEFF3] bg-white overflow-hidden">
-                <div className="bg-[#ABDBE3] px-5 py-3 flex items-center justify-between">
+              <div className="rounded-xl border border-[#E6ECE2] bg-white overflow-hidden">
+                <div className="bg-[#C6D4BF] px-5 py-3 flex items-center justify-between">
                   <h3 className="font-bold text-[#333333]">
                     Supplier Information
                   </h3>
@@ -1526,8 +1526,8 @@ function SupplierDetailModal({
               </div>
 
               {/* Purchase Orders */}
-              <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-                <div className="bg-[#ABDBE3] px-5 py-3 flex items-center justify-between">
+              <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+                <div className="bg-[#C6D4BF] px-5 py-3 flex items-center justify-between">
                   <h3 className="font-bold text-[#333333]">
                     Purchase Orders
                   </h3>
@@ -1541,7 +1541,7 @@ function SupplierDetailModal({
 
                 <table className="w-full text-sm bg-white">
                   <thead>
-                    <tr className="bg-[#DBEFF3]/60">
+                    <tr className="bg-[#E6ECE2]/60">
                       {[
                         "PO Number",
                         "Status",
@@ -1575,10 +1575,10 @@ function SupplierDetailModal({
                           className={
                             i % 2 === 0
                               ? "bg-white"
-                              : "bg-[#DBEFF3]/20"
+                              : "bg-[#E6ECE2]/20"
                           }
                         >
-                          <td className="px-5 py-3 font-medium text-[#49B0C1]">
+                          <td className="px-5 py-3 font-medium text-[#7A9076]">
                             {po.poNumber}
                           </td>
 
@@ -1607,8 +1607,8 @@ function SupplierDetailModal({
               </div>
 
               {/* Supplier invoices */}
-              <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-                <div className="bg-[#ABDBE3] px-5 py-3 flex items-center justify-between">
+              <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+                <div className="bg-[#C6D4BF] px-5 py-3 flex items-center justify-between">
                   <h3 className="font-bold text-[#333333]">
                     Supplier Invoices
                   </h3>
@@ -1622,7 +1622,7 @@ function SupplierDetailModal({
 
                 <table className="w-full text-sm bg-white">
                   <thead>
-                    <tr className="bg-[#DBEFF3]/60">
+                    <tr className="bg-[#E6ECE2]/60">
                       {[
                         "Invoice #",
                         "Status",
@@ -1656,10 +1656,10 @@ function SupplierDetailModal({
                           className={
                             i % 2 === 0
                               ? "bg-white"
-                              : "bg-[#DBEFF3]/20"
+                              : "bg-[#E6ECE2]/20"
                           }
                         >
-                          <td className="px-5 py-3 font-medium text-[#49B0C1]">
+                          <td className="px-5 py-3 font-medium text-[#7A9076]">
                             {invoice.invoiceNumber}
                           </td>
 
@@ -1693,7 +1693,7 @@ function SupplierDetailModal({
               </div>
 
               {/* Summary counts */}
-              <div className="rounded-xl border border-[#DBEFF3] bg-[#DBEFF3]/40 px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <SummaryCount
                   label="Total Purchase Orders"
                   value={data._count?.purchaseOrders ?? 0}
@@ -1714,11 +1714,11 @@ function SupplierDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-[#DBEFF3] px-5 py-3 bg-white flex-shrink-0">
+        <div className="flex items-center justify-end gap-2 border-t border-[#E6ECE2] px-5 py-3 bg-white flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[#ABDBE3] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#DBEFF3] transition-colors"
+            className="rounded-lg border border-[#C6D4BF] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#E6ECE2] transition-colors"
           >
             Close
           </button>

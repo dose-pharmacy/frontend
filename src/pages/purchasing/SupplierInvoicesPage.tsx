@@ -153,7 +153,7 @@ export default function SupplierInvoicesPage() {
             ["Partially Paid", summary.partiallyPaid, "text-orange-600"],
             ["Paid", summary.paid, "text-green-600"],
           ] as [string, number, string][]).map(([label, value, accent]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
               <p className="text-xs text-[#666666]">{label}</p>
               <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
             </div>
@@ -161,30 +161,30 @@ export default function SupplierInvoicesPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search invoices..." />
           <div className="flex flex-wrap gap-3 items-center">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as SupplierInvoiceStatus | ""); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as SupplierInvoiceStatus | ""); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="OPEN">Open</option>
               <option value="PARTIALLY_PAID">Partially Paid</option>
               <option value="PAID">Paid</option>
             </select>
-            <select value={supplierFilter} onChange={(e) => { setSupplierFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+            <select value={supplierFilter} onChange={(e) => { setSupplierFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Suppliers</option>
               {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             {(search || statusFilter || supplierFilter) && (
-              <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setPage(1) }} className="text-xs font-semibold text-[#49B0C1] hover:underline">Reset</button>
+              <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setPage(1) }} className="text-xs font-semibold text-[#7A9076] hover:underline">Reset</button>
             )}
           </div>
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               <p className="text-sm text-[#666666]">Loading invoices...</p>
             </div>
           ) : error ? (
@@ -194,8 +194,8 @@ export default function SupplierInvoicesPage() {
             </div>
           ) : invoices.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="h-14 w-14 rounded-2xl bg-[#DBEFF3] flex items-center justify-center">
-                <svg className="h-7 w-7 text-[#49B0C1]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+              <div className="h-14 w-14 rounded-2xl bg-[#E6ECE2] flex items-center justify-center">
+                <svg className="h-7 w-7 text-[#7A9076]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" />
                 </svg>
               </div>
@@ -208,7 +208,7 @@ export default function SupplierInvoicesPage() {
                 </p>
               </div>
               {(search || statusFilter || supplierFilter) ? (
-                <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setPage(1) }} className="text-sm font-semibold text-[#49B0C1] hover:underline">Clear Filters</button>
+                <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
               ) : (
                 <Button onClick={() => navigate("/purchasing/invoices/new")}>+ Create Invoice</Button>
               )}
@@ -218,7 +218,7 @@ export default function SupplierInvoicesPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {["Invoice #", "Supplier", "PO", "Date", "Due", "Amount", "Outstanding", "Status", "Actions"].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
@@ -226,9 +226,9 @@ export default function SupplierInvoicesPage() {
                   </thead>
                   <tbody>
                     {invoices.map((inv, i) => (
-                      <tr key={inv.id} className={`hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}>
+                      <tr key={inv.id} className={`hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`}>
                         <td className="px-4 py-3">
-                          <button onClick={() => navigate(`/purchasing/invoices/${inv.id}`)} className="font-semibold text-[#49B0C1] hover:underline">{inv.invoiceNumber}</button>
+                          <button onClick={() => navigate(`/purchasing/invoices/${inv.id}`)} className="font-semibold text-[#7A9076] hover:underline">{inv.invoiceNumber}</button>
                         </td>
                         <td className="px-4 py-3 text-[#333333]">{inv.supplier?.name ?? "—"}</td>
                         <td className="px-4 py-3 text-[#666666]">{inv.purchaseOrder?.poNumber ?? inv.purchaseOrderId ?? "—"}</td>
@@ -243,9 +243,9 @@ export default function SupplierInvoicesPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <button onClick={() => navigate(`/purchasing/invoices/${inv.id}`)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">View →</button>
+                            <button onClick={() => navigate(`/purchasing/invoices/${inv.id}`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">View →</button>
                             {inv.status !== "PAID" && (
-                              <button onClick={() => openPayModal(inv.id, invoiceOutstanding(inv))} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">Pay</button>
+                              <button onClick={() => openPayModal(inv.id, invoiceOutstanding(inv))} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">Pay</button>
                             )}
                             {(inv.status !== "PAID" && (inv.payments?.length ?? 0) === 0) && (
                               <button onClick={() => handleDelete(inv.id)} className="text-xs text-red-500 hover:underline whitespace-nowrap">Delete</button>
@@ -257,16 +257,16 @@ export default function SupplierInvoicesPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
                   Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} invoices
                 </p>
                 <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
+                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
                   ))}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
                 </div>
               </div>
             </>
@@ -279,11 +279,11 @@ export default function SupplierInvoicesPage() {
         {payError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">{payError}</p>}
         <div>
           <label className="block text-sm text-[#666666] mb-1">Payment Amount</label>
-          <input type="number" min={0.01} step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" />
+          <input type="number" min={0.01} step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none" />
         </div>
         <div>
           <label className="block text-sm text-[#666666] mb-1">Notes (optional)</label>
-          <textarea rows={2} value={payNotes} onChange={(e) => setPayNotes(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" />
+          <textarea rows={2} value={payNotes} onChange={(e) => setPayNotes(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none" />
         </div>
         <div className="flex gap-3 justify-end mt-6">
           <Button variant="secondary" onClick={() => { setPayModalOpen(false); setPayingId(null); setPayAmount(""); setPayNotes(""); setPayError("") }}>Cancel</Button>
@@ -293,7 +293,7 @@ export default function SupplierInvoicesPage() {
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl bg-[#333333] px-5 py-3.5 text-sm text-white shadow-xl">
-          <svg className="h-4 w-4 shrink-0 text-[#49B0C1]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+          <svg className="h-4 w-4 shrink-0 text-[#7A9076]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
           </svg>
           {toast}

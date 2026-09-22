@@ -150,7 +150,7 @@ export default function ReconciliationPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-500 mb-3">{error || "Receipt not found."}</p>
-            <button onClick={fetchReceipt} className="text-[#49B0C1] hover:underline text-sm">Retry</button>
+            <button onClick={fetchReceipt} className="text-[#7A9076] hover:underline text-sm">Retry</button>
           </div>
         </div>
       </div>
@@ -204,23 +204,23 @@ export default function ReconciliationPage() {
         )}
 
         {/* Summary cards */}
-        <div className="px-4 sm:px-6 py-4 bg-[#DBEFF3]">
+        <div className="px-4 sm:px-6 py-4 bg-[#E6ECE2]">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
               <p className="text-xs text-[#666666]">PO Number</p>
               <p className="text-lg font-bold text-[#333333] mt-1">{receipt.purchaseOrder?.poNumber ?? "—"}</p>
             </div>
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
               <p className="text-xs text-[#666666]">Expected Qty</p>
               <p className="text-lg font-bold text-[#333333] mt-1">{totalOrdered}</p>
             </div>
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
               <p className="text-xs text-[#666666]">Delivered Qty</p>
               <p className={`text-lg font-bold mt-1 ${totalDelivered < totalOrdered ? "text-yellow-500" : "text-[#333333]"}`}>
                 {totalDelivered}
               </p>
             </div>
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
               <p className="text-xs text-[#666666]">Actual Qty</p>
               <p className="text-lg font-bold text-green-600 mt-1">{totalActual}</p>
             </div>
@@ -229,7 +229,7 @@ export default function ReconciliationPage() {
 
         {/* Receipt info */}
         <div className="px-4 sm:px-6 py-4">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="text-xs text-[#666666]">Supplier</p>
               <p className="font-medium text-[#333333]">{receipt.purchaseOrder?.supplier?.name ?? "—"}</p>
@@ -253,10 +253,10 @@ export default function ReconciliationPage() {
 
         {/* Items table */}
         <div className="px-4 sm:px-6">
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden overflow-x-auto">
+          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
               <thead>
-                <tr className="bg-[#ABDBE3]">
+                <tr className="bg-[#C6D4BF]">
                   {["#", "Product", "Expected", "Delivered", "Actual", "Variance", "Batch", "Expiry", "Location"].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                   ))}
@@ -267,7 +267,7 @@ export default function ReconciliationPage() {
                   const variance = item.actualQty - item.expectedQty;
                   const isMatch = variance === 0;
                   return (
-                    <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                    <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                       <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                       <td className="px-3 py-2.5 font-medium text-[#333333]">
                         {item.purchaseOrderItem?.product?.name ?? `Product (${item.purchaseOrderItem?.productId?.slice(0, 8) ?? "?"})`}
@@ -371,7 +371,7 @@ export default function ReconciliationPage() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#DBEFF3] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E6ECE2] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
         <button onClick={() => navigate("/purchasing/orders")} className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">
           Back to Orders
         </button>

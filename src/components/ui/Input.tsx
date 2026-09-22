@@ -19,8 +19,8 @@ export default function Input({ label, error, rightElement, className = "", id, 
       <div className="relative">
         <input
           id={inputId}
-          className={`w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] placeholder:text-[#999] transition-all
-            focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20
+          className={`w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] placeholder:text-[#999] transition-all
+            focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20
             ${error ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}
             ${rightElement ? "pr-11" : ""}
             ${className}`}

@@ -147,7 +147,7 @@ const PAGE_SIZE = 50
 
 function ReqBadge({ status }: { status: RequirementStatus }) {
   const map: Record<string, string> = {
-    OPEN:                 "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]",
+    OPEN:                 "bg-[#E6ECE2] text-[#7A9076] border border-[#C6D4BF]",
     PARTIALLY_FULFILLED:  "bg-blue-100 text-blue-700",
     FULFILLED:            "bg-green-100 text-green-700",
     CLOSED:               "bg-gray-100 text-gray-500",
@@ -160,7 +160,7 @@ function ReqBadge({ status }: { status: RequirementStatus }) {
 
 function LineBadge({ status }: { status: LineStatus }) {
   const map: Record<string, string> = {
-    OPEN:                 "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]",
+    OPEN:                 "bg-[#E6ECE2] text-[#7A9076] border border-[#C6D4BF]",
     PARTIALLY_FULFILLED:  "bg-blue-100 text-blue-700",
     FULFILLED:            "bg-green-100 text-green-700",
     CLOSED:               "bg-gray-100 text-gray-500",
@@ -180,7 +180,7 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   }, [onDone])
   return (
     <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl bg-[#333333] px-5 py-3.5 text-sm text-white shadow-xl animate-in fade-in slide-in-from-bottom-4">
-      <svg className="h-4 w-4 shrink-0 text-[#49B0C1]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <svg className="h-4 w-4 shrink-0 text-[#7A9076]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
       </svg>
       {message}
@@ -200,18 +200,18 @@ function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onC
   }, [])
   return (
     <div ref={ref} className="relative inline-block">
-      <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg text-[#666666] hover:bg-[#DBEFF3] transition-colors" aria-label="More actions">
+      <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] transition-colors" aria-label="More actions">
         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
           <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border border-[#DBEFF3] bg-white shadow-xl py-1">
+        <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border border-[#E6ECE2] bg-white shadow-xl py-1">
           {items.map((item) => (
             <button
               key={item.label}
               onClick={() => { setOpen(false); item.onClick() }}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-[#DBEFF3]/60 ${item.danger ? "text-red-600" : "text-[#333333]"}`}
+              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-[#E6ECE2]/60 ${item.danger ? "text-red-600" : "text-[#333333]"}`}
             >
               {item.label}
             </button>
@@ -364,7 +364,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
     const pages: number[] = []
     for (let i = 1; i <= totalPages; i++) pages.push(i)
     return pages.map((p: number) => (
-      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
     ))
   })()
 
@@ -392,10 +392,10 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
         subtitle="Manage products that need to be purchased and prepare them for supplier ordering."
         actions={
           <div className="flex gap-2">
-            <button onClick={onNewReq} className="inline-flex items-center gap-1.5 rounded-xl bg-white text-[#49B0C1] px-3.5 py-2 text-sm font-semibold hover:bg-[#DBEFF3] transition-colors">
+            <button onClick={onNewReq} className="inline-flex items-center gap-1.5 rounded-xl bg-[#B6C8AF] text-[#333333] px-3.5 py-2 text-sm font-semibold hover:bg-[#E6ECE2] transition-colors">
               + New Requirement
             </button>
-            <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3.5 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors">
+            <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors">
               Generate from Reorder
             </button>
           </div>
@@ -404,10 +404,10 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search requirements..." />
           <div className="flex flex-wrap gap-3 items-center">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option>OPEN</option>
               <option>PARTIALLY_FULFILLED</option>
@@ -415,7 +415,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
               <option>CLOSED</option>
             </select>
             {(search || statusFilter) && (
-              <button onClick={() => { setSearch(""); setStatusFilter(""); setPage(1) }} className="text-xs font-semibold text-[#49B0C1] hover:underline">Reset</button>
+              <button onClick={() => { setSearch(""); setStatusFilter(""); setPage(1) }} className="text-xs font-semibold text-[#7A9076] hover:underline">Reset</button>
             )}
           </div>
         </div>
@@ -423,14 +423,14 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
         {/* Summary cards */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
 {([
-            ["Open Requirements",     summary.open,     "text-[#49B0C1]",  "M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"],
+            ["Open Requirements",     summary.open,     "text-[#7A9076]",  "M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"],
             ["Partially Fulfilled", summary.partiallyFulfilled, "text-blue-600",   "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0zM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632z"],
             ["Fulfilled Requirements", summary.fulfilled, "text-green-600",   "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z"],
             ["Closed Requirements",   summary.closed,   "text-gray-500",   "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0-2.25-2.25z"],
             ["Total Requirements",    summary.total,    "text-[#333333]",  "M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0-1.125.504-1.125 1.125V11.25a9 9 0 0 0-9-9z"],
           ] as [string, number, string, string][]).map(([label, value, accent, iconPath]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex items-center gap-3">
-              <div className={`h-10 w-10 rounded-xl bg-[#DBEFF3] flex items-center justify-center shrink-0 ${accent}`}>
+            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex items-center gap-3">
+              <div className={`h-10 w-10 rounded-xl bg-[#E6ECE2] flex items-center justify-center shrink-0 ${accent}`}>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
                 </svg>
@@ -444,10 +444,10 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {loading ? (
             <div className="p-6 space-y-3 animate-pulse">
-              {[...Array(5)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />)}
+              {[...Array(5)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#E6ECE2]" />)}
             </div>
           ) : loadError ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
@@ -456,8 +456,8 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
             </div>
           ) : reqs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="h-16 w-16 rounded-2xl bg-[#DBEFF3] flex items-center justify-center">
-                <svg className="h-8 w-8 text-[#49B0C1]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+              <div className="h-16 w-16 rounded-2xl bg-[#E6ECE2] flex items-center justify-center">
+                <svg className="h-8 w-8 text-[#7A9076]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" />
                 </svg>
               </div>
@@ -475,7 +475,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {["Reference", "Required By", "Items", "Status", "Created By", "Created Date", "Actions"].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
@@ -483,9 +483,9 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
                   </thead>
                   <tbody>
                     {paginated.map((r, i) => (
-                      <tr key={r.id} className={`hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}>
+                      <tr key={r.id} className={`hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`}>
                         <td className="px-4 py-3">
-                          <button onClick={() => onSelect(r.id)} className="font-semibold text-[#49B0C1] hover:underline">
+                          <button onClick={() => onSelect(r.id)} className="font-semibold text-[#7A9076] hover:underline">
                             {r.reference}
                           </button>
                         </td>
@@ -496,7 +496,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(r.createdDate)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <button onClick={() => onSelect(r.id)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+                            <button onClick={() => onSelect(r.id)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
                               View →
                             </button>
                             <OverflowMenu items={[
@@ -511,14 +511,14 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
                   Showing {Math.min((page - 1) * 20 + 1, totalCount)}–{Math.min(page * 20, totalCount)} of {totalCount} requirements
                 </p>
 <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Prev</button>
+                  <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Prev</button>
                   {pageButtons}
-                  <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Next</button>
+                  <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Next</button>
                 </div>
               </div>
             </>
@@ -629,7 +629,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <div className="px-6 pt-5 pb-4" style={{ background: "linear-gradient(135deg, #49B0C1 0%, #3a9aaa 100%)" }}>
+      <div className="px-6 pt-5 pb-4" style={{ background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)" }}>
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-white/80 hover:text-white transition-colors mb-3">
           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
             <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
@@ -654,12 +654,12 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
         )}
 
         {/* Section 1: Requirement Information */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Requirement Information</p>
             {!isReadOnly && (
               <div className="flex gap-3">
-                <button onClick={() => setEditOpen(true)} className="text-xs font-semibold text-[#49B0C1] hover:underline">Edit Requirement</button>
+                <button onClick={() => setEditOpen(true)} className="text-xs font-semibold text-[#7A9076] hover:underline">Edit Requirement</button>
                 <button onClick={() => setCloseOpen(true)} className="text-xs font-semibold text-orange-500 hover:underline">Close Requirement</button>
               </div>
             )}
@@ -685,13 +685,13 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
         </div>
 
         {/* Section 2: Requirement Items */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
-              Requirement Items <span className="text-[#49B0C1] ml-1">({req.lines.length})</span>
+              Requirement Items <span className="text-[#7A9076] ml-1">({req.lines.length})</span>
             </p>
             {!isReadOnly && (
-              <button onClick={() => setAddProductOpen(true)} className="text-xs font-semibold text-[#49B0C1] hover:underline">+ Add Product</button>
+              <button onClick={() => setAddProductOpen(true)} className="text-xs font-semibold text-[#7A9076] hover:underline">+ Add Product</button>
             )}
           </div>
           {req.lines.length === 0 ? (
@@ -700,7 +700,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#DBEFF3]/50 text-left">
+                  <tr className="bg-[#E6ECE2]/50 text-left">
                     <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
                     <th className="px-4 py-3 font-semibold text-[#333333]">SKU</th>
                     <th className="px-4 py-3 font-semibold text-[#333333] text-right">Required</th>
@@ -715,7 +715,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                 </thead>
                 <tbody>
                   {req.lines.map((line, idx) => (
-                    <tr key={line.id} className={idx % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                    <tr key={line.id} className={idx % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                       <td className="px-4 py-3 font-medium text-[#333333]">
                         {line.product}
                         {line.hasPo && <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5 align-middle">PO LINKED</span>}
@@ -726,7 +726,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                         {line.unitName && <span className="ml-1 text-xs font-normal text-[#999]">{line.unitName}</span>}
                       </td>
                       <td className="px-4 py-3 text-right text-[#333333]">{line.quantityOrdered}</td>
-                      <td className="px-4 py-3 text-right font-medium text-[#49B0C1]">{line.quantityRemaining}</td>
+                      <td className="px-4 py-3 text-right font-medium text-[#7A9076]">{line.quantityRemaining}</td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">{line.quantityDelivered}</td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden md:table-cell">{line.remainingToReceive}</td>
                       <td className="px-4 py-3"><LineBadge status={line.status} /></td>
@@ -759,8 +759,8 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
         )}
 
         {/* Section 3: Purchase Order History */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Purchase Order History</p>
           </div>
           <div className="p-5">
@@ -787,7 +787,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
               return (
                 <div className="space-y-3">
                   {allAllocations.map((alloc, idx) => (
-                    <div key={`${alloc.poNumber}-${idx}`} className="rounded-lg border border-[#DBEFF3] p-4">
+                    <div key={`${alloc.poNumber}-${idx}`} className="rounded-lg border border-[#E6ECE2] p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <span className="font-semibold text-[#333333]">{alloc.poNumber}</span>
@@ -952,13 +952,13 @@ function NewRequirementModal({ open, onClose, onCreated }: {
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-bold text-[#333333]">Products</p>
-            <button onClick={addLine} className="text-xs font-semibold text-[#49B0C1] hover:underline">+ Add Row</button>
+            <button onClick={addLine} className="text-xs font-semibold text-[#7A9076] hover:underline">+ Add Row</button>
           </div>
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#DBEFF3]">
+                  <tr className="bg-[#E6ECE2]">
                     {["Product", "Qty Needed", "Reason", "Notes", ""].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] text-xs">{h}</th>
                     ))}
@@ -966,7 +966,7 @@ function NewRequirementModal({ open, onClose, onCreated }: {
                 </thead>
                 <tbody>
                   {lines.map((line, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                       <td className="px-3 py-2">
                         <select
                           value={line.productId}
@@ -1012,7 +1012,7 @@ function NewRequirementModal({ open, onClose, onCreated }: {
           </div>
         </div>
 
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleCreate} loading={loading}>Create Requirement</Button>
         </div>
@@ -1073,7 +1073,7 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
     <Modal open={open} title="Generate Purchase Requirement" onClose={onClose} size="sm">
       <p className="text-sm text-[#666666] -mt-2 mb-4">The system will create a purchase requirement from the current reorder suggestions.</p>
       {loadError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">{loadError}</p>}
-      <div className="rounded-xl border border-[#DBEFF3] p-4 mb-5 max-h-64 overflow-y-auto">
+      <div className="rounded-xl border border-[#E6ECE2] p-4 mb-5 max-h-64 overflow-y-auto">
         <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Products to Purchase</p>
         {suggestions.length === 0 ? (
           <p className="text-sm text-[#999] py-2">{loadError ? "—" : "No reorder suggestions available."}</p>
@@ -1082,13 +1082,13 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
             {suggestions.map((s) => (
               <li key={s.product.id} className="flex items-center justify-between text-sm">
                 <span className="text-[#333333] font-medium">{s.product.name}</span>
-                <span className="font-bold text-[#49B0C1]">{s.suggestedQuantity}</span>
+                <span className="font-bold text-[#7A9076]">{s.suggestedQuantity}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
-      <div className="rounded-lg bg-[#DBEFF3]/60 px-4 py-2.5 mb-5 text-sm font-semibold text-[#333333]">
+      <div className="rounded-lg bg-[#E6ECE2]/60 px-4 py-2.5 mb-5 text-sm font-semibold text-[#333333]">
         {suggestions.length} products require purchasing
       </div>
       <div className="flex gap-3 justify-end">
@@ -1136,7 +1136,7 @@ function EditRequirementModal({ open, req, onClose, onSave }: {
         <Fw label="Notes">
           <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className={`${SC} resize-none`} placeholder="Add notes..." />
         </Fw>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} loading={loading}>Save Changes</Button>
         </div>
@@ -1239,9 +1239,9 @@ function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
           <input type="number" min={1} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder={`0${baseUnit ? ` ${baseUnit.name ?? ""}` : ""}`} />
         </Fw>
         {showPreview && (
-          <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 text-sm text-[#333333]">
+          <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 text-sm text-[#333333]">
             {qty} {productUnit?.unit?.name ?? ""} ={" "}
-            <span className="font-semibold text-[#49B0C1]">{baseQty} {baseUnit?.name ?? ""}</span>
+            <span className="font-semibold text-[#7A9076]">{baseQty} {baseUnit?.name ?? ""}</span>
             <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
           </div>
         )}
@@ -1255,7 +1255,7 @@ function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
         <Fw label="Notes (optional)">
           <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className={`${SC} resize-none`} placeholder="Optional notes..." />
         </Fw>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleAdd} loading={loading}>Add Product</Button>
         </div>
@@ -1314,7 +1314,7 @@ function EditLineModal({ open, line, onClose, onSave }: {
     <Modal open={open} title="Edit Requirement Item" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
         {line?.product && (
-          <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3">
+          <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3">
             <p className="text-xs text-[#999]">Product</p>
             <p className="text-sm font-bold text-[#333333]">{line.product}</p>
           </div>
@@ -1337,9 +1337,9 @@ function EditLineModal({ open, line, onClose, onSave }: {
           <input type="number" min={1} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SC} placeholder={`0${baseUnit ? ` ${baseUnit.name ?? ""}` : ""}`} />
         </Fw>
         {showPreview && (
-          <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 text-sm text-[#333333]">
+          <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 text-sm text-[#333333]">
             {qty} {productUnit?.unit?.name ?? ""} ={" "}
-            <span className="font-semibold text-[#49B0C1]">{baseQty} {baseUnit?.name ?? ""}</span>
+            <span className="font-semibold text-[#7A9076]">{baseQty} {baseUnit?.name ?? ""}</span>
             <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
           </div>
         )}
@@ -1353,7 +1353,7 @@ function EditLineModal({ open, line, onClose, onSave }: {
         <Fw label="Notes">
           <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className={`${SC} resize-none`} placeholder="Optional notes..." />
         </Fw>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} loading={loading}>Save Changes</Button>
         </div>
@@ -1428,7 +1428,7 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
       <div className="flex flex-col gap-4">
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         
-        <div className="rounded-xl bg-[#DBEFF3]/50 p-4">
+        <div className="rounded-xl bg-[#E6ECE2]/50 p-4">
           <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Requirement Line Preview</p>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
@@ -1449,11 +1449,11 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
             </div>
             <div>
               <p className="text-[#999]">Remaining to Order</p>
-              <p className="font-bold text-[#49B0C1]">{preview.remainingQuantity}</p>
+              <p className="font-bold text-[#7A9076]">{preview.remainingQuantity}</p>
             </div>
             <div>
               <p className="text-[#999]">Suggested Order Qty</p>
-              <p className="font-bold text-[#49B0C1]">{preview.suggestedOrderQuantity}</p>
+              <p className="font-bold text-[#7A9076]">{preview.suggestedOrderQuantity}</p>
             </div>
             <div>
               <p className="text-[#999]">Active POs</p>
@@ -1466,7 +1466,7 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#DBEFF3] p-4">
+        <div className="rounded-xl border border-[#E6ECE2] p-4">
           <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Create Purchase Order</p>
           <div className="grid sm:grid-cols-2 gap-4">
             <Fw label="Quantity to Order">
@@ -1484,7 +1484,7 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
           </div>
         </div>
 
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleCreate} loading={loading}>Create Purchase Order</Button>
         </div>
@@ -1495,7 +1495,7 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 
-const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
+const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
 
 function Fw({ label, children }: { label: string; children: React.ReactNode }) {
   return (
