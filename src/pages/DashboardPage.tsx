@@ -13,7 +13,6 @@ import {
   type RecentActivityItem,
 } from "../features/dashboard/dashboardApi";
 import DashboardSubNav from "./dashboard/DashboardSubNav";
-import ReportFilterBar from "./reports/ReportFilterBar";
 import { defaultDateRange } from "./reports/reportHelpers";
 import { listLocations } from "../features/inventory/locationsApi";
 import {
@@ -102,6 +101,54 @@ function IconArrowUpRight({ className = "h-4 w-4" }: IconProps) {
       <path
         fillRule="evenodd"
         d="M5.22 14.78a.75.75 0 001.06 0l7.22-7.22v5.69a.75.75 0 001.5 0v-7.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 000 1.5h5.69l-7.22 7.22a.75.75 0 000 1.06z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function IconCalendar({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function IconMapPin({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function IconFilter({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M2.628 1.601C5.028 1.206 7.49 1 10 1s4.973.206 7.372.601a.75.75 0 01.628.74v2.288a2.25 2.25 0 01-.659 1.59l-4.682 4.683a2.25 2.25 0 00-.659 1.59v3.037c0 .684-.31 1.33-.844 1.757l-1.937 1.55A.75.75 0 018 18.25v-5.757a2.25 2.25 0 00-.659-1.591L2.659 6.22A2.25 2.25 0 012 4.629V2.34a.75.75 0 01.628-.74zm10.582 12.268c.068.022.144.042.221.061l.641.171-.641-.171c.193-.37.33-.77.406-1.19l.02-.096a3.072 3.072 0 01-.647.846l-.594.38zm2.19-2.412a4.597 4.597 0 01-.024 1.546l-.004.02-.005.019c-.117.769-.364 1.506-.732 2.18l-.065.119a.75.75 0 01-1.299-.75l.14-.253c.252-.455.433-.94.54-1.446l.03-.135.065-.3a.75.75 0 011.354-.553l.015.018.008.01c.16.242.262.486.342.734l-.457.847a.75.75 0 01-.564.405l-1.186.317c-.036.01-.072.02-.109.027-.003.002-.006.002-.009.004"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function IconTrendUp({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M12.577 4.878a.75.75 0 01.919-.53l4.78 1.281a.75.75 0 01.531.919l-1.281 4.78a.75.75 0 01-1.449-.387l.81-3.022a19.407 19.407 0 00-5.594 5.203.75.75 0 01-1.139.093L7 10.06l-4.72 4.72a.75.75 0 01-1.06-1.061l5.25-5.25a.75.75 0 011.06 0l3.074 3.073a20.923 20.923 0 014.545-4.094l-3.01-.8a.75.75 0 01-.53-.919z"
         clipRule="evenodd"
       />
     </svg>
@@ -917,51 +964,9 @@ function SalesAnalyticsSection() {
     loadTrend();
   }, [loadTrend]);
 
-  // Period-filtered summary. Today's Sales / Transactions / Average Transaction
-  // are already the hero snapshot above, so keep only the figures not shown yet.
-  // Render the three figures as a horizontal waterfall (gross → discounts → net).
-  const waterfallMax = Math.max(
-    summary?.totalSubtotal ?? 0,
-    summary?.totalSales ?? 0,
-    summary?.totalDiscount ?? 0,
-    1,
-  );
-  const subtotalPct = ((summary?.totalSubtotal ?? 0) / waterfallMax) * 100;
-  const totalPct = ((summary?.totalSales ?? 0) / waterfallMax) * 100;
-  const discountPct = ((summary?.totalDiscount ?? 0) / waterfallMax) * 100;
-
-  const waterfallRows = [
-    {
-      label: "Total Sales",
-      value: fmtMoney(summary?.totalSales),
-      width: totalPct,
-      fill: "bg-[#4F6B4A]",
-      float: null,
-      emphasize: true,
-    },
-    {
-      label: "Subtotal",
-      value: fmtMoney(summary?.totalSubtotal),
-      width: subtotalPct,
-      fill: "bg-[#C6D4BF]",
-      float: null,
-      emphasize: false,
-    },
-    {
-      label: "Discounts",
-      value: fmtMoney(summary?.totalDiscount),
-      width: subtotalPct,
-      fill: "bg-[#E6ECE2]",
-      float: { left: totalPct, width: discountPct },
-      emphasize: false,
-    },
-  ];
-
   return (
     <section aria-label="Sales analytics" className="flex flex-col gap-3">
-      <SectionLabel>Sales Analytics</SectionLabel>
-
-      <ReportFilterBar
+      <FinancialOverviewCard
         dateFrom={dateFrom}
         dateTo={dateTo}
         locationId={locationId}
@@ -970,74 +975,15 @@ function SalesAnalyticsSection() {
         onDateFromChange={(v) => setDateFrom(v)}
         onDateToChange={(v) => setDateTo(v)}
         onLocationChange={(v) => setLocationId(v)}
+        onApplyFilters={() => {
+          loadSummary();
+          loadTrend();
+        }}
+        summary={summary}
+        summaryLoading={summaryLoading}
+        summaryError={summaryError}
+        onRetry={loadSummary}
       />
-
-      {summaryLoading ? (
-        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm p-5">
-          <div className="h-4 w-36 rounded bg-[#E6ECE2]/70 animate-pulse" />
-          <div className="mt-4 flex flex-col gap-5">
-            {Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="h-3 w-24 rounded bg-[#E6ECE2]/70 animate-pulse" />
-                <div className="flex-1">
-                  <div
-                    className="h-8 rounded-md bg-[#E6ECE2]/50 animate-pulse"
-                    style={{ width: `${94 - i * 16}%` }}
-                  />
-                </div>
-                <div className="h-3 w-28 rounded bg-[#E6ECE2]/70 animate-pulse" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : summaryError && !summary ? (
-        <SectionError message={summaryError} onRetry={loadSummary} />
-      ) : summary ? (
-        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm p-5">
-          <div className="mb-5">
-            <h3 className="text-sm font-bold text-[#333333]">Sales Breakdown</h3>
-            <p className="text-xs text-[#666666] mt-0.5">
-              Horizontal waterfall of Total Sales, Subtotal and Discounts for the selected period
-            </p>
-          </div>
-          <div className="flex flex-col gap-5">
-            {waterfallRows.map((row) => (
-              <div key={row.label} className="flex items-center gap-3">
-                <span className="w-24 flex-shrink-0 text-xs font-semibold text-[#666666]">
-                  {row.label}
-                </span>
-                <div
-                  className={`relative flex-1 rounded-md overflow-hidden ${
-                    row.emphasize ? "h-10" : "h-8"
-                  } bg-[#F5F5F0]`}
-                  title={`${row.label}: ${row.value}`}
-                >
-                  <div
-                    className={`absolute inset-y-0 left-0 ${row.fill}`}
-                    style={{ width: `${Math.min(Math.max(row.width, 0), 100)}%` }}
-                  />
-                  {row.float && (
-                    <div
-                      className="absolute inset-y-0 bg-[#B06B66]"
-                      style={{
-                        left: `${Math.min(Math.max(row.float.left, 0), 100)}%`,
-                        width: `${Math.min(Math.max(row.float.width, 0), 100)}%`,
-                      }}
-                    />
-                  )}
-                </div>
-                <span
-                  className={`w-28 flex-shrink-0 text-right font-bold text-[#333333] ${
-                    row.emphasize ? "text-base" : "text-xs"
-                  }`}
-                >
-                  {row.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       {/* Trend chart */}
       <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm p-5">
@@ -1153,5 +1099,218 @@ function SalesAnalyticsSection() {
         </div>
       </div>
     </section>
+  );
+}
+
+// ── Financial Overview card (merged filters + hero + waterfall) ──────────────
+
+function FinancialOverviewCard({
+  dateFrom,
+  dateTo,
+  locationId,
+  locations,
+  locationsLoading,
+  onDateFromChange,
+  onDateToChange,
+  onLocationChange,
+  onApplyFilters,
+  summary,
+  summaryLoading,
+  summaryError,
+  onRetry,
+}: {
+  dateFrom: string;
+  dateTo: string;
+  locationId?: string;
+  locations?: { id: string; name: string }[];
+  locationsLoading?: boolean;
+  onDateFromChange: (v: string) => void;
+  onDateToChange: (v: string) => void;
+  onLocationChange?: (v: string) => void;
+  onApplyFilters: () => void;
+  summary: SalesSummaryDto | null;
+  summaryLoading: boolean;
+  summaryError: string | null;
+  onRetry: () => void;
+}) {
+  const maxVal = Math.max(
+    summary?.totalSubtotal ?? 0,
+    summary?.totalSales ?? 0,
+    summary?.totalDiscount ?? 0,
+    1,
+  );
+  const pct = (v: number) => Math.min(Math.max((v / maxVal) * 100, 0), 100);
+  const discount = summary?.totalDiscount ?? 0;
+
+  const rows = [
+    {
+      label: "Gross Subtotal",
+      value: fmtMoney(summary?.totalSubtotal),
+      width: pct(summary?.totalSubtotal ?? 0),
+      fill: "bg-[#7A9076]",
+    },
+    {
+      label: "Discounts",
+      value: `-${fmtMoney(discount)}`,
+      width: Math.max(pct(discount), 2),
+      fill: discount > 0 ? "bg-[#E3C8C5]" : "bg-[#E0E0DA]",
+    },
+    {
+      label: "Net Total Sales",
+      value: fmtMoney(summary?.totalSales),
+      width: pct(summary?.totalSales ?? 0),
+      fill: "bg-gradient-to-r from-[#7A9076] to-[#4F6B4A]",
+    },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#E6ECE2] shadow-sm overflow-hidden">
+      {/* Card header */}
+      <div className="px-6 py-5 border-b border-[#E6ECE2] flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#E6ECE2] to-[#C6D4BF] text-[#4F6B4A]">
+            <IconTrendUp className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-base font-bold text-[#333333]">Financial Overview</h2>
+            <p className="text-xs text-[#666666] mt-0.5">Sales summary for the selected period</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Date range pill */}
+          <div className="flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2">
+            <IconCalendar className="h-4 w-4 shrink-0 text-[#7A9076]" />
+            <div className="flex items-center gap-1.5 text-sm">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => onDateFromChange(e.target.value)}
+                className="bg-transparent outline-none text-sm font-semibold text-[#333333] w-[8.5rem]"
+                aria-label="From date"
+              />
+              <span className="text-[#999999]">–</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => onDateToChange(e.target.value)}
+                className="bg-transparent outline-none text-sm font-semibold text-[#333333] w-[8.5rem]"
+                aria-label="To date"
+              />
+            </div>
+          </div>
+
+          {/* Location selector */}
+          <div className="flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2">
+            <IconMapPin className="h-4 w-4 shrink-0 text-[#7A9076]" />
+            <select
+              value={locationId || ""}
+              onChange={(e) => onLocationChange?.(e.target.value || "")}
+              disabled={locationsLoading}
+              className="bg-transparent text-sm font-semibold text-[#333333] outline-none cursor-pointer disabled:cursor-wait max-w-[10rem]"
+              aria-label="Filter by location"
+            >
+              <option value="">All Locations</option>
+              {(locations ?? []).map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter action */}
+          <button
+            type="button"
+            onClick={onApplyFilters}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#4F6B4A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#3B4F35] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F6B4A]/40"
+          >
+            <IconFilter className="h-4 w-4" />
+            Filter
+          </button>
+        </div>
+      </div>
+
+      {/* Card body */}
+      {summaryLoading ? (
+        <div className="px-6 py-6">
+          <div className="h-3 w-28 rounded bg-[#E6ECE2]/70 animate-pulse" />
+          <div className="h-10 w-52 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
+          <div className="h-4 w-40 rounded bg-[#E6ECE2]/60 animate-pulse mt-4" />
+          <div className="my-6 border-t border-[#E6ECE2]" />
+          <div className="flex flex-col gap-6">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="h-4 w-32 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                <div className="flex-1">
+                  <div
+                    className="h-3.5 rounded-full bg-[#E6ECE2]/50 animate-pulse"
+                    style={{ width: `${96 - i * 14}%` }}
+                  />
+                </div>
+                <div className="h-4 w-28 rounded bg-[#E6ECE2]/70 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : summaryError && !summary ? (
+        <div className="px-6 py-8 flex flex-col items-center gap-4">
+          <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">
+            {summaryError}
+          </p>
+          <Button onClick={onRetry}>Retry</Button>
+        </div>
+      ) : summary ? (
+        <div className="px-6 py-6">
+          {/* Hero */}
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#666666]">
+                Total Sales
+              </p>
+              <p className="mt-1 text-4xl font-extrabold tracking-tight text-[#333333] leading-none">
+                {fmtMoney(summary.totalSales)}
+              </p>
+              <p className="mt-2 text-xs text-[#666666]">
+                Avg{" "}
+                <span className="font-semibold text-[#333333]">
+                  {fmtMoney(summary.averageTransaction)}
+                </span>{" "}
+                per transaction
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E1EAD9] px-3 py-1.5 text-xs font-bold text-[#5C7A52]">
+              <IconTrendUp className="h-3.5 w-3.5" />
+              {fmtNumber(summary.transactionCount)} transactions
+            </span>
+          </div>
+
+          {/* Divider */}
+          <div className="my-6 border-t border-[#E6ECE2]" />
+
+          {/* Waterfall breakdown */}
+          <div className="flex flex-col gap-5">
+            {rows.map((row) => (
+              <div key={row.label} className="flex items-center gap-4">
+                <div className="w-36 shrink-0">
+                  <p className="text-sm font-semibold text-[#333333]">{row.label}</p>
+                </div>
+                <div className="flex-1">
+                  <div className="h-3.5 rounded-full bg-[#F5F5F0] overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${row.fill}`}
+                      style={{ width: `${row.width}%` }}
+                    />
+                  </div>
+                </div>
+                <p className="w-32 shrink-0 text-right text-sm font-bold text-[#333333] tabular-nums">
+                  {row.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -81,6 +81,39 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
+// ─── Summary KPI card (medium) ────────────────────────────────────────────────
+
+function SummaryCard({
+  label,
+  value,
+  warn,
+  loading,
+}: {
+  label: string;
+  value: string;
+  warn?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-[#E6ECE2] shadow-sm px-6 pt-6 pb-5 overflow-hidden hover:shadow-md transition-shadow">
+      <span className="block h-1 w-14 rounded-full bg-gradient-to-r from-[#B6C8AF] to-[#4F6B4A]" />
+      {loading ? (
+        <>
+          <div className="h-3 w-24 rounded bg-[#E6ECE2]/70 animate-pulse mt-4" />
+          <div className="h-7 w-28 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
+        </>
+      ) : (
+        <>
+          <p className={`mt-4 text-sm font-semibold ${warn ? "text-orange-700" : "text-[#666666]"}`}>{label}</p>
+          <p className={`mt-2 text-2xl font-extrabold tracking-tight ${warn ? "text-orange-600" : "text-[#333333]"}`}>
+            {value}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Profitability tab ────────────────────────────────────────────────────────
 
 function ProfitabilitySection({
@@ -187,21 +220,21 @@ function ProfitabilitySection({
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {summaryLoading
-          ? Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                <div className="h-3 w-20 rounded bg-[#E6ECE2]/60 animate-pulse" />
-                <div className="h-6 w-24 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
-              </div>
-            ))
+          ? Array.from({ length: 6 }, (_, i) => <SummaryCard key={i} label="" value="" loading />)
           : summaryError && !summary.length
             ? null
             : summary.map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                  <p className="text-xs font-medium text-[#666666]">{s.label}</p>
-                  <p className="text-lg font-bold text-[#333333] mt-0.5 leading-tight">
-                    {s.kind === "money" ? fmtMoney(s.value) : s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
-                  </p>
-                </div>
+                <SummaryCard
+                  key={s.label}
+                  label={s.label}
+                  value={
+                    s.kind === "money"
+                      ? fmtMoney(s.value)
+                      : s.kind === "percent"
+                        ? fmtPercent(s.value)
+                        : fmtNumber(s.value)
+                  }
+                />
               ))}
       </div>
       {summaryError && !summary.length && (
@@ -361,21 +394,16 @@ function ProfitMarginSection({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryLoading
-          ? Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                <div className="h-3 w-20 rounded bg-[#E6ECE2]/60 animate-pulse" />
-                <div className="h-6 w-24 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
-              </div>
-            ))
+          ? Array.from({ length: 4 }, (_, i) => <SummaryCard key={i} label="" value="" loading />)
           : summaryError && !summary.length
             ? null
             : summary.map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                  <p className="text-xs font-medium text-[#666666]">{s.label}</p>
-                  <p className={`text-lg font-bold mt-0.5 leading-tight ${s.label === "Below Target" ? "text-orange-600" : "text-[#333333]"}`}>
-                    {s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
-                  </p>
-                </div>
+                <SummaryCard
+                  key={s.label}
+                  label={s.label}
+                  warn={s.label === "Below Target"}
+                  value={s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
+                />
               ))}
       </div>
       {summaryError && !summary.length && (

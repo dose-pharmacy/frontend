@@ -2,7 +2,6 @@ import { NavLink } from "react-router"
 
 const SUB_LINKS = [
   { to: "/dashboard", label: "Overview", end: true },
-  { to: "/dashboard/sales", label: "Sales" },
   { to: "/dashboard/profitability", label: "Profitability" },
 ]
 
