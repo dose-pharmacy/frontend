@@ -4,7 +4,6 @@ const SUB_LINKS = [
   { to: "/reports", label: "Overview", end: true },
   { to: "/reports/sales", label: "Sales" },
   { to: "/reports/profitability", label: "Profitability" },
-  { to: "/reports/slow-moving", label: "Slow Moving" },
 ];
 
 export default function ReportsSubNav() {

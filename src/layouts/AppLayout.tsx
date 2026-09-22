@@ -95,7 +95,6 @@ const NAV: NavItem[] = [
     label: "Inventory",
     icon: <IconBox />,
     children: [
-      { to: "/inventory", label: "Overview" },
       { to: "/inventory/products", label: "Products" },
       { to: "/inventory/stock", label: "Stock" },
       { to: "/inventory/batches-expiry", label: "Batches & Expiry" },
@@ -117,17 +116,9 @@ const NAV: NavItem[] = [
       { to: "/purchasing/returns", label: "Returns" },
     ],
   },
-  {
-    to: "/reports",
-    label: "Reports",
-    icon: <IconChart />,
-    children: [
-      { to: "/reports", label: "Overview" },
-      { to: "/reports/sales", label: "Sales" },
-      { to: "/reports/profitability", label: "Profitability" },
-      { to: "/reports/slow-moving", label: "Slow Moving" },
-    ],
-  },
+  // Reports has no sidebar dropdown — it links straight to /reports.
+  // The report sub-navigation lives inside the Reports pages (ReportsSubNav).
+  { to: "/reports", label: "Reports", icon: <IconChart /> },
   {
     to: "/inventory/groups",
     label: "Settings",
@@ -165,7 +156,11 @@ function Sidebar({
   }
 
   function sectionIsActive(item: NavItem) {
-    if (item.children) return item.children.some((c) => location.pathname === c.to || (c.to !== "/inventory" && location.pathname.startsWith(c.to)));
+    if (item.children)
+      return (
+        location.pathname === item.to ||
+        item.children.some((c) => location.pathname === c.to || (c.to !== "/inventory" && location.pathname.startsWith(c.to)))
+      );
     return isPathActive(item.to);
   }
 
