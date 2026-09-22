@@ -342,7 +342,7 @@ export default function POSPage() {
                         <POSStatusBadge status={p.status} />
                         <span className="text-xs text-[#999]">{p.availableStock} avail.</span>
                       </div>
-                      <p className="text-sm font-bold text-[#49B0C1] mt-1">{fmt(p.units[0]?.price ?? 0)}</p>
+                      <p className="text-sm font-bold text-[#49B0C1] mt-1">{fmt(p.units.find((u) => u.isBaseUnit)?.price ?? p.units[0]?.price ?? 0)}</p>
                       {p.status !== "out_of_stock" && (
                         <div className="absolute bottom-3 right-3 h-6 w-6 rounded-full bg-[#49B0C1] text-white flex items-center justify-center text-base leading-none shadow-sm group-hover:scale-110 transition-transform">
                           +

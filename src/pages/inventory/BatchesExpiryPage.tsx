@@ -107,6 +107,11 @@ export default function BatchesExpiryPage() {
 
   const locationSearch = useSearchableResource(searchLocations)
   const locationFilterOptions: SearchableOption[] = locationSearch.options
+  const addProductSearch = useSearchableResource(searchProducts, addOpen)
+  const selectedAddProduct = addProductSearch.options.find((o) => o.value === addForm.productId) ?? null
+  const addProductOptions: SearchableOption[] = selectedAddProduct
+    ? [selectedAddProduct, ...addProductSearch.options.filter((o) => o.value !== addForm.productId)]
+    : addProductSearch.options
 
   useEffect(() => {
     fetchProductOptions()
@@ -597,20 +602,22 @@ export default function BatchesExpiryPage() {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[#333333]">Product</label>
-            <Select
-              value={addForm.productId}
-              onChange={(e) => {
-                setAddForm((f) => ({ ...f, productId: e.target.value }))
+            <SearchableSelect
+              value={addForm.productId || null}
+              onChange={(v) => {
+                setAddForm((f) => ({ ...f, productId: v }))
                 setAddErrors((er) => ({ ...er, productId: undefined }))
               }}
-            >
-              <option value="">Select a product…</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
+              options={addProductOptions}
+              onSearch={addProductSearch.setTerm}
+              loading={addProductSearch.loading}
+              error={addProductSearch.error}
+              onRetry={addProductSearch.retry}
+              placeholder="Search and select a product..."
+              searchPlaceholder="Search by name or SKU..."
+              emptyMessage="No products found"
+              noResultsMessage="No products matching your search"
+            />
             {addErrors.productId && (
               <p className="text-xs text-red-500">{addErrors.productId}</p>
             )}

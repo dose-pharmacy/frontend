@@ -2,8 +2,12 @@ import { useState, useEffect, useMemo } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
-import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { getSupplierById } from "../../features/purchasing/suppliersApi"
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto } from "../../features/purchasing/purchaseOrdersApi"
+import { searchSuppliers } from "../../features/inventory/searchSelectors"
+import { useSearchableResource } from "../../hooks/useSearchableResource"
+import SearchableSelect from "../../components/ui/SearchableSelect"
+import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import {
   createSupplierInvoice,
   type CreateSupplierInvoiceInput,
@@ -34,6 +38,7 @@ interface InvoiceLine {
   quantityOrdered: number
   quantityReceived: number
   unitCost: number
+  unitName: string
   quantity: string
 }
 
@@ -64,7 +69,6 @@ export default function CreateSupplierInvoicePage() {
   const [lines, setLines] = useState<InvoiceLine[]>([])
 
   // Reference data
-  const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderDto[]>([])
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderDto | null>(null)
   const [poLoading, setPoLoading] = useState(false)
@@ -74,11 +78,30 @@ export default function CreateSupplierInvoicePage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
+  const supplierSearch = useSearchableResource(searchSuppliers, true)
+  const [prefillSupplierOption, setPrefillSupplierOption] = useState<SearchableOption | null>(null)
   useEffect(() => {
-    listSuppliers({ limit: 100, isActive: true })
-      .then((r) => setSuppliers(r.data))
+    if (!prefillSupplierId) return
+    let cancelled = false
+    getSupplierById(prefillSupplierId)
+      .then((s) => {
+        if (cancelled) return
+        setPrefillSupplierOption({
+          value: s.id,
+          label: s.name,
+          sub: s.contactPerson ? `${s.contactPerson}${s.email ? ` · ${s.email}` : ""}` : (s.email ?? undefined),
+        })
+      })
       .catch(() => {})
-  }, [])
+    return () => { cancelled = true }
+  }, [prefillSupplierId])
+
+  const selectedSupplierOption = supplierSearch.options.find((o) => o.value === supplierId) ?? null
+  const supplierOptions: SearchableOption[] = [
+    ...(prefillSupplierOption && prefillSupplierOption.value === supplierId ? [prefillSupplierOption] : []),
+    ...(selectedSupplierOption ? [selectedSupplierOption] : []),
+    ...supplierSearch.options.filter((o) => o.value !== supplierId),
+  ].filter((o, i, arr) => arr.findIndex((x) => x.value === o.value) === i)
 
   // When supplier changes, reload received POs filtered by that supplier
   useEffect(() => {
@@ -114,6 +137,7 @@ export default function CreateSupplierInvoicePage() {
             quantityOrdered: it.quantityOrdered ?? 0,
             quantityReceived: it.quantityReceived ?? 0,
             unitCost: it.unitCost ?? 0,
+            unitName: it.unit?.name ?? "",
             quantity: String(it.quantityReceived ?? 0),
           })),
         )
@@ -219,10 +243,19 @@ export default function CreateSupplierInvoicePage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
-                  <select value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setPurchaseOrderId("") }} className={SC}>
-                    <option value="">Select supplier...</option>
-                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={supplierId || null}
+                    onChange={(v) => { setSupplierId(v); setPurchaseOrderId("") }}
+                    options={supplierOptions}
+                    onSearch={supplierSearch.setTerm}
+                    loading={supplierSearch.loading}
+                    error={supplierSearch.error}
+                    onRetry={supplierSearch.retry}
+                    placeholder="Select supplier..."
+                    searchPlaceholder="Search suppliers..."
+                    emptyMessage="No suppliers found"
+                    noResultsMessage="No suppliers matching your search"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
@@ -272,19 +305,22 @@ export default function CreateSupplierInvoicePage() {
                           {lines.map((l) => (
                             <tr key={l.purchaseOrderItemId} className="border-b border-[#DBEFF3]/60">
                               <td className="py-2 pr-2 font-medium text-[#333333]">{l.productName}</td>
-                              <td className="py-2 px-2 text-right text-[#666666]">{l.quantityOrdered}</td>
-                              <td className="py-2 px-2 text-right text-[#666666]">{l.quantityReceived}</td>
+                              <td className="py-2 px-2 text-right text-[#666666]">{l.quantityOrdered} {l.unitName}</td>
+                              <td className="py-2 px-2 text-right text-[#666666]">{l.quantityReceived} {l.unitName}</td>
                               <td className="py-2 px-2 text-right text-[#666666]">{fmtMoney(l.unitCost)}</td>
                               <td className="py-2 pl-2 text-right w-24">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={l.quantityReceived}
-                                  step={0.01}
-                                  value={l.quantity}
-                                  onChange={(e) => setLineQty(l.purchaseOrderItemId, e.target.value)}
-                                  className="w-20 ml-auto rounded-lg border border-[#ABDBE3] px-2 py-1 text-right text-sm focus:border-[#49B0C1] focus:outline-none"
-                                />
+                                <div className="flex items-end justify-end gap-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={l.quantityReceived}
+                                    step={0.01}
+                                    value={l.quantity}
+                                    onChange={(e) => setLineQty(l.purchaseOrderItemId, e.target.value)}
+                                    className="w-20 rounded-lg border border-[#ABDBE3] px-2 py-1 text-right text-sm focus:border-[#49B0C1] focus:outline-none"
+                                  />
+                                  {l.unitName && <span className="text-xs text-[#999] pb-1 whitespace-nowrap">{l.unitName}</span>}
+                                </div>
                               </td>
                             </tr>
                           ))}

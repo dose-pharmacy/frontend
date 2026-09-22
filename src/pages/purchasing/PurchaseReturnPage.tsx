@@ -10,10 +10,11 @@ import {
   type PurchaseReturnReason,
   PurchaseReturnsApiError,
 } from "../../features/purchasing/purchaseReturnsApi";
-import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
-import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
 import { listBatches, type BatchDto } from "../../features/inventory/batchesApi";
-import { listLocations, type LocationDto } from "../../features/inventory/locationsApi";
+import { searchProducts, searchSuppliers, searchLocations } from "../../features/inventory/searchSelectors";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
+import SearchableSelect from "../../components/ui/SearchableSelect";
+import type { SearchableOption } from "../../components/ui/SearchableSelect";
 
 const REASON_LABELS: Record<PurchaseReturnReason, string> = {
   EXPIRED: "Expired",
@@ -49,9 +50,6 @@ export default function PurchaseReturnPage() {
   const [notes, setNotes] = useState("");
 
   // Reference data
-  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
-  const [locations, setLocations] = useState<LocationDto[]>([]);
-  const [products, setProducts] = useState<ProductDto[]>([]);
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [batchesLoading, setBatchesLoading] = useState(false);
 
@@ -83,34 +81,28 @@ export default function PurchaseReturnPage() {
     }
   }, []);
 
-  const loadProducts = useCallback(async () => {
-    // GET /inventory/products rejects oversized limits / missing `page`
-    // (422) — walk the paginated endpoint instead of one big request.
-    const all: ProductDto[] = [];
-    try {
-      const first = await listProducts({ page: 1, limit: 100 });
-      all.push(...first.data);
-      const totalPages = Math.min(first.meta?.totalPages ?? 1, 30);
-      for (let page = 2; page <= totalPages; page++) {
-        const next = await listProducts({ page, limit: 100 });
-        all.push(...next.data);
-      }
-    } catch (e) {
-      console.error("Failed to load products:", e);
-    }
-    setProducts(all.filter((p) => p.isActive));
-  }, []);
+  const supplierSearch = useSearchableResource(searchSuppliers, showForm);
+  const productSearch = useSearchableResource(searchProducts, showForm);
+  const locationSearch = useSearchableResource(searchLocations, showForm);
+  const selectedSupplierOption = supplierSearch.options.find((o) => o.value === supplierId) ?? null;
+  const supplierOptions: SearchableOption[] = selectedSupplierOption
+    ? [selectedSupplierOption, ...supplierSearch.options.filter((o) => o.value !== supplierId)]
+    : supplierSearch.options;
+  const selectedProductOption = productSearch.options.find((o) => o.value === productId) ?? null;
+  const productOptions: SearchableOption[] = selectedProductOption
+    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
+    : productSearch.options;
+  const selectedLocationOption = locationSearch.options.find((o) => o.value === locationId) ?? null;
+  const locationOptions: SearchableOption[] = selectedLocationOption
+    ? [selectedLocationOption, ...locationSearch.options.filter((o) => o.value !== locationId)]
+    : locationSearch.options;
+  const selectedSupplierName = selectedSupplierOption?.label ?? supplierId;
+  const selectedProductName = selectedProductOption?.label ?? productId;
+  const selectedLocationName = selectedLocationOption?.label ?? locationId;
 
   useEffect(() => {
-    listSuppliers({ limit: 100, isActive: true })
-      .then((r) => setSuppliers(r.data))
-      .catch(() => {})
-    listLocations({ limit: 100, isActive: true })
-      .then((r) => setLocations(r.data.filter((l) => l.isActive)))
-      .catch(() => {})
-    void loadProducts()
-    void loadReturns()
-  }, [loadProducts])
+    void loadReturns();
+  }, [loadReturns])
 
   // Product selection drives the batch list: batches are fetched per product
   // (GET /inventory/products/{productId}/batches or ?productId= on /batches).
@@ -136,11 +128,9 @@ export default function PurchaseReturnPage() {
   }
 
   const selectedBatch = batches.find((b) => b.id === batchId) ?? null;
-  const selectedProduct = products.find((p) => p.id === productId) ?? null;
   const parsedUnitCost = parseFloat(unitCost) || 0;
   const parsedDebit = parseFloat(debitNoteAmount) || 0;
   const estimatedValue = Number(quantity) * parsedUnitCost;
-  const selectedLocation = locations.find((l) => l.id === locationId) ?? null;
 
   const canSubmit =
     !!supplierId &&
@@ -268,29 +258,51 @@ export default function PurchaseReturnPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
-                  <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={inputClass}>
-                    <option value="">— Select Supplier —</option>
-                    {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={supplierId || null}
+                    onChange={setSupplierId}
+                    options={supplierOptions}
+                    onSearch={supplierSearch.setTerm}
+                    loading={supplierSearch.loading}
+                    error={supplierSearch.error}
+                    onRetry={supplierSearch.retry}
+                    placeholder="— Select Supplier —"
+                    searchPlaceholder="Search suppliers..."
+                    emptyMessage="No suppliers found"
+                    noResultsMessage="No suppliers matching your search"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Product *</label>
-                  <select value={productId} onChange={(e) => handleProductChange(e.target.value)} className={inputClass}>
-                    <option value="">— Select Product —</option>
-                    {products.length === 0 && (
-                      <option value="" disabled>Loading products…</option>
-                    )}
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={productId || null}
+                    onChange={(v) => handleProductChange(v)}
+                    options={productOptions}
+                    onSearch={productSearch.setTerm}
+                    loading={productSearch.loading}
+                    error={productSearch.error}
+                    onRetry={productSearch.retry}
+                    placeholder="— Select Product —"
+                    searchPlaceholder="Search by name or SKU..."
+                    emptyMessage="No products found"
+                    noResultsMessage="No products matching your search"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Location *</label>
-                  <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputClass}>
-                    <option value="">— Select Location —</option>
-                    {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={locationId || null}
+                    onChange={setLocationId}
+                    options={locationOptions}
+                    onSearch={locationSearch.setTerm}
+                    loading={locationSearch.loading}
+                    error={locationSearch.error}
+                    onRetry={locationSearch.retry}
+                    placeholder="— Select Location —"
+                    searchPlaceholder="Search locations..."
+                    emptyMessage="No locations found"
+                    noResultsMessage="No locations matching your search"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Batch <span className="text-xs font-normal">(optional)</span></label>
@@ -356,7 +368,7 @@ export default function PurchaseReturnPage() {
 
               {productId && quantity > 0 && parsedUnitCost > 0 && (
                 <div className="mt-4 p-3 rounded-lg bg-[#DBEFF3] text-sm text-[#333333]">
-                  <strong>Summary:</strong> Return {quantity} × {selectedProduct?.name ?? "?"} — Total Value: <strong>{fmtMoney(estimatedValue)}</strong>
+                  <strong>Summary:</strong> Return {quantity} × {selectedProductName || "?"} — Total Value: <strong>{fmtMoney(estimatedValue)}</strong>
                   {selectedBatch && ` · Batch: ${selectedBatch.batchNumber}`}
                 </div>
               )}
@@ -444,7 +456,7 @@ export default function PurchaseReturnPage() {
       <ConfirmationDialog
         open={confirmOpen}
         title="Confirm Purchase Return?"
-        message={`Return ${quantity} × ${selectedProduct?.name ?? "product"} to ${selectedBatch ? `batch ${selectedBatch.batchNumber} · ` : ""}${suppliers.find((s) => s.id === supplierId)?.name ?? "supplier"}. This will permanently reduce stock at ${selectedLocation?.name ?? "the selected location"} by ${quantity} base units — the movement is recorded in the stock ledger and cannot be reversed.`}
+        message={`Return ${quantity} × ${selectedProductName || "product"} to ${selectedBatch ? `batch ${selectedBatch.batchNumber} · ` : ""}${selectedSupplierName || "supplier"}. This will permanently reduce stock at ${selectedLocationName || "the selected location"} by ${quantity} base units — the movement is recorded in the stock ledger and cannot be reversed.`}
         confirmLabel="Record Return"
         danger
         loading={saving}

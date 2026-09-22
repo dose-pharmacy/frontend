@@ -7,12 +7,12 @@ import {
   type InventoryProductDto,
   type ListMeta,
 } from "../../features/inventory/productsApi";
-import {
-  listProductGroups,
-  type ProductGroupDto,
-} from "../../features/inventory/productGroupsApi";
+import { searchProductGroups } from "../../features/inventory/searchSelectors";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
 import { listUnits, type UnitDto } from "../../features/inventory/unitsApi";
 import SearchInput from "../../components/ui/SearchInput";
+import SearchableSelect from "../../components/ui/SearchableSelect";
+import type { SearchableOption } from "../../components/ui/SearchableSelect";
 import Select from "../../components/ui/Select";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Pagination from "../../components/ui/Pagination";
@@ -125,8 +125,9 @@ export default function ProductsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // ── Reference data ──
-  const [groups, setGroups] = useState<ProductGroupDto[]>([]);
   const [units, setUnits] = useState<UnitDto[]>([]);
+
+  const groupFilterSearch = useSearchableResource(searchProductGroups);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -141,19 +142,25 @@ export default function ProductsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  const selectedFilterGroup = groupFilterSearch.options.find((o) => o.value === groupFilter) ?? null;
+  const groupFilterOptions: SearchableOption[] = selectedFilterGroup
+    ? [selectedFilterGroup, ...groupFilterSearch.options.filter((o) => o.value !== groupFilter)]
+    : groupFilterSearch.options;
+  const createGroupSearch = useSearchableResource(searchProductGroups, createOpen);
+  const selectedCreateGroup = createGroupSearch.options.find((o) => o.value === form.productGroupId) ?? null;
+  const createGroupOptions: SearchableOption[] = selectedCreateGroup
+    ? [selectedCreateGroup, ...createGroupSearch.options.filter((o) => o.value !== form.productGroupId)]
+    : createGroupSearch.options;
+
   // ── Load reference data ──
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      listProductGroups({ limit: 100 }).catch(() => ({
-        data: [] as ProductGroupDto[],
-      })),
-      listUnits({ limit: 100 }).catch(() => ({ data: [] as UnitDto[] })),
-    ]).then(([g, u]) => {
-      if (cancelled) return;
-      setGroups(g.data);
-      setUnits(u.data);
-    });
+    listUnits({ limit: 100 })
+      .catch(() => ({ data: [] as UnitDto[] }))
+      .then((u) => {
+        if (cancelled) return;
+        setUnits(u.data);
+      });
     return () => {
       cancelled = true;
     };
@@ -437,21 +444,25 @@ export default function ProductsPage() {
               <option value="LOW_STOCK">Low Stock</option>
               <option value="OUT_OF_STOCK">Out of Stock</option>
             </Select>
-            <Select
-              value={groupFilter}
-              onChange={(e) => {
-                setGroupFilter(e.target.value);
-                setPage(1);
-              }}
-              className="sm:w-48"
-            >
-              <option value="">All Groups</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </Select>
+            <div className="sm:w-48">
+              <SearchableSelect
+                value={groupFilter || null}
+                onChange={(v) => {
+                  setGroupFilter(v);
+                  setPage(1);
+                }}
+                options={groupFilterOptions}
+                onSearch={groupFilterSearch.setTerm}
+                loading={groupFilterSearch.loading}
+                error={groupFilterSearch.error}
+                onRetry={groupFilterSearch.retry}
+                allowClear
+                placeholder="All Groups"
+                searchPlaceholder="Search groups..."
+                emptyMessage="No groups found"
+                noResultsMessage="No groups matching your search"
+              />
+            </div>
           </div>
         </div>
 
@@ -668,23 +679,21 @@ export default function ProductsPage() {
               <label className="text-sm font-medium text-[#333333]">
                 Product Group <span className="text-red-500">*</span>
               </label>
-              <select
-                value={form.productGroupId}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, productGroupId: e.target.value }))
+              <SearchableSelect
+                value={form.productGroupId || null}
+                onChange={(v) =>
+                  setForm((f) => ({ ...f, productGroupId: v }))
                 }
-                className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
-              >
-                <option value="">— Select a group —</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                    {typeof g.defaultProfitMargin === "number"
-                      ? ` (${g.defaultProfitMargin}%)`
-                      : ""}
-                  </option>
-                ))}
-              </select>
+                options={createGroupOptions}
+                onSearch={createGroupSearch.setTerm}
+                loading={createGroupSearch.loading}
+                error={createGroupSearch.error}
+                onRetry={createGroupSearch.retry}
+                placeholder="— Select a group —"
+                searchPlaceholder="Search groups..."
+                emptyMessage="No groups found"
+                noResultsMessage="No groups matching your search"
+              />
               {fieldErrors.productGroupId && (
                 <p className="text-xs text-red-600">
                   {fieldErrors.productGroupId}
