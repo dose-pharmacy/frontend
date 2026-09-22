@@ -88,6 +88,15 @@ export default function ReorderManagementPage() {
       ).toFixed(1)
     : "0"
 
+  // Merge dashboard rows with reorder suggestions — one row per product.
+  const suggestionByProduct = new Map(
+    suggestions.map((s) => [s.product.id, s]),
+  )
+  const rows = dashboard.map((d) => ({
+    item: d,
+    suggestion: suggestionByProduct.get(d.product.id),
+  }))
+
   const modalSuggestions = suggestions.map((s) => ({
     id: s.product.id,
     name: s.product.name,
@@ -162,11 +171,12 @@ export default function ReorderManagementPage() {
           </div>
         ) : !error ? (
           <>
-            {/* Low stock alerts */}
+            {/* Low stock & reorder recommendations */}
             <section>
               <div className="bg-[#E6ECE2] px-4 py-2.5 rounded-t-xl flex items-center justify-between">
                 <p className="text-sm font-bold text-[#333333]">
-                  LOW STOCK ALERTS ({dashboard.length} items)
+                  LOW STOCK &amp; REORDER RECOMMENDATIONS ({dashboard.length}{" "}
+                  items)
                 </p>
               </div>
               <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] overflow-hidden">
@@ -178,9 +188,11 @@ export default function ReorderManagementPage() {
                           "Product",
                           "Current Stock",
                           "Threshold",
-                          "Velocity (units/day)",
+                          "Avg Daily Sales",
+                          "Lead Time",
                           "Suggested Qty",
                           "Urgency",
+                          "Action",
                         ].map((h) => (
                           <th
                             key={h}
@@ -192,17 +204,17 @@ export default function ReorderManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {dashboard.length === 0 ? (
+                      {rows.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={6}
+                            colSpan={8}
                             className="px-4 py-6 text-center text-[#333333]/60"
                           >
                             No low-stock alerts right now.
                           </td>
                         </tr>
                       ) : (
-                        dashboard.map((d, i) => (
+                        rows.map(({ item: d, suggestion: s }, i) => (
                           <tr
                             key={d.product.id}
                             className={
@@ -224,79 +236,19 @@ export default function ReorderManagementPage() {
                             <td className="px-4 py-3 text-[#666666]">
                               {d.minimumThreshold}
                             </td>
-                            <td className="px-4 py-3 text-[#666666]">—</td>
+                            <td className="px-4 py-3 text-[#666666]">
+                              {s && s.averageDailySales > 0
+                                ? s.averageDailySales
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-[#666666]">
+                              {d.leadTimeDays} days
+                            </td>
                             <td className="px-4 py-3 font-semibold text-[#333333]">
                               {d.suggestedQuantity}
                             </td>
                             <td className="px-4 py-3">
                               {urgencyBadge(d.urgency)}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-
-            {/* Suggested reorder quantities */}
-            <section>
-              <div className="bg-[#C6D4BF] px-4 py-2.5 rounded-t-xl">
-                <p className="text-sm font-bold text-[#333333]">
-                  SUGGESTED REORDER QUANTITIES
-                </p>
-              </div>
-              <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-[#E6ECE2]">
-                        {[
-                          "Product",
-                          "Avg Daily Sales",
-                          "Lead Time (days)",
-                          "Suggested Qty",
-                          "Action",
-                        ].map((h) => (
-                          <th
-                            key={h}
-                            className="px-4 py-3 text-left font-semibold text-[#333333]"
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {suggestions.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-6 text-center text-[#333333]/60"
-                          >
-                            No reorder suggestions right now.
-                          </td>
-                        </tr>
-                      ) : (
-                        suggestions.map((s, i) => (
-                          <tr
-                            key={s.product.id}
-                            className={
-                              i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"
-                            }
-                          >
-                            <td className="px-4 py-3 font-medium text-[#333333]">
-                              {s.product.name}
-                            </td>
-                            <td className="px-4 py-3 text-[#666666]">
-                              {s.averageDailySales}
-                            </td>
-                            <td className="px-4 py-3 text-[#666666]">
-                              {s.leadTimeDays}
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-[#7A9076]">
-                              {s.suggestedQuantity}
                             </td>
                             <td className="px-4 py-3">
                               <Button

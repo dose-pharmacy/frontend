@@ -57,7 +57,7 @@ interface RequirementLine {
   /** Set when the line already has purchase orders (blocks edits/removal). */
   hasPo: boolean
   /** Purchase order items linked to this requirement line. */
-  purchaseOrderItems?: { purchaseOrderId: string quantityOrdered: number }[]
+  purchaseOrderItems?: { purchaseOrderId: string; quantityOrdered: number }[]
 }
 
 interface Requirement {
@@ -189,7 +189,7 @@ function LineBadge({ status }: { status: LineStatus }) {
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
-function Toast({ message, onDone }: { message: string onDone: () => void }) {
+function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   useEffect(() => {
     const t = setTimeout(onDone, 3200)
     return () => clearTimeout(t)
@@ -218,7 +218,7 @@ function Toast({ message, onDone }: { message: string onDone: () => void }) {
 function OverflowMenu({
   items,
 }: {
-  items: { label: string danger?: boolean onClick: () => void }[]
+  items: { label: string, danger?: boolean, onClick: () => void }[]
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -1587,7 +1587,7 @@ function GenerateFromReorderModal({
 }) {
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<{
-    product: { id: string name: string sku: string }
+    product: { id: string; name: string; sku: string; }
     suggestedQuantity: number
   }[]>([])
   const [loadError, setLoadError] = useState("")
@@ -1728,7 +1728,7 @@ function EditRequirementModal({
   open: boolean
   req: Requirement
   onClose: () => void
-  onSave: (updates: { requiredBy: string notes: string | null }) => void
+  onSave: (updates: { requiredBy: string; notes: string | null }) => void
 }) {
   const [requiredBy, setRequiredBy] = useState(req.requiredBy)
   const [notes, setNotes] = useState(req.notes)
@@ -2257,7 +2257,7 @@ function OrderPreviewModal({
 const SC =
   "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
 
-function Fw({ label, children }: { label: string children: React.ReactNode }) {
+function Fw({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="text-sm font-medium text-[#333333] block mb-1.5">
