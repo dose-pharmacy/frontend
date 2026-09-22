@@ -52,7 +52,7 @@ export default function PurchaseReturnDetailPage() {
       <div className="flex-1 flex flex-col min-h-0">
         <PageHeader title="Purchase Return" subtitle="Loading..." />
         <div className="flex-1 flex items-center justify-center">
-          <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+          <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
         </div>
       </div>
     )
@@ -85,7 +85,7 @@ export default function PurchaseReturnDetailPage() {
 
       <div className="flex-1 overflow-y-auto p-6">
         {/* Header info */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-5 mb-5">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-5 mb-5">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <p className="text-xs text-[#666666]">Supplier</p>
@@ -141,7 +141,7 @@ export default function PurchaseReturnDetailPage() {
         </div>
 
         {/* Immutability note */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
           <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Actions</p>
           <div className="flex items-start gap-3">
             <span className="text-xs text-[#666666]">

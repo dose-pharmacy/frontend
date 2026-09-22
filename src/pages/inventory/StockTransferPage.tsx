@@ -176,7 +176,7 @@ function TransferListScreen({
         actions={
           <button
             onClick={onNewTransfer}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-white text-[#49B0C1] px-3.5 py-2 text-sm font-semibold hover:bg-[#DBEFF3] transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#B6C8AF] text-[#333333] px-3.5 py-2 text-sm font-semibold hover:bg-[#E6ECE2] transition-colors"
           >
             + New Transfer
           </button>
@@ -192,14 +192,14 @@ function TransferListScreen({
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput
             value={search}
             onChange={(v) => { setSearch(v); setPage(1) }}
             placeholder="Search transfers..."
           />
           <div className="flex flex-wrap gap-3 items-center">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[140px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[140px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="DRAFT">DRAFT</option>
               <option value="COMPLETED">COMPLETED</option>
@@ -238,7 +238,7 @@ function TransferListScreen({
               />
             </div>
             {(search || statusFilter || fromFilter || toFilter) && (
-              <button onClick={reset} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+              <button onClick={reset} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
                 Reset
               </button>
             )}
@@ -246,11 +246,11 @@ function TransferListScreen({
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-[#DBEFF3] text-left">
+                <tr className="bg-[#E6ECE2] text-left">
                   {["Transfer #", "From", "To", "Status", "Date", "Items", ""].map((h) => (
                     <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                   ))}
@@ -260,7 +260,7 @@ function TransferListScreen({
                 {loading ? (
                   [...Array(5)].map((_, i) => (
                     <tr key={i} className="animate-pulse">
-                      <td colSpan={7} className="px-4 py-3"><div className="h-8 rounded-lg bg-[#DBEFF3]" /></td>
+                      <td colSpan={7} className="px-4 py-3"><div className="h-8 rounded-lg bg-[#E6ECE2]" /></td>
                     </tr>
                   ))
                 ) : transfers.length === 0 ? (
@@ -271,16 +271,16 @@ function TransferListScreen({
                   <tr
                     key={t.id}
                     onClick={() => onSelect(t.id)}
-                    className={`cursor-pointer transition-colors hover:bg-[#DBEFF3]/40 ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}`}
+                    className={`cursor-pointer transition-colors hover:bg-[#E6ECE2]/40 ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}`}
                   >
-                    <td className="px-4 py-3 font-semibold text-[#49B0C1]">{t.transferNumber ?? t.id.slice(0, 8)}</td>
+                    <td className="px-4 py-3 font-semibold text-[#7A9076]">{t.transferNumber ?? t.id.slice(0, 8)}</td>
                     <td className="px-4 py-3 text-[#333333]">{nameOf(t.fromLocation, t.fromLocation.id)}</td>
                     <td className="px-4 py-3 text-[#333333]">{nameOf(t.toLocation, t.toLocation.id)}</td>
                     <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
                     <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(t.transferDate)}</td>
                     <td className="px-4 py-3 text-[#666666]">{t.items?.length ?? 0} item{(t.items?.length ?? 0) !== 1 ? "s" : ""}</td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-semibold text-[#49B0C1]">View →</span>
+                      <span className="text-xs font-semibold text-[#7A9076]">View →</span>
                     </td>
                   </tr>
                 ))}
@@ -288,7 +288,7 @@ function TransferListScreen({
             </table>
           </div>
           {totalPages > 1 && (
-            <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+            <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
               <p className="text-xs text-[#666666]">
                 Page {page} of {totalPages} · {total} transfers
               </p>
@@ -296,14 +296,14 @@ function TransferListScreen({
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1 || loading}
-                  className="rounded-lg border border-[#ABDBE3] px-3 py-1.5 text-xs font-semibold text-[#49B0C1] hover:bg-[#DBEFF3]/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#7A9076] hover:bg-[#E6ECE2]/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   ← Prev
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages || loading}
-                  className="rounded-lg border border-[#ABDBE3] px-3 py-1.5 text-xs font-semibold text-[#49B0C1] hover:bg-[#DBEFF3]/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#7A9076] hover:bg-[#E6ECE2]/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Next →
                 </button>
@@ -386,10 +386,10 @@ function NewTransferScreen({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* ── Header ────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-[#DBEFF3] px-6 pt-5 pb-5 flex-shrink-0">
+      <div className="bg-white border-b border-[#E6ECE2] px-6 pt-5 pb-5 flex-shrink-0">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm font-medium text-[#49B0C1] hover:underline mb-3"
+          className="flex items-center gap-1.5 text-sm font-medium text-[#7A9076] hover:underline mb-3"
         >
           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
             <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
@@ -409,8 +409,8 @@ function NewTransferScreen({
         )}
 
         {/* ── Card 1: Transfer Information ───────────────────── */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-visible flex-shrink-0">
-          <div className="px-5 py-3 border-b border-[#DBEFF3]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-visible flex-shrink-0">
+          <div className="px-5 py-3 border-b border-[#E6ECE2]">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Transfer Information</p>
           </div>
           <div className="px-5 py-5 grid sm:grid-cols-2 gap-x-5 gap-y-5">
@@ -473,15 +473,15 @@ function NewTransferScreen({
         </div>
 
         {/* ── Card 2: Transfer Items ─────────────────────────── */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
               Transfer Items
-              {items.length > 0 && <span className="text-[#49B0C1] ml-1">({items.length})</span>}
+              {items.length > 0 && <span className="text-[#7A9076] ml-1">({items.length})</span>}
             </p>
             <button
               onClick={() => setAddItemOpen(true)}
-              className="rounded-xl border border-[#ABDBE3] bg-white px-3 py-1.5 text-xs font-semibold text-[#49B0C1] hover:bg-[#DBEFF3]/50 transition-colors"
+              className="rounded-xl border border-[#C6D4BF] bg-white px-3 py-1.5 text-xs font-semibold text-[#7A9076] hover:bg-[#E6ECE2]/50 transition-colors"
             >
               + Add Item
             </button>
@@ -489,8 +489,8 @@ function NewTransferScreen({
 
           {items.length === 0 ? (
             <div className="px-5 py-12 flex flex-col items-center justify-center text-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-[#DBEFF3]/50 flex items-center justify-center">
-                <svg className="w-6 h-6 text-[#49B0C1]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <div className="w-12 h-12 rounded-full bg-[#E6ECE2]/50 flex items-center justify-center">
+                <svg className="w-6 h-6 text-[#7A9076]" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
               </div>
@@ -498,7 +498,7 @@ function NewTransferScreen({
               <p className="text-xs text-[#999]">Add products to this transfer before creating it.</p>
               <button
                 onClick={() => setAddItemOpen(true)}
-                className="mt-1 rounded-xl bg-[#49B0C1] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3a9aaa] transition-colors"
+                className="mt-1 rounded-xl bg-[#B6C8AF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors"
               >
                 + Add Item
               </button>
@@ -507,7 +507,7 @@ function NewTransferScreen({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#DBEFF3]/50 text-left">
+                  <tr className="bg-[#E6ECE2]/50 text-left">
                     <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
                     <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
                     <th className="px-4 py-3 font-semibold text-[#333333]">Unit</th>
@@ -517,7 +517,7 @@ function NewTransferScreen({
                 </thead>
                 <tbody>
                   {items.map((item, idx) => (
-                    <tr key={item.key} className={idx % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                    <tr key={item.key} className={idx % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                       <td className="px-4 py-3 font-medium text-[#333333]">{item.productLabel ?? item.productId.slice(0, 8)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#666666]">{item.batchLabel ?? item.batchId.slice(0, 8)}</td>
                       <td className="px-4 py-3 text-[#666666]">{item.unitLabel ?? item.unitId.slice(0, 8)}</td>
@@ -540,7 +540,7 @@ function NewTransferScreen({
       </div>
 
       {/* ── Bottom actions (sticky) ─────────────────────────── */}
-      <div className="bg-white border-t border-[#DBEFF3] px-6 py-4 flex justify-end gap-3 flex-shrink-0">
+      <div className="bg-white border-t border-[#E6ECE2] px-6 py-4 flex justify-end gap-3 flex-shrink-0">
         <Button variant="secondary" onClick={onCancel}>Cancel</Button>
         <Button onClick={handleCreate} loading={creating}>Create Transfer</Button>
       </div>
@@ -706,7 +706,7 @@ function AddTransferItemModal({
           </div>
         </FieldWrap>
 
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={handleClose}>Cancel</Button>
           <Button onClick={handleAdd}>Add Item</Button>
         </div>
@@ -768,11 +768,11 @@ function TransferDetailsScreen({
   if (loading) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="px-6 pt-5 pb-4" style={{ background: "linear-gradient(135deg, #49B0C1 0%, #3a9aaa 100%)" }}>
+        <div className="px-6 pt-5 pb-4" style={{ background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)" }}>
           <p className="text-xl font-bold text-white">Loading transfer…</p>
         </div>
         <div className="flex-1 p-6 animate-pulse space-y-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-xl bg-[#DBEFF3]" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-xl bg-[#E6ECE2]" />)}
         </div>
       </div>
     )
@@ -781,7 +781,7 @@ function TransferDetailsScreen({
   if (loadError || !transfer) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="px-6 pt-5 pb-4" style={{ background: "linear-gradient(135deg, #49B0C1 0%, #3a9aaa 100%)" }}>
+        <div className="px-6 pt-5 pb-4" style={{ background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)" }}>
           <button onClick={onBack} className="text-sm text-white/80 hover:text-white">← Transfers</button>
         </div>
         <div className="flex-1 p-6">
@@ -799,7 +799,7 @@ function TransferDetailsScreen({
       {/* Header */}
       <div
         className="px-6 pt-5 pb-4"
-        style={{ background: "linear-gradient(135deg, #49B0C1 0%, #3a9aaa 100%)" }}
+        style={{ background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)" }}
       >
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-white/80 hover:text-white transition-colors mb-3">
           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -821,11 +821,11 @@ function TransferDetailsScreen({
         )}
 
         {/* Section 1: Transfer Information */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Transfer Information</p>
             {!isReadOnly && (
-              <button onClick={() => setEditTransferOpen(true)} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+              <button onClick={() => setEditTransferOpen(true)} className="text-xs font-semibold text-[#7A9076] hover:underline">
                 Edit Transfer
               </button>
             )}
@@ -846,13 +846,13 @@ function TransferDetailsScreen({
         </div>
 
         {/* Section 2: Transfer Items */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
-              Transfer Items <span className="text-[#49B0C1] ml-1">({transfer.items?.length ?? 0})</span>
+              Transfer Items <span className="text-[#7A9076] ml-1">({transfer.items?.length ?? 0})</span>
             </p>
             {!isReadOnly && (
-              <button onClick={() => setAddItemOpen(true)} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+              <button onClick={() => setAddItemOpen(true)} className="text-xs font-semibold text-[#7A9076] hover:underline">
                 + Add Item
               </button>
             )}
@@ -863,7 +863,7 @@ function TransferDetailsScreen({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#DBEFF3]/50 text-left">
+                  <tr className="bg-[#E6ECE2]/50 text-left">
                     <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
                     <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
                     <th className="px-4 py-3 font-semibold text-[#333333]">Unit</th>
@@ -873,7 +873,7 @@ function TransferDetailsScreen({
                 </thead>
                 <tbody>
                   {transfer.items.map((item, idx) => (
-                    <tr key={item.id} className={idx % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                    <tr key={item.id} className={idx % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                       <td className="px-4 py-3 font-medium text-[#333333]">{itemName(item)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#666666]">{itemBatch(item)}</td>
                       <td className="px-4 py-3 text-[#666666]">{itemUnit(item) || "—"}</td>
@@ -881,7 +881,7 @@ function TransferDetailsScreen({
                       {!isReadOnly && (
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <button onClick={() => setEditItem(item)} className="text-xs font-semibold text-[#49B0C1] hover:underline">Edit</button>
+                            <button onClick={() => setEditItem(item)} className="text-xs font-semibold text-[#7A9076] hover:underline">Edit</button>
                             <button onClick={() => setDeleteItem(item)} className="text-xs font-semibold text-red-500 hover:underline">Delete</button>
                           </div>
                         </td>
@@ -896,7 +896,7 @@ function TransferDetailsScreen({
 
         {/* Section 3: Transfer Actions */}
         {!isReadOnly && (
-          <div className="bg-white rounded-xl border border-[#DBEFF3] px-5 py-4 flex items-center justify-between flex-wrap gap-3">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] px-5 py-4 flex items-center justify-between flex-wrap gap-3">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Transfer Actions</p>
             <div className="flex gap-3">
               <button
@@ -909,7 +909,7 @@ function TransferDetailsScreen({
               <button
                 onClick={() => setCompleteConfirmOpen(true)}
                 disabled={actionBusy || (transfer.items?.length ?? 0) === 0}
-                className="rounded-xl bg-[#49B0C1] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3a9aaa] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-xl bg-[#B6C8AF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Complete Transfer
               </button>
@@ -994,7 +994,7 @@ function TransferDetailsScreen({
         message={`This will complete the stock transfer from ${nameOf(transfer.fromLocation, "the source")} to ${nameOf(transfer.toLocation, "the destination")}.`}
         detail={`${transfer.items?.length ?? 0} item${(transfer.items?.length ?? 0) !== 1 ? "s" : ""} will be transferred.`}
         confirmLabel="Complete Transfer"
-        confirmClass="bg-[#49B0C1] hover:bg-[#3a9aaa] text-white"
+        confirmClass="bg-[#B6C8AF] hover:bg-[#A5B89E] text-[#333333]"
         onClose={() => setCompleteConfirmOpen(false)}
         onConfirm={async () => {
           setCompleteConfirmOpen(false)
@@ -1038,7 +1038,7 @@ function EditTransferModal({
     <Modal open={open} title="Edit Transfer" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-        <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 text-xs text-[#666666]">
+        <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 text-xs text-[#666666]">
           Only the date and reason can be edited — source/destination locations
           and items are managed on their own.
         </div>
@@ -1048,7 +1048,7 @@ function EditTransferModal({
         <FieldWrap label="Reason">
           <input value={reason} onChange={(e) => setReason(e.target.value)} className={SELECT_CLS} placeholder="Transfer reason..." />
         </FieldWrap>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} loading={saving}>Save Changes</Button>
         </div>
@@ -1170,7 +1170,7 @@ function AddItemToExistingModal({
             })()}
           </div>
         </FieldWrap>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleAdd} loading={submitting}>Add Item</Button>
         </div>
@@ -1202,7 +1202,7 @@ function EditItemModal({
     <Modal open title="Edit Transfer Item" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-        <div className="rounded-xl bg-[#DBEFF3]/50 px-4 py-3 grid grid-cols-3 gap-3 text-xs">
+        <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 grid grid-cols-3 gap-3 text-xs">
           <div>
             <p className="text-[#999] mb-0.5">Product</p>
             <p className="font-semibold text-[#333333]">{itemName(item)}</p>
@@ -1219,7 +1219,7 @@ function EditItemModal({
         <FieldWrap label="Quantity *">
           <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} className={SELECT_CLS} placeholder="0" />
         </FieldWrap>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave}>Save Changes</Button>
         </div>
@@ -1246,7 +1246,7 @@ function ConfirmModal({
     <Modal open={open} title={title} onClose={onClose} size="sm">
       <p className="text-sm text-[#666666]">{message}</p>
       {detail && (
-        <p className="mt-3 rounded-lg bg-[#DBEFF3]/60 px-4 py-2.5 text-sm font-semibold text-[#333333]">{detail}</p>
+        <p className="mt-3 rounded-lg bg-[#E6ECE2]/60 px-4 py-2.5 text-sm font-semibold text-[#333333]">{detail}</p>
       )}
       <div className="flex gap-3 justify-end mt-6">
         <Button variant="secondary" onClick={onClose}>Go Back</Button>
@@ -1260,7 +1260,7 @@ function ConfirmModal({
 
 // ─── Shared micro-components ──────────────────────────────────────────────────
 
-const SELECT_CLS = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
+const SELECT_CLS = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
 
 function FieldWrap({ label, children }: { label: string; children: React.ReactNode }) {
   return (

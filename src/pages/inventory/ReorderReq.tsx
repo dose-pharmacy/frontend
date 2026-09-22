@@ -86,11 +86,11 @@ export default function GenerateRequirementsModal({
       onClick={handleClose}
     >
       <div
-        className="w-full max-w-lg bg-white rounded-xl border border-[#ABDBE3] shadow-lg flex flex-col max-h-[90vh]"
+        className="w-full max-w-lg bg-white rounded-xl border border-[#C6D4BF] shadow-lg flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-[#DBEFF3]">
+        <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-[#E6ECE2]">
           <h2 className="text-base font-bold text-[#333333]">
             {view === "confirm" ? "Generate Purchase Requirements" : "Purchase Requirements Generated"}
           </h2>
@@ -119,9 +119,9 @@ export default function GenerateRequirementsModal({
               <p className="text-sm font-semibold text-[#333333]">
                 {suggestions.length} product{suggestions.length === 1 ? "" : "s"} need replenishment.
               </p>
-              <div className="rounded-lg border border-[#ABDBE3] overflow-hidden">
+              <div className="rounded-lg border border-[#C6D4BF] overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-[#DBEFF3]">
+                  <thead className="bg-[#E6ECE2]">
                     <tr>
                       <th className="text-left font-semibold text-[#333333] px-4 py-2.5">Product</th>
                       <th className="text-right font-semibold text-[#333333] px-4 py-2.5">Suggested Qty</th>
@@ -137,11 +137,11 @@ export default function GenerateRequirementsModal({
                       </tr>
                     ) : (
                       suggestions.map((item) => (
-                        <tr key={item.id} className="border-t border-[#DBEFF3]">
+                        <tr key={item.id} className="border-t border-[#E6ECE2]">
                           <td className="px-4 py-2.5 text-[#333333]">{item.name}</td>
                           <td className="px-4 py-2.5 text-right text-[#333333]">{item.suggestedQty}</td>
                           <td className="px-4 py-2.5 text-right">
-                            <span className="inline-block rounded-full bg-[#DBEFF3] px-2.5 py-0.5 text-xs font-medium text-[#49B0C1]">
+                            <span className="inline-block rounded-full bg-[#E6ECE2] px-2.5 py-0.5 text-xs font-medium text-[#7A9076]">
                               {item.status}
                             </span>
                           </td>
@@ -161,10 +161,10 @@ export default function GenerateRequirementsModal({
                 <p className="text-sm font-semibold text-[#333333]">
                   {result.requirements.length} purchase requirement{result.requirements.length === 1 ? "" : "s"} created.
                 </p>
-                <div className="rounded-lg border border-[#ABDBE3] overflow-hidden">
+                <div className="rounded-lg border border-[#C6D4BF] overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-[#DBEFF3]">
+                      <thead className="bg-[#E6ECE2]">
                         <tr>
                           <th className="text-left font-semibold text-[#333333] px-3 py-2.5">Product</th>
                           <th className="text-left font-semibold text-[#333333] px-3 py-2.5">SKU</th>
@@ -177,7 +177,7 @@ export default function GenerateRequirementsModal({
                       </thead>
                       <tbody>
                         {result.requirements.map((r) => (
-                          <tr key={r.productId} className="border-t border-[#DBEFF3]">
+                          <tr key={r.productId} className="border-t border-[#E6ECE2]">
                             <td className="px-3 py-2.5 text-[#333333]">{r.productName}</td>
                             <td className="px-3 py-2.5 font-mono text-xs text-[#666666]">{r.productSku}</td>
                             <td className="px-3 py-2.5 text-right text-[#333333]">{r.suggestedQuantity}</td>
@@ -185,7 +185,7 @@ export default function GenerateRequirementsModal({
                             <td className="px-3 py-2.5 text-right text-[#333333]">{r.reorderPoint}</td>
                             <td className="px-3 py-2.5 text-right text-[#333333]">{r.leadTimeDays} days</td>
                             <td className="px-3 py-2.5">
-                              <span className="inline-block rounded-full bg-[#DBEFF3] px-2.5 py-0.5 text-xs font-medium text-[#49B0C1]">
+                              <span className="inline-block rounded-full bg-[#E6ECE2] px-2.5 py-0.5 text-xs font-medium text-[#7A9076]">
                                 {r.status}
                               </span>
                             </td>
@@ -202,7 +202,7 @@ export default function GenerateRequirementsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#DBEFF3]">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#E6ECE2]">
           {view === "confirm" ? (
             <>
               <Button variant="secondary" onClick={handleClose}>Cancel</Button>

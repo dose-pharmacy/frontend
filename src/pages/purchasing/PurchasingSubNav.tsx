@@ -10,7 +10,7 @@ const SUB_LINKS = [
 
 export default function PurchasingSubNav() {
   return (
-    <nav className="bg-white border-b border-[#DBEFF3] px-4 sm:px-6 flex items-center gap-1 overflow-x-auto" aria-label="Purchasing sub-navigation">
+    <nav className="bg-white border-b border-[#E6ECE2] px-4 sm:px-6 flex items-center gap-1 overflow-x-auto" aria-label="Purchasing sub-navigation">
       {SUB_LINKS.map(({ to, label, end }) => (
         <NavLink
           key={to}
@@ -19,8 +19,8 @@ export default function PurchasingSubNav() {
           className={({ isActive }) =>
             `px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
               isActive
-                ? "border-[#49B0C1] text-[#49B0C1]"
-                : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#ABDBE3]"
+                ? "border-[#B6C8AF] text-[#7A9076]"
+                : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#C6D4BF]"
             }`
           }
         >

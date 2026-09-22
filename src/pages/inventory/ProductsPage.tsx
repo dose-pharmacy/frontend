@@ -95,8 +95,8 @@ function ToggleSwitch({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#49B0C1] focus:ring-offset-2 ${
-          checked ? "bg-[#49B0C1]" : "bg-gray-300"
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
+          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
         }`}
       >
         <span
@@ -422,7 +422,7 @@ export default function ProductsPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <SearchInput
@@ -467,7 +467,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {loading ? (
             <LoadingSkeleton />
           ) : filtered.length === 0 ? (
@@ -480,7 +480,7 @@ export default function ProductsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       <th className="px-4 py-3 font-semibold text-[#333333]">
                         Product
                       </th>
@@ -512,7 +512,7 @@ export default function ProductsPage() {
                       <tr
                         key={product.id}
                         className={
-                          i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"
+                          i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
                         }
                       >
                         <td className="px-4 py-3">
@@ -556,7 +556,7 @@ export default function ProductsPage() {
                             onClick={() =>
                               navigate(`/inventory/products/${product.id}`)
                             }
-                            className="text-xs font-semibold text-[#49B0C1] hover:underline"
+                            className="text-xs font-semibold text-[#7A9076] hover:underline"
                           >
                             View
                           </button>
@@ -567,7 +567,7 @@ export default function ProductsPage() {
                 </table>
               </div>
 
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
                   Showing {filtered.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}
                   –
@@ -619,7 +619,7 @@ export default function ProductsPage() {
                     setForm((f) => ({ ...f, name: e.target.value }))
                   }
                   placeholder="e.g. Amoxicillin 500mg"
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
                 {fieldErrors.name && (
                   <p className="text-xs text-red-600">{fieldErrors.name}</p>
@@ -637,7 +637,7 @@ export default function ProductsPage() {
                     setForm((f) => ({ ...f, genericName: e.target.value }))
                   }
                   placeholder="e.g. Amoxicillin"
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
               </div>
 
@@ -652,7 +652,7 @@ export default function ProductsPage() {
                     setForm((f) => ({ ...f, brand: e.target.value }))
                   }
                   placeholder="e.g. Example"
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
               </div>
 
@@ -667,7 +667,7 @@ export default function ProductsPage() {
                     setForm((f) => ({ ...f, sku: e.target.value }))
                   }
                   placeholder="e.g. AMOX-500-002"
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm font-mono text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm font-mono text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
                 {fieldErrors.sku && (
                   <p className="text-xs text-red-600">{fieldErrors.sku}</p>
@@ -712,7 +712,7 @@ export default function ProductsPage() {
                 }
                 rows={3}
                 placeholder="Amoxicillin 500mg capsules"
-                className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20 resize-none"
+                className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 resize-none"
               />
             </div>
           </section>
@@ -735,7 +735,7 @@ export default function ProductsPage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, minimumStock: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
                 {fieldErrors.minimumStock && (
                   <p className="text-xs text-red-600">
@@ -755,7 +755,7 @@ export default function ProductsPage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, reorderPoint: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
                 {fieldErrors.reorderPoint && (
                   <p className="text-xs text-red-600">
@@ -778,11 +778,11 @@ export default function ProductsPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+            <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3]">
+                    <tr className="bg-[#E6ECE2]">
                       {[
                         "Base",
                         "Unit",
@@ -811,7 +811,7 @@ export default function ProductsPage() {
                         <tr
                           key={idx}
                           className={
-                            idx % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"
+                            idx % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
                           }
                         >
                           <td className="px-3 py-2.5">
@@ -820,7 +820,7 @@ export default function ProductsPage() {
                               name="createBaseUnit"
                               checked={row.isBaseUnit}
                               onChange={() => setBaseRow(idx)}
-                              className="h-4 w-4 accent-[#49B0C1] cursor-pointer"
+                              className="h-4 w-4 accent-[#B6C8AF] cursor-pointer"
                             />
                           </td>
 
@@ -830,7 +830,7 @@ export default function ProductsPage() {
                               onChange={(e) =>
                                 updateRow(idx, { unitId: e.target.value })
                               }
-                              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
                             >
                               <option value="">— Select —</option>
                               {units
@@ -865,8 +865,8 @@ export default function ProductsPage() {
                               }
                               className={`w-24 rounded-lg border px-2 py-1.5 text-sm focus:outline-none ${
                                 row.isBaseUnit
-                                  ? "border-[#DBEFF3] bg-[#F5F9FA] text-[#666666] cursor-not-allowed"
-                                  : "border-[#ABDBE3] bg-white focus:border-[#49B0C1]"
+                                  ? "border-[#E6ECE2] bg-[#FAF9F4] text-[#666666] cursor-not-allowed"
+                                  : "border-[#C6D4BF] bg-white focus:border-[#B6C8AF]"
                               }`}
                             />
                             {fieldErrors[`u${idx}.conversionFactor`] && (
@@ -887,7 +887,7 @@ export default function ProductsPage() {
                                   sellPrice: e.target.value,
                                 })
                               }
-                              className="w-24 rounded-lg border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                              className="w-24 rounded-lg border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
                             />
                             {fieldErrors[`u${idx}.sellPrice`] && (
                               <p className="text-xs text-red-600 mt-1">
@@ -907,7 +907,7 @@ export default function ProductsPage() {
                                   purchasePrice: e.target.value,
                                 })
                               }
-                              className="w-24 rounded-lg border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                              className="w-24 rounded-lg border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
                             />
                             {fieldErrors[`u${idx}.purchasePrice`] && (
                               <p className="text-xs text-red-600 mt-1">
@@ -955,7 +955,7 @@ export default function ProductsPage() {
             </div>
 
             {pricingSummary && (
-              <div className="rounded-xl bg-[#DBEFF3] px-4 py-3 flex gap-2 items-start">
+              <div className="rounded-xl bg-[#E6ECE2] px-4 py-3 flex gap-2 items-start">
                 <span className="text-base leading-none">💡</span>
                 <p className="text-xs text-[#333333]">
                   <span className="font-semibold">
@@ -984,7 +984,7 @@ export default function ProductsPage() {
           </section>
 
           {/* Footer */}
-          <div className="flex gap-3 justify-end pt-2 border-t border-[#DBEFF3]">
+          <div className="flex gap-3 justify-end pt-2 border-t border-[#E6ECE2]">
             <Button
               variant="secondary"
               onClick={closeCreate}
@@ -1025,7 +1025,7 @@ function LoadingSkeleton() {
   return (
     <div className="p-6 space-y-3 animate-pulse">
       {[...Array(6)].map((_, i) => (
-        <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />
+        <div key={i} className="h-10 rounded-lg bg-[#E6ECE2]" />
       ))}
     </div>
   );

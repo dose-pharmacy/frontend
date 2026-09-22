@@ -50,8 +50,8 @@ function ToggleSwitch({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#49B0C1] focus:ring-offset-2 ${
-          checked ? "bg-[#49B0C1]" : "bg-gray-300"
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
+          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
         }`}
       >
         <span
@@ -94,7 +94,7 @@ function Modal({
         aria-hidden
       />
       <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#DBEFF3]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E6ECE2]">
           <h2 className="text-lg font-bold text-[#333333]">{title}</h2>
           <button
             onClick={onClose}
@@ -106,7 +106,7 @@ function Modal({
         </div>
         <div className="px-6 py-5 overflow-y-auto">{children}</div>
         {footer && (
-          <div className="px-6 py-4 border-t border-[#DBEFF3] flex justify-end gap-3">
+          <div className="px-6 py-4 border-t border-[#E6ECE2] flex justify-end gap-3">
             {footer}
           </div>
         )}
@@ -136,7 +136,7 @@ function UnitForm({
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           placeholder="e.g. Kilogram"
-          className="w-full rounded-lg border border-[#DBEFF3] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#49B0C1]"
+          className="w-full rounded-lg border border-[#E6ECE2] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
         />
       </div>
 
@@ -149,7 +149,7 @@ function UnitForm({
           value={form.symbol}
           onChange={(e) => setForm({ ...form, symbol: e.target.value })}
           placeholder="e.g. kg"
-          className="w-full rounded-lg border border-[#DBEFF3] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#49B0C1]"
+          className="w-full rounded-lg border border-[#E6ECE2] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
         />
       </div>
 
@@ -162,7 +162,7 @@ function UnitForm({
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           placeholder="Optional description for this unit..."
           rows={3}
-          className="w-full rounded-lg border border-[#DBEFF3] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#49B0C1] resize-none"
+          className="w-full rounded-lg border border-[#E6ECE2] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] resize-none"
         />
       </div>
 
@@ -364,7 +364,7 @@ export default function UnitConfigPage() {
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
         {/* Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
             <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
               Total Units
             </p>
@@ -372,7 +372,7 @@ export default function UnitConfigPage() {
               {loading ? "—" : units.length}
             </p>
           </div>
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
             <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
               Active
             </p>
@@ -380,7 +380,7 @@ export default function UnitConfigPage() {
               {loading ? "—" : active.length}
             </p>
           </div>
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
             <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
               Inactive
             </p>
@@ -405,9 +405,9 @@ export default function UnitConfigPage() {
         )}
 
         {/* Units Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {/* Toolbar: search + view-all toggle */}
-          <div className="px-4 py-3 border-b border-[#DBEFF3] flex flex-wrap items-center justify-between gap-3">
+          <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666666]"
@@ -425,7 +425,7 @@ export default function UnitConfigPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name or symbol…"
-                className="w-full rounded-lg border border-[#DBEFF3] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#49B0C1]"
+                className="w-full rounded-lg border border-[#E6ECE2] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
               />
               {search && (
                 <button
@@ -451,7 +451,7 @@ export default function UnitConfigPage() {
                   <button
                     type="button"
                     onClick={() => setShowAll((v) => !v)}
-                    className="text-xs font-semibold text-[#49B0C1] hover:underline flex items-center gap-1"
+                    className="text-xs font-semibold text-[#7A9076] hover:underline flex items-center gap-1"
                   >
                     {showAll ? (
                       <>
@@ -495,7 +495,7 @@ export default function UnitConfigPage() {
           {loading ? (
             <div className="p-6 space-y-3 animate-pulse">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />
+                <div key={i} className="h-10 rounded-lg bg-[#E6ECE2]" />
               ))}
             </div>
           ) : units.length === 0 ? (
@@ -526,10 +526,10 @@ export default function UnitConfigPage() {
                 <table className="w-full text-sm">
                   <thead
                     className={
-                      showAll ? "sticky top-0 z-10 bg-[#DBEFF3]" : ""
+                      showAll ? "sticky top-0 z-10 bg-[#E6ECE2]" : ""
                     }
                   >
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       <th className="px-4 py-3 font-semibold text-[#333333]">
                         Unit Name
                       </th>
@@ -552,8 +552,8 @@ export default function UnitConfigPage() {
                       <tr
                         key={u.id}
                         onClick={() => openDetail(u)}
-                        className={`cursor-pointer transition-colors hover:bg-[#DBEFF3]/60 ${
-                          i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"
+                        className={`cursor-pointer transition-colors hover:bg-[#E6ECE2]/60 ${
+                          i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
                         }`}
                       >
                         <td className="px-4 py-3 font-semibold text-[#333333]">
@@ -584,7 +584,7 @@ export default function UnitConfigPage() {
                           <button
                             onClick={() => openEdit(u)}
                             disabled={togglingId === u.id}
-                            className="text-xs font-semibold text-[#49B0C1] hover:underline mr-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="text-xs font-semibold text-[#7A9076] hover:underline mr-3 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Edit
                           </button>
@@ -608,7 +608,7 @@ export default function UnitConfigPage() {
 
               {/* Footer strip when preview mode has hidden rows */}
               {!showAll && hasMore && (
-                <div className="px-4 py-3 border-t border-[#DBEFF3] bg-[#DBEFF3]/20 flex items-center justify-between">
+                <div className="px-4 py-3 border-t border-[#E6ECE2] bg-[#E6ECE2]/20 flex items-center justify-between">
                   <span className="text-xs text-[#666666]">
                     {units.length - visibleUnits.length} more unit
                     {units.length - visibleUnits.length !== 1 ? "s" : ""} not
@@ -617,7 +617,7 @@ export default function UnitConfigPage() {
                   <button
                     type="button"
                     onClick={() => setShowAll(true)}
-                    className="text-xs font-semibold text-[#49B0C1] hover:underline"
+                    className="text-xs font-semibold text-[#7A9076] hover:underline"
                   >
                     View All →
                   </button>
@@ -628,9 +628,9 @@ export default function UnitConfigPage() {
         </div>
 
         {/* Info note */}
-        <div className="rounded-xl bg-[#DBEFF3] px-5 py-4 flex gap-3 items-start">
+        <div className="rounded-xl bg-[#E6ECE2] px-5 py-4 flex gap-3 items-start">
           <svg
-            className="h-5 w-5 text-[#49B0C1] mt-0.5 flex-shrink-0"
+            className="h-5 w-5 text-[#7A9076] mt-0.5 flex-shrink-0"
             viewBox="0 0 20 20"
             fill="currentColor"
             aria-hidden
@@ -745,7 +745,7 @@ export default function UnitConfigPage() {
         {detailUnit && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-[#DBEFF3] flex items-center justify-center font-mono font-bold text-[#49B0C1]">
+              <div className="h-12 w-12 rounded-full bg-[#E6ECE2] flex items-center justify-center font-mono font-bold text-[#7A9076]">
                 {detailUnit.symbol}
               </div>
               <div>

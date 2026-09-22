@@ -24,7 +24,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="bg-white rounded-xl border border-[#DBEFF3] p-6">
+    <div className="bg-white rounded-xl border border-[#E6ECE2] p-6">
       <div className="flex flex-col items-center justify-center py-6 gap-4">
         <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{message}</p>
         <Button onClick={onRetry}>Retry</Button>
@@ -37,7 +37,7 @@ function PanelSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="px-5 py-4 flex flex-col gap-3">
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="h-14 rounded-lg bg-[#DBEFF3]/50 animate-pulse" />
+        <div key={i} className="h-14 rounded-lg bg-[#E6ECE2]/50 animate-pulse" />
       ))}
     </div>
   );
@@ -59,17 +59,17 @@ function PanelHeader({
   viewAllLabel?: string;
 }) {
   return (
-    <div className="px-5 py-4 border-b border-[#DBEFF3] flex items-center justify-between gap-2">
+    <div className="px-5 py-4 border-b border-[#E6ECE2] flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-bold text-[#333333]">{title}</h3>
         {typeof count === "number" && count > 0 && (
-          <span className="rounded-full bg-[#DBEFF3] px-2 py-0.5 text-[11px] font-bold text-[#49B0C1]">
+          <span className="rounded-full bg-[#E6ECE2] px-2 py-0.5 text-[11px] font-bold text-[#7A9076]">
             {count}
           </span>
         )}
       </div>
       {viewAllTo && (
-        <Link to={viewAllTo} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">
+        <Link to={viewAllTo} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
           {viewAllLabel}
         </Link>
       )}
@@ -78,13 +78,13 @@ function PanelHeader({
 }
 
 const rowClass =
-  "w-full text-left px-5 py-3.5 hover:bg-[#DBEFF3]/30 transition-colors border-b border-[#DBEFF3] last:border-b-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#49B0C1]";
+  "w-full text-left px-5 py-3.5 hover:bg-[#E6ECE2]/30 transition-colors border-b border-[#E6ECE2] last:border-b-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#B6C8AF]";
 
 // ── Recent activity ──────────────────────────────────────────────────────────
 
 const ACTIVITY_DOT: Record<string, string> = {
   SALE_COMPLETED: "bg-green-500",
-  GOODS_RECEIVED: "bg-[#49B0C1]",
+  GOODS_RECEIVED: "bg-[#B6C8AF]",
   PURCHASE_ORDER_CREATED: "bg-blue-500",
 };
 
@@ -92,7 +92,7 @@ function ActivityRow({ item, index }: { item: RecentActivityItem; index: number 
   const dot = ACTIVITY_DOT[item.type] ?? "bg-gray-400";
   return (
     <li
-      className={`flex items-center gap-3 px-5 py-3.5 ${index % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}
+      className={`flex items-center gap-3 px-5 py-3.5 ${index % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`}
       title={fmtDateTime(item.createdAt)}
     >
       <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${dot}`} aria-hidden />
@@ -213,9 +213,9 @@ export default function DashboardPage() {
           {summaryLoading ? (
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
               {Array.from({ length: 4 }, (_, i) => (
-                <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
-                  <div className="h-3 w-20 rounded bg-[#DBEFF3]/60 animate-pulse" />
-                  <div className="h-8 w-28 rounded bg-[#DBEFF3]/40 animate-pulse mt-3" />
+                <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+                  <div className="h-3 w-20 rounded bg-[#E6ECE2]/60 animate-pulse" />
+                  <div className="h-8 w-28 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
                 </div>
               ))}
             </div>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
               {snapshotMetrics.map((m) => (
-                <div key={m.label} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+                <div key={m.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                   <p className="text-xs font-medium text-[#666666]">{m.label}</p>
                   <p className="text-2xl font-bold text-[#333333] mt-1 leading-tight">{m.value}</p>
                 </div>
@@ -250,9 +250,9 @@ export default function DashboardPage() {
           {attentionLoading ? (
             <div className="grid md:grid-cols-2 gap-4">
               {Array.from({ length: 4 }, (_, i) => (
-                <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-                  <div className="px-5 py-4 border-b border-[#DBEFF3]">
-                    <div className="h-3 w-24 rounded bg-[#DBEFF3]/60 animate-pulse" />
+                <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-[#E6ECE2]">
+                    <div className="h-3 w-24 rounded bg-[#E6ECE2]/60 animate-pulse" />
                   </div>
                   <PanelSkeleton rows={3} />
                 </div>
@@ -263,10 +263,10 @@ export default function DashboardPage() {
           ) : (
             <div className="grid md:grid-cols-2 gap-4">
               {/* Low Stock */}
-              <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
                 <PanelHeader title="Low Stock" count={attentionCounts.lowStock} viewAllTo="/inventory/stock" />
                 {attention && attention.lowStock.length > 0 ? (
-                  <div className="divide-y divide-[#DBEFF3]">
+                  <div className="divide-y divide-[#E6ECE2]">
                     {attention.lowStock.map((item) => (
                       <button
                         key={item.productId}
@@ -295,10 +295,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Expiring Soon */}
-              <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
                 <PanelHeader title="Expiring Soon" count={attentionCounts.expiring} viewAllTo="/inventory/batches-expiry" />
                 {attention && attention.expiringSoon.length > 0 ? (
-                  <div className="divide-y divide-[#DBEFF3]">
+                  <div className="divide-y divide-[#E6ECE2]">
                     {attention.expiringSoon.map((item) => (
                       <button
                         key={item.batchId}
@@ -325,10 +325,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Awaiting Delivery */}
-              <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
                 <PanelHeader title="Awaiting Delivery" count={attentionCounts.awaiting} viewAllTo="/purchasing/deliveries" />
                 {attention && attention.awaitingDelivery.length > 0 ? (
-                  <div className="divide-y divide-[#DBEFF3]">
+                  <div className="divide-y divide-[#E6ECE2]">
                     {attention.awaitingDelivery.map((item) => (
                       <button
                         key={item.purchaseOrderId}
@@ -338,7 +338,7 @@ export default function DashboardPage() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[#49B0C1]">{item.poNumber}</p>
+                            <p className="text-sm font-semibold text-[#7A9076]">{item.poNumber}</p>
                             <p className="text-xs text-[#666666] truncate">{item.supplierName}</p>
                           </div>
                           <p className="text-xs text-[#666666] whitespace-nowrap">
@@ -354,10 +354,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Outstanding Invoices */}
-              <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
                 <PanelHeader title="Outstanding Invoices" count={attentionCounts.invoices} viewAllTo="/purchasing/invoices" />
                 {attention && attention.outstandingInvoices.length > 0 ? (
-                  <div className="divide-y divide-[#DBEFF3]">
+                  <div className="divide-y divide-[#E6ECE2]">
                     {attention.outstandingInvoices.map((item) => (
                       <button
                         key={item.invoiceId}
@@ -367,7 +367,7 @@ export default function DashboardPage() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[#49B0C1]">{item.invoiceNumber}</p>
+                            <p className="text-sm font-semibold text-[#7A9076]">{item.invoiceNumber}</p>
                             <p className="text-xs text-[#666666] truncate">{item.supplierName}</p>
                           </div>
                           <div className="text-right whitespace-nowrap">
@@ -389,7 +389,7 @@ export default function DashboardPage() {
         {/* Level 3 — Recent Activity */}
         <section aria-label="Recent activity" className="flex flex-col gap-3">
           <SectionLabel>Recent Activity</SectionLabel>
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
             {recentLoading ? (
               <PanelSkeleton rows={5} />
             ) : recentError ? (
@@ -402,7 +402,7 @@ export default function DashboardPage() {
             ) : recent.length === 0 ? (
               <CompactEmpty text="No recent activity" />
             ) : (
-              <ul className="divide-y divide-[#DBEFF3]">
+              <ul className="divide-y divide-[#E6ECE2]">
                 {recent.map((item, i) => (
                   <ActivityRow key={`${item.type}-${item.reference}-${i}`} item={item} index={i} />
                 ))}
@@ -419,7 +419,7 @@ export default function DashboardPage() {
               <button
                 key={a.label}
                 onClick={() => navigate(a.to)}
-                className="bg-white rounded-xl border border-[#DBEFF3] px-5 py-4 text-left transition-colors hover:bg-[#DBEFF3]/40 hover:border-[#ABDBE3] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#49B0C1]"
+                className="bg-white rounded-xl border border-[#E6ECE2] px-5 py-4 text-left transition-colors hover:bg-[#E6ECE2]/40 hover:border-[#C6D4BF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#B6C8AF]"
               >
                 <p className="text-sm font-bold text-[#333333]">{a.label}</p>
                 <p className="text-xs text-[#666666] mt-1">{a.caption}</p>

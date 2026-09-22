@@ -4,7 +4,7 @@ export default function AuthLayout() {
   return (
     <div className="min-h-full bg-white flex">
       {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-[#49B0C1] px-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-[#4F6B4A] px-12 relative overflow-hidden">
         {/* decorative circles */}
         <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-white/10" />
         <div className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full bg-white/10" />
@@ -12,8 +12,8 @@ export default function AuthLayout() {
 
         <div className="relative z-10 text-center text-white">
           {/* logo mark */}
-          <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm shadow-lg">
-            <svg className="h-11 w-11 text-white" viewBox="0 0 48 48" fill="none" aria-hidden>
+          <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-[#B6C8AF] shadow-lg">
+            <svg className="h-11 w-11 text-[#4F6B4A]" viewBox="0 0 48 48" fill="none" aria-hidden>
               <rect x="20" y="4" width="8" height="40" rx="4" fill="currentColor"/>
               <rect x="4" y="20" width="40" height="8" rx="4" fill="currentColor"/>
             </svg>
@@ -44,8 +44,8 @@ export default function AuthLayout() {
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 sm:px-12">
         {/* mobile logo */}
         <div className="mb-8 flex flex-col items-center lg:hidden">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-[#49B0C1] shadow">
-            <svg className="h-8 w-8 text-white" viewBox="0 0 48 48" fill="none" aria-hidden>
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-[#B6C8AF] shadow">
+            <svg className="h-8 w-8 text-[#4F6B4A]" viewBox="0 0 48 48" fill="none" aria-hidden>
               <rect x="20" y="4" width="8" height="40" rx="4" fill="currentColor"/>
               <rect x="4" y="20" width="40" height="8" rx="4" fill="currentColor"/>
             </svg>

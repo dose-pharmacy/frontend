@@ -42,20 +42,20 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
         {/* Header */}
-        <div className="bg-[#49B0C1] px-6 py-4 flex items-center justify-between">
-          <h2 id="disc-title" className="text-lg font-bold text-white">Apply Discount</h2>
+        <div className="bg-[#E6ECE2] px-6 py-4 flex items-center justify-between border-b border-[#C6D4BF]">
+          <h2 id="disc-title" className="text-lg font-bold text-[#333333]">Apply Discount</h2>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-white/80">{fmt(total)}</span>
-            <button onClick={onClose} className="text-white/80 hover:text-white" aria-label="Close"><svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg></button>
+            <span className="text-sm text-[#666666]">{fmt(total)}</span>
+            <button onClick={onClose} className="text-[#666666] hover:text-[#333333]" aria-label="Close"><svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg></button>
           </div>
         </div>
 
         <div className="p-6 flex flex-col gap-5">
           {/* Discount type */}
-          <div className="bg-[#DBEFF3] rounded-xl p-4 flex gap-6">
+          <div className="bg-[#E6ECE2] rounded-xl p-4 flex gap-6">
             {(["bill", "item"] as const).map((t) => (
               <label key={t} className="flex items-start gap-3 cursor-pointer">
-                <input type="radio" name="dtype" value={t} checked={type === t} onChange={() => setType(t)} className="mt-0.5 accent-[#49B0C1]" />
+                <input type="radio" name="dtype" value={t} checked={type === t} onChange={() => setType(t)} className="mt-0.5 accent-[#B6C8AF]" />
                 <div>
                   <p className="text-sm font-semibold text-[#333333] capitalize">{t} Discount</p>
                   <p className="text-xs text-[#666666]">{t === "bill" ? "Apply to entire bill" : "Apply to selected item"}</p>
@@ -76,7 +76,7 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
                   value={pct}
                   onChange={(e) => { setPct(e.target.value); setAmount(""); setError(null); }}
                   placeholder="0"
-                  className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2.5 pr-8 text-sm focus:border-[#49B0C1] focus:outline-none"
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2.5 pr-8 text-sm focus:border-[#B6C8AF] focus:outline-none"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#666666]">%</span>
               </div>
@@ -89,7 +89,7 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
                 value={amount}
                 onChange={(e) => { setAmount(e.target.value); setPct(""); setError(null); }}
                 placeholder="0.00"
-                className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
               />
             </div>
           </div>
@@ -106,12 +106,12 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g., Customer bulk purchase, Expiry clearance..."
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none"
             />
           </div>
 
           {/* Authorization note */}
-          <div className="bg-[#DBEFF3] rounded-lg px-4 py-2.5 flex items-center gap-2 text-sm text-[#333333]">
+          <div className="bg-[#E6ECE2] rounded-lg px-4 py-2.5 flex items-center gap-2 text-sm text-[#333333]">
             <span>👤</span> Authorized By: {useCurrentUser()}
           </div>
 
@@ -135,7 +135,7 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
 
           {/* Results preview */}
           {savings > 0 && (
-            <div className="flex items-center justify-between rounded-xl bg-[#DBEFF3] px-4 py-3">
+            <div className="flex items-center justify-between rounded-xl bg-[#E6ECE2] px-4 py-3">
               <div>
                 <p className="text-xs text-[#666666]">Discounted Total</p>
                 <p className="text-xl font-bold text-green-600">{fmt(discountedTotal)}</p>
@@ -146,12 +146,12 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
         </div>
 
         {/* Footer */}
-        <div className="border-t border-[#DBEFF3] px-6 py-4 flex gap-3 justify-end bg-white">
+        <div className="border-t border-[#E6ECE2] px-6 py-4 flex gap-3 justify-end bg-white">
           <button onClick={onClose} className="rounded-lg px-6 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">Cancel</button>
           <button
             onClick={handleApply}
             disabled={exceedsLimit || pctNum < 0}
-            className="rounded-lg px-8 py-2.5 text-sm font-bold text-white bg-[#49B0C1] hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg px-8 py-2.5 text-sm font-bold text-[#333333] bg-[#B6C8AF] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Apply Discount
           </button>

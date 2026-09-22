@@ -132,11 +132,11 @@ export default function SearchableSelect({
           onClick={toggle}
           className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-left text-sm transition-all flex items-center justify-between gap-2 ${
             disabled
-              ? "bg-[#F3F6F7] text-[#999] cursor-not-allowed"
+              ? "bg-[#F5F4EE] text-[#999] cursor-not-allowed"
               : errorText
                 ? "border-red-400"
-                : "border-[#ABDBE3]"
-          } ${!disabled ? "hover:border-[#49B0C1] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20" : ""}`}
+                : "border-[#C6D4BF]"
+          } ${!disabled ? "hover:border-[#B6C8AF] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20" : ""}`}
         >
           <span className="flex flex-col min-w-0">
             {selected ? (
@@ -177,8 +177,8 @@ export default function SearchableSelect({
         </button>
 
         {open && (
-          <div className="absolute z-40 mt-1 w-full rounded-lg border border-[#ABDBE3] bg-white shadow-lg overflow-hidden">
-            <div className="p-2 border-b border-[#DBEFF3]">
+          <div className="absolute z-40 mt-1 w-full rounded-lg border border-[#C6D4BF] bg-white shadow-lg overflow-hidden">
+            <div className="p-2 border-b border-[#E6ECE2]">
               <input
                 ref={inputRef}
                 type="text"
@@ -186,14 +186,14 @@ export default function SearchableSelect({
                 onChange={(e) => onSearchChange(e.target.value)}
                 onKeyDown={onKeyDown}
                 placeholder={searchPlaceholder}
-                className="w-full rounded-md border border-[#ABDBE3] px-3 py-2 text-sm text-[#333333] placeholder:text-[#999] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20"
+                className="w-full rounded-md border border-[#C6D4BF] px-3 py-2 text-sm text-[#333333] placeholder:text-[#999] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
               />
             </div>
 
             <div className="max-h-56 overflow-y-auto py-1">
               {loading ? (
                 <div className="flex items-center gap-2 px-4 py-3 text-sm text-[#666666]">
-                  <svg className="h-4 w-4 animate-spin text-[#49B0C1]" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <svg className="h-4 w-4 animate-spin text-[#7A9076]" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                   </svg>
@@ -206,7 +206,7 @@ export default function SearchableSelect({
                     <button
                       type="button"
                       onClick={onRetry}
-                      className="mt-1 text-xs font-semibold text-[#49B0C1] hover:underline"
+                      className="mt-1 text-xs font-semibold text-[#7A9076] hover:underline"
                     >
                       Retry
                     </button>
@@ -224,7 +224,7 @@ export default function SearchableSelect({
                     onClick={() => choose(option)}
                     onMouseEnter={() => setHighlight(index)}
                     className={`w-full text-left px-4 py-2 flex items-center justify-between gap-3 ${
-                      index === highlight ? "bg-[#DBEFF3]" : "hover:bg-[#DBEFF3]/60"
+                      index === highlight ? "bg-[#E6ECE2]" : "hover:bg-[#E6ECE2]/60"
                     }`}
                   >
                     <span className="flex flex-col min-w-0">
@@ -240,7 +240,7 @@ export default function SearchableSelect({
             </div>
 
             {footerHint && (
-              <div className="px-4 py-2 text-xs text-[#999] border-t border-[#DBEFF3]">{footerHint}</div>
+              <div className="px-4 py-2 text-xs text-[#999] border-t border-[#E6ECE2]">{footerHint}</div>
             )}
           </div>
         )}
