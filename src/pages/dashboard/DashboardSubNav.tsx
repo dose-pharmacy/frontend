@@ -9,7 +9,7 @@ const SUB_LINKS = [
 export default function DashboardSubNav() {
   return (
     <nav
-      className="bg-white border-b border-[#DBEFF3] px-4 sm:px-6 flex items-center gap-1 overflow-x-auto"
+      className="bg-white border-b border-[#E6ECE2] px-4 sm:px-6 flex items-center gap-1 overflow-x-auto"
       aria-label="Dashboard sub-navigation"
     >
       {SUB_LINKS.map(({ to, label, end }) => (
@@ -20,8 +20,8 @@ export default function DashboardSubNav() {
           className={({ isActive }) =>
             `px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
               isActive
-                ? "border-[#49B0C1] text-[#2A7F8C]"
-                : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#A5D6E0]"
+                ? "border-[#7A9076] text-[#4F6B4A]"
+                : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#C6D4BF]"
             }`
           }
         >

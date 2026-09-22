@@ -67,26 +67,6 @@ function IconReceipt({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-function IconChart({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-    </svg>
-  );
-}
-
-function IconTrend({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
 function IconTruck({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
@@ -128,31 +108,11 @@ function IconArrowUpRight({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
-function IconTag({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path d="M1 6.5A3.5 3.5 0 014.5 3h5.879a1.5 1.5 0 011.06.44l4.122 4.12A1.5 1.5 0 0116 8.622V13.5a3.5 3.5 0 01-3.5 3.5h-6A3.5 3.5 0 013 13.5v-7z" />
-    </svg>
-  );
-}
-
-function IconPercent({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M8.984.974a.75.75 0 00-1.06 0L5.6 3.6a5.854 5.854 0 00-.64.361L2.027.974a.75.75 0 00-1.06 1.06l2.768 2.769-.304.56a5.854 5.854 0 000 5.236l.304.56L.967 13.908a.75.75 0 001.06 1.06l2.768-2.768.56.304a5.854 5.854 0 005.236 0l.56-.304 2.768 2.768a.75.75 0 001.06-1.06l-2.768-2.769.304-.56a5.854 5.854 0 000-5.236l-.304-.56L13.908.967a.75.75 0 00-1.06-1.06l-2.769 2.768-.56-.304a5.854 5.854 0 00-5.236 0l-.56.304L.967 1.703a.75.75 0 00-1.06 1.06zM6.5 4.5a2 2 0 100 4 2 2 0 000-4zm7 5a2 2 0 110 4 2 2 0 010-4z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
 // ── Building blocks ──────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-[11px] font-bold text-[#2A7F8C] uppercase tracking-[0.14em]">
+    <h2 className="text-[11px] font-bold text-[#4F6B4A] uppercase tracking-[0.14em]">
       {children}
     </h2>
   );
@@ -160,7 +120,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="bg-white rounded-xl border border-[#DBEFF3] p-6">
+    <div className="bg-white rounded-xl border border-[#E6ECE2] p-6">
       <div className="flex flex-col items-center justify-center py-6 gap-4">
         <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{message}</p>
         <Button onClick={onRetry}>Retry</Button>
@@ -182,21 +142,7 @@ function PanelSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="px-5 py-4 flex flex-col gap-3">
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="h-14 rounded-lg bg-[#DBEFF3]/60 animate-pulse" />
-      ))}
-    </div>
-  );
-}
-
-function PanelSkeletonBars({ rows = 4 }: { rows?: number }) {
-  return (
-    <div className="px-5 py-4 flex flex-col gap-5">
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <div className="h-3 w-24 rounded bg-[#DBEFF3]/70 animate-pulse" />
-          <div className="h-2.5 flex-1 rounded-full bg-[#DBEFF3]/50 animate-pulse" />
-          <div className="h-3 w-8 rounded bg-[#DBEFF3]/70 animate-pulse" />
-        </div>
+        <div key={i} className="h-14 rounded-lg bg-[#E6ECE2]/60 animate-pulse" />
       ))}
     </div>
   );
@@ -222,12 +168,12 @@ function DashPanel({
   className?: string;
 }) {
   return (
-    <div className={`bg-white rounded-xl border border-[#DBEFF3] shadow-sm overflow-hidden min-w-0 ${className}`}>
-      <div className="px-5 py-4 border-b border-[#DBEFF3] flex items-center justify-between gap-2">
+    <div className={`bg-white rounded-xl border border-[#E6ECE2] shadow-sm overflow-hidden min-w-0 ${className}`}>
+      <div className="px-5 py-4 border-b border-[#E6ECE2] flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <h3 className="text-sm font-bold text-[#333333] truncate">{title}</h3>
           {typeof count === "number" && count > 0 && (
-            <span className="rounded-full bg-[#DBEFF3] px-2 py-0.5 text-[11px] font-bold text-[#2A7F8C]">
+            <span className="rounded-full bg-[#E6ECE2] px-2 py-0.5 text-[11px] font-bold text-[#4F6B4A]">
               {fmtNumber(count)}
             </span>
           )}
@@ -235,7 +181,7 @@ function DashPanel({
         {viewAllTo && (
           <Link
             to={viewAllTo}
-            className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap"
+            className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
           >
             {viewAllLabel}
           </Link>
@@ -247,7 +193,7 @@ function DashPanel({
 }
 
 const focusRing =
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#49B0C1]/40 focus-visible:ring-offset-1";
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A9076]/40 focus-visible:ring-offset-1";
 
 // ── Recent activity ──────────────────────────────────────────────────────────
 
@@ -257,8 +203,8 @@ const ACTIVITY_META: Record<
 > = {
   SALE_COMPLETED: {
     icon: <IconReceipt />,
-    iconColor: "text-[#2A7F8C]",
-    bubble: "bg-[#DBEFF3]",
+    iconColor: "text-[#4F6B4A]",
+    bubble: "bg-[#E6ECE2]",
   },
   GOODS_RECEIVED: {
     icon: <IconBox />,
@@ -287,14 +233,14 @@ function ActivityRow({ item, index, total }: { item: RecentActivityItem; index: 
           {meta.icon}
         </span>
         {index < total - 1 && (
-          <span className="absolute left-1/2 top-10 -bottom-4 w-px -translate-x-1/2 bg-[#DBEFF3]" aria-hidden />
+          <span className="absolute left-1/2 top-10 -bottom-4 w-px -translate-x-1/2 bg-[#E6ECE2]" aria-hidden />
         )}
       </span>
       <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[#333333] truncate">{item.description}</p>
           {item.reference && (
-            <p className="text-xs font-medium text-[#49B0C1] mt-0.5">{item.reference}</p>
+            <p className="text-xs font-medium text-[#7A9076] mt-0.5">{item.reference}</p>
           )}
         </div>
         <p
@@ -316,6 +262,29 @@ const QUICK_ACTIONS = [
   { label: "New Purchase Order", caption: "Create a purchase order", icon: <IconDoc className="h-5 w-5" />, to: "/purchasing/orders/new" },
   { label: "Receive Goods", caption: "Register a delivery", icon: <IconTruck className="h-5 w-5" />, to: "/purchasing/deliveries/new" },
 ];
+
+function QuickActionCard({ action }: { action: (typeof QUICK_ACTIONS)[number] }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={() => navigate(action.to)}
+      className={`group bg-white rounded-xl border border-[#C6D4BF] p-5 text-left transition-all hover:border-[#7A9076] hover:bg-[#E6ECE2]/40 flex items-start justify-between gap-3 ${focusRing}`}
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#E6ECE2] text-[#4F6B4A] transition-colors group-hover:bg-[#7A9076] group-hover:text-white">
+          {action.icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-[#333333]">{action.label}</p>
+          <p className="text-xs text-[#666666] mt-0.5">{action.caption}</p>
+        </div>
+      </div>
+      <span className="flex-shrink-0 mt-1 text-[#7A9076]">
+        <IconArrowUpRight />
+      </span>
+    </button>
+  );
+}
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
@@ -393,38 +362,23 @@ export default function DashboardPage() {
 
   // ── Derived presentation for summary-based sections ────────────────────────
 
-  const healthCells = summary
-    ? [
-        { label: "Out of Stock", count: fmtNumber(summary.inventory.outOfStockCount), caption: "Needs action", dot: "bg-red-500", tint: "bg-red-50/70", border: "border-red-100/90", capColor: "text-red-600" },
-        { label: "Expired", count: fmtNumber(summary.inventory.expiredCount), caption: "Critical", dot: "bg-orange-500", tint: "bg-orange-50/70", border: "border-orange-100/90", capColor: "text-orange-600" },
-        { label: "Requirements", count: fmtNumber(summary.purchasing.openRequirements), caption: "Open", dot: "bg-blue-500", tint: "bg-blue-50/70", border: "border-blue-100/90", capColor: "text-blue-600" },
-        { label: "Awaiting", count: fmtNumber(summary.purchasing.partiallyReceived), caption: "Partial/active", dot: "bg-yellow-500", tint: "bg-yellow-50/70", border: "border-yellow-100/90", capColor: "text-yellow-600" },
-        { label: "Slow Moving", count: fmtNumber(summary.slowMoving.flaggedCount), caption: "No flags", dot: "bg-green-500", tint: "bg-green-50/70", border: "border-green-100/90", capColor: "text-green-600" },
-      ]
-    : [];
-
   const invBars = summary
     ? [
         { label: "Low Stock", value: summary.inventory.lowStockCount, fill: "bg-yellow-500" },
         { label: "Expiring Soon", value: summary.inventory.expiringSoonCount, fill: "bg-orange-500" },
         { label: "Expired", value: summary.inventory.expiredCount, fill: "bg-red-500" },
         { label: "Out of Stock", value: summary.inventory.outOfStockCount, fill: "bg-red-700" },
+        { label: "Requirements", value: summary.purchasing.openRequirements, fill: "bg-blue-500" },
+        { label: "Awaiting", value: summary.purchasing.partiallyReceived, fill: "bg-yellow-600" },
+        { label: "Slow Moving", value: summary.slowMoving.flaggedCount, fill: "bg-green-500" },
       ]
     : [];
   const invMax = Math.max(...invBars.map((b) => b.value), 1);
 
-  const kpiCards = summary
-    ? [
-        { label: "Stock Value", value: fmtMoney(summary.inventory.stockValue), icon: <IconBox /> },
-        { label: "Transactions", value: fmtNumber(summary.sales.transactions), icon: <IconReceipt /> },
-        { label: "Average Transaction", value: fmtMoney(summary.sales.averageTransaction), icon: <IconTrend /> },
-      ]
-    : [];
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <div className="border-b border-[#DBEFF3] bg-white">
+      <div className="border-b border-[#E6ECE2] bg-white">
         <PageHeader
           breadcrumb="Dashboard"
           title="Dashboard"
@@ -444,7 +398,7 @@ export default function DashboardPage() {
                 onClick={() => setRefreshKey((k) => k + 1)}
                 disabled={refreshing}
                 loading={refreshing}
-                className="!bg-[#49B0C1] !text-white hover:!bg-[#2A7F8C] focus-visible:!ring-[#49B0C1]"
+                className="!bg-[#7A9076] !text-white hover:!bg-[#4F6B4A] focus-visible:!ring-[#7A9076]"
               >
                 Refresh
               </Button>
@@ -460,140 +414,147 @@ export default function DashboardPage() {
         <section aria-label="Business performance" className="flex flex-col gap-3">
           <SectionLabel>Business Performance</SectionLabel>
           {summaryLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-              <div className="md:col-span-2 xl:col-span-3 bg-white rounded-xl border border-[#DBEFF3] p-6">
-                <div className="h-3 w-28 rounded bg-[#DBEFF3]/70 animate-pulse" />
-                <div className="h-9 w-52 rounded bg-[#DBEFF3]/50 animate-pulse mt-3" />
-                <div className="h-12 rounded-lg bg-[#DBEFF3]/40 animate-pulse mt-5" />
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+              <div className="xl:col-span-2 bg-white rounded-lg border border-[#E6ECE2] px-3.5 py-3">
+                <div className="h-2 w-20 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                <div className="h-5 w-32 rounded bg-[#E6ECE2]/50 animate-pulse mt-2" />
+                <div className="h-2 w-28 rounded bg-[#E6ECE2]/70 animate-pulse mt-2" />
               </div>
-              {Array.from({ length: 3 }, (_, i) => (
-                <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
-                  <div className="h-3 w-20 rounded bg-[#DBEFF3]/70 animate-pulse" />
-                  <div className="h-7 w-28 rounded bg-[#DBEFF3]/50 animate-pulse mt-3" />
+              <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-lg border border-[#E6ECE2] px-3.5 py-3">
+                  <div className="h-2 w-24 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                  <div className="h-5 w-36 rounded bg-[#E6ECE2]/50 animate-pulse mt-2" />
                 </div>
-              ))}
+                <div className="bg-white rounded-lg border border-[#E6ECE2] px-3.5 py-3">
+                  <div className="h-2 w-24 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                  <div className="h-5 w-36 rounded bg-[#E6ECE2]/50 animate-pulse mt-2" />
+                </div>
+              </div>
+              <div className="xl:col-span-2 bg-white rounded-lg border border-[#E6ECE2] px-3.5 py-3">
+                <div className="h-2 w-16 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                <div className="h-5 w-24 rounded bg-[#E6ECE2]/50 animate-pulse mt-2" />
+              </div>
+              <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-lg border border-[#E6ECE2] px-3.5 py-3">
+                  <div className="h-2 w-24 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                  <div className="h-5 w-36 rounded bg-[#E6ECE2]/50 animate-pulse mt-2" />
+                </div>
+                <div className="bg-white rounded-lg border border-[#E6ECE2] px-3.5 py-3">
+                  <div className="h-2 w-24 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                  <div className="h-5 w-36 rounded bg-[#E6ECE2]/50 animate-pulse mt-2" />
+                </div>
+              </div>
             </div>
           ) : summaryError && !summary ? (
             <SectionError message={summaryError} onRetry={loadSummary} />
           ) : summary ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 items-stretch">
-              {/* Hero — Today's Sales */}
-              <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-[#ABDBE3] bg-[#DBEFF3]/40 p-5 md:p-6 relative">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#2A7F8C] uppercase tracking-widest">
-                      Today's Sales
-                    </p>
-                    <p className="text-3xl xl:text-4xl font-bold text-[#2A7F8C] mt-2 leading-tight">
-                      {fmtMoney(summary.sales.today)}
-                    </p>
-                  </div>
-                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#49B0C1] text-white">
-                    <IconChart className="h-6 w-6" />
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+              {/* Today's Sales — 2/5 */}
+              <div className="xl:col-span-2 rounded-lg border border-[#C6D4BF] bg-[#E6ECE2]/40 px-4 py-3 flex flex-col justify-center min-w-0">
+                <p className="text-[10px] font-bold text-[#4F6B4A] uppercase tracking-wide">
+                  Today's Sales
+                </p>
+                <p className="text-lg font-bold text-[#4F6B4A] mt-0.5 leading-tight truncate">
+                  {fmtMoney(summary.sales.today)}
+                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-[#666666]">
+                  <span className="whitespace-nowrap">
+                    <span className="font-bold text-[#333333]">{fmtNumber(summary.sales.transactions)}</span>{" "}
+                    Transactions
                   </span>
-                </div>
-                <div className="mt-5 grid grid-cols-2 gap-4 border-t border-[#ABDBE3] pt-4">
-                  <div>
-                    <p className="text-[11px] font-semibold text-[#666666] uppercase tracking-wide">
-                      Transactions
-                    </p>
-                    <p className="text-xl font-bold text-[#333333] mt-0.5">
-                      {fmtNumber(summary.sales.transactions)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-[#666666] uppercase tracking-wide">
-                      Average Transaction
-                    </p>
-                    <p className="text-xl font-bold text-[#333333] mt-0.5">
-                      {fmtMoney(summary.sales.averageTransaction)}
-                    </p>
-                  </div>
+                  <span className="whitespace-nowrap">
+                    <span className="font-bold text-[#333333]">{fmtMoney(summary.sales.averageTransaction)}</span>{" "}
+                    Avg Transaction
+                  </span>
                 </div>
               </div>
 
-              {/* Supporting KPIs */}
-              {kpiCards.map((k) => (
-                <div
-                  key={k.label}
-                  className="bg-white rounded-xl border border-[#DBEFF3] p-5 flex flex-col justify-between min-w-0"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-[#666666]">{k.label}</p>
-                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#DBEFF3] text-[#2A7F8C]">
-                      {k.icon}
-                    </span>
-                  </div>
-                  <p className="text-2xl font-bold text-[#333333] mt-3 leading-tight truncate">
-                    {k.value}
-                  </p>
-                </div>
-              ))}
+              {/* New Sale + Purchase Requirement — 3/5, side by side */}
+              <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <QuickActionCard action={QUICK_ACTIONS[0]} />
+                <QuickActionCard action={QUICK_ACTIONS[1]} />
+              </div>
+
+              {/* Stock Value — 2/5 */}
+              <div className="xl:col-span-2 bg-white rounded-lg border border-[#E6ECE2] px-4 py-3 flex items-center justify-between gap-3 min-w-0">
+                <span className="text-[10px] font-bold text-[#666666] uppercase tracking-wide whitespace-nowrap">
+                  Stock Value
+                </span>
+                <span className="text-sm font-bold text-[#333333] truncate">
+                  {fmtMoney(summary.inventory.stockValue)}
+                </span>
+              </div>
+
+              {/* New Purchase Order + Receive Goods — 3/5, side by side */}
+              <div className="xl:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <QuickActionCard action={QUICK_ACTIONS[2]} />
+                <QuickActionCard action={QUICK_ACTIONS[3]} />
+              </div>
             </div>
           ) : null}
         </section>
 
-        {/* ── 3. Operational health ───────────────────────────────────────── */}
-        <section aria-label="Operational health" className="flex flex-col gap-3">
-          <DashPanel title="Operational Health">
+        {/* ── 3. Inventory overview + Expiry monitor ──────────────────────── */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-stretch">
+          <DashPanel title="Inventory Overview" className="flex flex-col xl:col-span-3">
             {summaryLoading ? (
-              <div className="p-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
-                {Array.from({ length: 5 }, (_, i) => (
-                  <div key={i} className="h-[104px] rounded-xl bg-[#DBEFF3]/50 animate-pulse" />
-                ))}
-              </div>
-            ) : !summary ? (
-              <CompactEmpty text="Operational data unavailable" />
-            ) : (
-              <div className="p-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
-                {healthCells.map((c) => (
-                  <div
-                    key={c.label}
-                    className={`rounded-xl border ${c.border} ${c.tint} p-4 flex flex-col gap-1.5`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`h-2 w-2 rounded-full ${c.dot}`} aria-hidden />
-                      <span className={`text-[10px] font-bold uppercase tracking-wide ${c.capColor}`}>
-                        {c.caption}
-                      </span>
+              <div className="px-5 py-4 flex-1 flex flex-col justify-center">
+                <div className="flex items-end gap-2 sm:gap-3 border-b-2 border-[#C6D4BF] pb-1">
+                  {Array.from({ length: 7 }, (_, i) => (
+                    <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-2">
+                      <div className="h-5 w-7 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                      <div
+                        className="w-full max-w-[6.5rem] rounded-t-lg bg-[#E6ECE2]/50 animate-pulse"
+                        style={{ height: `${120 + ((i * 20) % 120)}px` }}
+                      />
                     </div>
-                    <p className="text-2xl font-bold text-[#333333] leading-none mt-1">{c.count}</p>
-                    <p className="text-xs font-semibold text-[#666666]">{c.label}</p>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-start gap-2 sm:gap-3">
+                  {Array.from({ length: 7 }, (_, i) => (
+                    <div key={i} className="flex-1 min-w-0 flex justify-center">
+                      <div className="h-3 w-full max-w-[3.5rem] rounded bg-[#E6ECE2]/60 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-          </DashPanel>
-        </section>
-
-        {/* ── 4. Inventory overview + Expiry monitor ──────────────────────── */}
-        <div className="grid xl:grid-cols-2 gap-4 items-start">
-          <DashPanel title="Inventory Overview">
-            {summaryLoading ? (
-              <PanelSkeletonBars rows={4} />
             ) : !summary ? (
               <CompactEmpty text="Inventory overview unavailable" />
             ) : (
-              <div className="px-5 py-4 flex flex-col gap-5">
-                {invBars.map((bar) => (
-                  <div key={bar.label}>
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-medium text-[#666666]">{bar.label}</span>
-                      <span className="font-bold text-[#2A7F8C]">{fmtNumber(bar.value)}</span>
-                    </div>
-                    <div className="h-2.5 rounded-full bg-[#DBEFF3] overflow-hidden">
+              <div className="px-5 py-4 flex-1 flex flex-col justify-center">
+                <div className="flex items-end gap-2 sm:gap-3 border-b-2 border-[#C6D4BF] pb-1">
+                  {invBars.map((bar) => (
+                    <div
+                      key={bar.label}
+                      className="flex-1 min-w-0 flex flex-col items-center gap-2"
+                      title={`${bar.label}: ${fmtNumber(bar.value)}`}
+                    >
+                      <p className="text-lg font-bold text-[#4F6B4A] leading-none">
+                        {fmtNumber(bar.value)}
+                      </p>
                       <div
-                        className={`h-full rounded-full ${bar.fill}`}
-                        style={{ width: `${(bar.value / invMax) * 100}%` }}
+                        className={`w-full max-w-[6.5rem] rounded-t-lg ${bar.fill}`}
+                        style={{ height: `${Math.max(Math.round((bar.value / invMax) * 240), 0)}px` }}
                       />
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-start gap-2 sm:gap-3">
+                  {invBars.map((bar) => (
+                    <p
+                      key={bar.label}
+                      title={bar.label}
+                      className="flex-1 min-w-0 text-[11px] font-medium text-[#666666] text-center truncate leading-tight"
+                    >
+                      {bar.label}
+                    </p>
+                  ))}
+                </div>
               </div>
             )}
           </DashPanel>
 
-          <DashPanel title="Expiry Monitor" count={attentionCounts.expiring} viewAllTo="/inventory/batches-expiry">
+          <DashPanel title="Expiry Monitor" count={attentionCounts.expiring} viewAllTo="/inventory/batches-expiry" className="xl:col-span-2">
             {attentionLoading ? (
               <PanelSkeleton rows={4} />
             ) : attentionError && !attention ? (
@@ -614,25 +575,25 @@ export default function DashboardPage() {
                           <span
                             className={`absolute left-[16px] top-[26px] h-3 w-3 rounded-full border-2 ${
                               i === 0
-                                ? "bg-[#49B0C1] border-[#49B0C1]"
-                                : "bg-white border-[#ABDBE3]"
+                                ? "bg-[#7A9076] border-[#7A9076]"
+                                : "bg-white border-[#C6D4BF]"
                             }`}
                             aria-hidden
                           />
                           {i < sorted.length - 1 && (
                             <span
-                              className="absolute left-[17px] top-[40px] bottom-1 w-px bg-[#DBEFF3]"
+                              className="absolute left-[17px] top-[40px] bottom-1 w-px bg-[#E6ECE2]"
                               aria-hidden
                             />
                           )}
                           <button
-                            className={`w-full text-left rounded-xl border border-transparent px-3 py-2.5 hover:bg-[#DBEFF3]/40 hover:border-[#ABDBE3] transition-colors ${focusRing}`}
+                            className={`w-full text-left rounded-xl border border-transparent px-3 py-2.5 hover:bg-[#E6ECE2]/40 hover:border-[#C6D4BF] transition-colors ${focusRing}`}
                             onClick={() => navigate(`/inventory/batches/${item.batchId}`)}
                             title={`Open batch: ${item.batchNumber}`}
                           >
                             <div className="flex items-center gap-3 sm:gap-4">
                               <div className="w-14 flex-shrink-0 text-right">
-                                <p className="text-xl font-bold text-[#2A7F8C] leading-none">
+                                <p className="text-xl font-bold text-[#4F6B4A] leading-none">
                                   {fmtNumber(item.remainingQuantity)}
                                 </p>
                                 <p className="text-[10px] text-[#999999] uppercase tracking-wide">
@@ -648,7 +609,7 @@ export default function DashboardPage() {
                               <div className="flex-shrink-0 text-right">
                                 <p
                                   className={`text-sm font-bold ${
-                                    i === 0 ? "text-[#2A7F8C]" : "text-[#333333]"
+                                    i === 0 ? "text-[#4F6B4A]" : "text-[#333333]"
                                   }`}
                                 >
                                   {fmtDate(item.expiryDate)}
@@ -675,15 +636,15 @@ export default function DashboardPage() {
           </DashPanel>
         </div>
 
-        {/* ── 5. Low stock ─────────────────────────────────────────────────── */}
+        {/* ── 4. Low stock ─────────────────────────────────────────────────── */}
         <DashPanel title="Low Stock" count={attentionCounts.lowStock} viewAllTo="/inventory/stock">
           {attentionLoading ? (
             <PanelSkeleton rows={4} />
           ) : attentionError && !attention ? (
             <PanelError message={attentionError} onRetry={loadAttention} />
           ) : attention && attention.lowStock.length > 0 ? (
-            <div className="divide-y divide-[#DBEFF3]">
-              <div className="hidden md:grid grid-cols-[1.7fr_minmax(0,1fr)_auto] items-center gap-6 px-5 py-2.5 bg-[#DBEFF3]/30 text-[10px] font-bold uppercase tracking-widest text-[#666666]">
+            <div className="divide-y divide-[#E6ECE2]">
+              <div className="hidden md:grid grid-cols-[1.7fr_minmax(0,1fr)_auto] items-center gap-6 px-5 py-2.5 bg-[#E6ECE2]/30 text-[10px] font-bold uppercase tracking-widest text-[#666666]">
                 <span>Product</span>
                 <span>Stock level / reorder point</span>
                 <span className="justify-self-end pr-1">Status</span>
@@ -694,7 +655,7 @@ export default function DashboardPage() {
                 return (
                   <button
                     key={item.productId}
-                    className={`w-full grid grid-cols-1 md:grid-cols-[1.7fr_minmax(0,1fr)_auto] md:items-center gap-2.5 md:gap-6 px-5 py-3.5 text-left hover:bg-[#DBEFF3]/30 transition-colors ${focusRing}`}
+                    className={`w-full grid grid-cols-1 md:grid-cols-[1.7fr_minmax(0,1fr)_auto] md:items-center gap-2.5 md:gap-6 px-5 py-3.5 text-left hover:bg-[#E6ECE2]/30 transition-colors ${focusRing}`}
                     onClick={() => navigate(`/inventory/products/${item.productId}`)}
                     title={`Open product: ${item.productName}`}
                   >
@@ -703,7 +664,7 @@ export default function DashboardPage() {
                       <p className="text-xs text-[#666666]">{item.sku}</p>
                     </div>
                     <div className="min-w-0">
-                      <div className="h-2 rounded-full bg-[#DBEFF3] overflow-hidden">
+                      <div className="h-2 rounded-full bg-[#E6ECE2] overflow-hidden">
                         <div
                           className={`h-full rounded-full ${status === "Critical" ? "bg-red-500" : "bg-[#C7B05F]"}`}
                           style={{ width: `${Math.min(pct, 100)}%` }}
@@ -734,7 +695,7 @@ export default function DashboardPage() {
           ) : null}
         </DashPanel>
 
-        {/* ── 7. Awaiting delivery + Outstanding invoices ─────────────────── */}
+        {/* ── 5. Awaiting delivery + Outstanding invoices ─────────────────── */}
         <div className="grid xl:grid-cols-2 gap-4 items-start">
           <DashPanel title="Awaiting Delivery" count={attentionCounts.awaiting} viewAllTo="/purchasing/deliveries">
             {attentionLoading ? (
@@ -747,24 +708,24 @@ export default function DashboardPage() {
                   {fmtNumber(attention.awaitingDelivery.length)} items/orders awaiting delivery
                 </p>
                 <div className="px-5">
-                  <div className="hidden sm:grid sm:grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)_100px] items-center gap-4 border-b border-[#DBEFF3] bg-[#DBEFF3]/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-[#666666]">
+                  <div className="hidden sm:grid sm:grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)_100px] items-center gap-4 border-b border-[#E6ECE2] bg-[#E6ECE2]/30 px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-[#666666]">
                     <span>PO Number</span>
                     <span>Supplier</span>
                     <span>Expected Delivery</span>
                     <span>Status</span>
                   </div>
                 </div>
-                <div className="px-5 divide-y divide-[#DBEFF3] pb-4">
+                <div className="px-5 divide-y divide-[#E6ECE2] pb-4">
                   {attention.awaitingDelivery.map((item) => (
                     <button
                       key={item.purchaseOrderId}
-                      className={`w-full text-left py-3 hover:bg-[#DBEFF3]/30 transition-colors rounded-lg px-2 -mx-2 ${focusRing}`}
+                      className={`w-full text-left py-3 hover:bg-[#E6ECE2]/30 transition-colors rounded-lg px-2 -mx-2 ${focusRing}`}
                       onClick={() => navigate(`/purchasing/orders/${item.purchaseOrderId}`)}
                       title={`Open purchase order: ${item.poNumber}`}
                     >
                       <div className="sm:grid sm:grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)_100px] sm:items-center sm:gap-4">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[#2A7F8C] truncate">{item.poNumber}</p>
+                          <p className="text-sm font-semibold text-[#4F6B4A] truncate">{item.poNumber}</p>
                           <p className="text-xs text-[#666666] truncate sm:hidden">{item.supplierName}</p>
                         </div>
                         <span className="hidden sm:block text-xs text-[#666666] truncate">
@@ -804,14 +765,14 @@ export default function DashboardPage() {
               (() => {
                 const [first, ...rest] = attention.outstandingInvoices;
                 return (
-                  <div className="divide-y divide-[#DBEFF3] pb-4">
+                  <div className="divide-y divide-[#E6ECE2] pb-4">
                     <button
-                      className={`w-full text-left px-5 py-4 hover:bg-[#DBEFF3]/30 transition-colors flex items-center justify-between gap-4 ${focusRing}`}
+                      className={`w-full text-left px-5 py-4 hover:bg-[#E6ECE2]/30 transition-colors flex items-center justify-between gap-4 ${focusRing}`}
                       onClick={() => navigate(`/purchasing/invoices/${first.invoiceId}`)}
                       title={`Open invoice: ${first.invoiceNumber}`}
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#49B0C1] truncate">
+                        <p className="text-sm font-semibold text-[#7A9076] truncate">
                           {first.invoiceNumber}
                         </p>
                         <p className="text-xs text-[#666666] truncate">{first.supplierName}</p>
@@ -819,19 +780,19 @@ export default function DashboardPage() {
                           {first.dueDate ? `Due ${fmtDate(first.dueDate)}` : "Due date not set"}
                         </p>
                       </div>
-                      <p className="text-3xl font-bold text-[#2A7F8C] whitespace-nowrap flex-shrink-0">
+                      <p className="text-3xl font-bold text-[#4F6B4A] whitespace-nowrap flex-shrink-0">
                         {fmtMoney(first.outstandingBalance)}
                       </p>
                     </button>
                     {rest.map((item) => (
                       <button
                         key={item.invoiceId}
-                        className={`w-full text-left px-5 py-3 hover:bg-[#DBEFF3]/30 transition-colors flex items-center justify-between gap-4 ${focusRing}`}
+                        className={`w-full text-left px-5 py-3 hover:bg-[#E6ECE2]/30 transition-colors flex items-center justify-between gap-4 ${focusRing}`}
                         onClick={() => navigate(`/purchasing/invoices/${item.invoiceId}`)}
                         title={`Open invoice: ${item.invoiceNumber}`}
                       >
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[#49B0C1] truncate">
+                          <p className="text-sm font-semibold text-[#7A9076] truncate">
                             {item.invoiceNumber}
                           </p>
                           <p className="text-xs text-[#666666] truncate">{item.supplierName}</p>
@@ -855,7 +816,7 @@ export default function DashboardPage() {
           </DashPanel>
         </div>
 
-        {/* ── 9. Recent activity ───────────────────────────────────────────── */}
+        {/* ── 6. Recent activity ───────────────────────────────────────────── */}
         <DashPanel title="Recent Activity" count={recent.length}>
           {recentLoading ? (
             <PanelSkeleton rows={5} />
@@ -874,34 +835,7 @@ export default function DashboardPage() {
           )}
         </DashPanel>
 
-        {/* ── 10. Quick actions ────────────────────────────────────────────── */}
-        <section aria-label="Quick actions" className="flex flex-col gap-3 pb-2">
-          <SectionLabel>Quick Actions</SectionLabel>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {QUICK_ACTIONS.map((a) => (
-              <button
-                key={a.label}
-                onClick={() => navigate(a.to)}
-                className={`group bg-white rounded-xl border border-[#ABDBE3] p-5 text-left transition-all hover:border-[#49B0C1] hover:bg-[#DBEFF3]/40 flex items-start justify-between gap-3 ${focusRing}`}
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#DBEFF3] text-[#2A7F8C] transition-colors group-hover:bg-[#49B0C1] group-hover:text-white">
-                    {a.icon}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#333333]">{a.label}</p>
-                    <p className="text-xs text-[#666666] mt-0.5">{a.caption}</p>
-                  </div>
-                </div>
-                <span className="flex-shrink-0 mt-1 text-[#49B0C1]">
-                  <IconArrowUpRight />
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* ── 11. Sales analytics (report overview merged in, no duplication) ── */}
+        {/* ── 7. Sales analytics (report overview merged in, no duplication) ── */}
         <SalesAnalyticsSection />
       </div>
     </div>
@@ -985,10 +919,42 @@ function SalesAnalyticsSection() {
 
   // Period-filtered summary. Today's Sales / Transactions / Average Transaction
   // are already the hero snapshot above, so keep only the figures not shown yet.
-  const kpis = [
-    { label: "Total Sales", value: fmtMoney(summary?.totalSales), icon: <IconTrend /> },
-    { label: "Subtotal", value: fmtMoney(summary?.totalSubtotal), icon: <IconTag /> },
-    { label: "Discounts", value: fmtMoney(summary?.totalDiscount), icon: <IconPercent /> },
+  // Render the three figures as a horizontal waterfall (gross → discounts → net).
+  const waterfallMax = Math.max(
+    summary?.totalSubtotal ?? 0,
+    summary?.totalSales ?? 0,
+    summary?.totalDiscount ?? 0,
+    1,
+  );
+  const subtotalPct = ((summary?.totalSubtotal ?? 0) / waterfallMax) * 100;
+  const totalPct = ((summary?.totalSales ?? 0) / waterfallMax) * 100;
+  const discountPct = ((summary?.totalDiscount ?? 0) / waterfallMax) * 100;
+
+  const waterfallRows = [
+    {
+      label: "Total Sales",
+      value: fmtMoney(summary?.totalSales),
+      width: totalPct,
+      fill: "bg-[#4F6B4A]",
+      float: null,
+      emphasize: true,
+    },
+    {
+      label: "Subtotal",
+      value: fmtMoney(summary?.totalSubtotal),
+      width: subtotalPct,
+      fill: "bg-[#C6D4BF]",
+      float: null,
+      emphasize: false,
+    },
+    {
+      label: "Discounts",
+      value: fmtMoney(summary?.totalDiscount),
+      width: subtotalPct,
+      fill: "bg-[#E6ECE2]",
+      float: { left: totalPct, width: discountPct },
+      emphasize: false,
+    },
   ];
 
   return (
@@ -1007,39 +973,74 @@ function SalesAnalyticsSection() {
       />
 
       {summaryLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-[#DBEFF3] p-5">
-              <div className="h-3 w-20 rounded bg-[#DBEFF3]/70 animate-pulse" />
-              <div className="h-7 w-28 rounded bg-[#DBEFF3]/50 animate-pulse mt-3" />
-            </div>
-          ))}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm p-5">
+          <div className="h-4 w-36 rounded bg-[#E6ECE2]/70 animate-pulse" />
+          <div className="mt-4 flex flex-col gap-5">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="h-3 w-24 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                <div className="flex-1">
+                  <div
+                    className="h-8 rounded-md bg-[#E6ECE2]/50 animate-pulse"
+                    style={{ width: `${94 - i * 16}%` }}
+                  />
+                </div>
+                <div className="h-3 w-28 rounded bg-[#E6ECE2]/70 animate-pulse" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : summaryError && !summary ? (
         <SectionError message={summaryError} onRetry={loadSummary} />
       ) : summary ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {kpis.map((k) => (
-            <div
-              key={k.label}
-              className="bg-white rounded-xl border border-[#DBEFF3] p-5 flex flex-col justify-between min-w-0"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-[#666666]">{k.label}</p>
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#DBEFF3] text-[#2A7F8C]">
-                  {k.icon}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm p-5">
+          <div className="mb-5">
+            <h3 className="text-sm font-bold text-[#333333]">Sales Breakdown</h3>
+            <p className="text-xs text-[#666666] mt-0.5">
+              Horizontal waterfall of Total Sales, Subtotal and Discounts for the selected period
+            </p>
+          </div>
+          <div className="flex flex-col gap-5">
+            {waterfallRows.map((row) => (
+              <div key={row.label} className="flex items-center gap-3">
+                <span className="w-24 flex-shrink-0 text-xs font-semibold text-[#666666]">
+                  {row.label}
+                </span>
+                <div
+                  className={`relative flex-1 rounded-md overflow-hidden ${
+                    row.emphasize ? "h-10" : "h-8"
+                  } bg-[#F5F5F0]`}
+                  title={`${row.label}: ${row.value}`}
+                >
+                  <div
+                    className={`absolute inset-y-0 left-0 ${row.fill}`}
+                    style={{ width: `${Math.min(Math.max(row.width, 0), 100)}%` }}
+                  />
+                  {row.float && (
+                    <div
+                      className="absolute inset-y-0 bg-[#B06B66]"
+                      style={{
+                        left: `${Math.min(Math.max(row.float.left, 0), 100)}%`,
+                        width: `${Math.min(Math.max(row.float.width, 0), 100)}%`,
+                      }}
+                    />
+                  )}
+                </div>
+                <span
+                  className={`w-28 flex-shrink-0 text-right font-bold text-[#333333] ${
+                    row.emphasize ? "text-base" : "text-xs"
+                  }`}
+                >
+                  {row.value}
                 </span>
               </div>
-              <p className="text-2xl font-bold text-[#333333] mt-3 leading-tight truncate">
-                {k.value}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ) : null}
 
       {/* Trend chart */}
-      <div className="bg-white rounded-xl border border-[#DBEFF3] shadow-sm p-5">
+      <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm p-5">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <div>
             <h3 className="text-sm font-bold text-[#333333]">Sales Trend</h3>
@@ -1047,12 +1048,12 @@ function SalesAnalyticsSection() {
               Revenue by {period === "DAILY" ? "day" : period === "MONTHLY" ? "month" : "year"} for the selected period
             </p>
           </div>
-          <div className="flex rounded-lg border border-[#ABDBE3] overflow-hidden">
+          <div className="flex rounded-lg border border-[#C6D4BF] overflow-hidden">
             {ANALYTICS_PERIODS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value)}
-                className={`px-3.5 py-1.5 text-xs font-semibold transition-colors ${period === p.value ? "bg-[#49B0C1] text-white" : "bg-white text-[#666666] hover:bg-[#DBEFF3]/60"}`}
+                className={`px-3.5 py-1.5 text-xs font-semibold transition-colors ${period === p.value ? "bg-[#7A9076] text-white" : "bg-white text-[#666666] hover:bg-[#E6ECE2]/60"}`}
               >
                 {p.label}
               </button>
@@ -1061,7 +1062,7 @@ function SalesAnalyticsSection() {
         </div>
         {trendLoading ? (
           <div className="flex items-center justify-center py-16 gap-3">
-            <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+            <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#7A9076] animate-spin" />
             <p className="text-sm text-[#666666]">Loading trend...</p>
           </div>
         ) : trendError ? (
@@ -1079,15 +1080,15 @@ function SalesAnalyticsSection() {
               <AreaChart data={trend} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="analyticsRevenueFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#49B0C1" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#49B0C1" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#7A9076" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#7A9076" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#DBEFF3" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#666666" }} tickLine={false} axisLine={{ stroke: "#DBEFF3" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E6ECE2" vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#666666" }} tickLine={false} axisLine={{ stroke: "#E6ECE2" }} />
                 <YAxis tick={{ fontSize: 11, fill: "#666666" }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} tickLine={false} axisLine={false} width={52} />
-                <Tooltip formatter={(v: unknown) => fmtMoney(Number(v))} contentStyle={{ borderRadius: 12, borderColor: "#DBEFF3", fontSize: 12 }} />
-                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#49B0C1" strokeWidth={2.5} fill="url(#analyticsRevenueFill)" />
+                <Tooltip formatter={(v: unknown) => fmtMoney(Number(v))} contentStyle={{ borderRadius: 12, borderColor: "#E6ECE2", fontSize: 12 }} />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#7A9076" strokeWidth={2.5} fill="url(#analyticsRevenueFill)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1096,8 +1097,8 @@ function SalesAnalyticsSection() {
 
       {/* Payment methods + Top products */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-[#DBEFF3] shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#DBEFF3]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#E6ECE2]">
             <h3 className="text-sm font-bold text-[#333333]">Payment Methods</h3>
             <p className="text-xs text-[#666666] mt-0.5">Share of sales by payment method</p>
           </div>
@@ -1106,7 +1107,7 @@ function SalesAnalyticsSection() {
           ) : !summary || (summary.paymentsByMethod?.length ?? 0) === 0 ? (
             <CompactEmpty text="No payment data for this period." />
           ) : (
-            <div className="divide-y divide-[#DBEFF3]">
+            <div className="divide-y divide-[#E6ECE2]">
               {summary.paymentsByMethod.map((p) => (
                 <div key={p.method} className="flex items-center justify-between px-5 py-3.5">
                   <span className="text-sm font-medium text-[#333333] capitalize">
@@ -1124,8 +1125,8 @@ function SalesAnalyticsSection() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-[#DBEFF3] shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#DBEFF3]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#E6ECE2]">
             <h3 className="text-sm font-bold text-[#333333]">Top Products</h3>
             <p className="text-xs text-[#666666] mt-0.5">Best sellers by quantity and revenue</p>
           </div>
@@ -1134,7 +1135,7 @@ function SalesAnalyticsSection() {
           ) : !summary || (summary.topProducts?.length ?? 0) === 0 ? (
             <CompactEmpty text="No product data for this period." />
           ) : (
-            <div className="divide-y divide-[#DBEFF3]">
+            <div className="divide-y divide-[#E6ECE2]">
               {summary.topProducts.map((p) => (
                 <div key={p.productId} className="flex items-center justify-between gap-4 px-5 py-3.5">
                   <div className="min-w-0">
