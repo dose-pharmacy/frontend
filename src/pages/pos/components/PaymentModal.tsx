@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { fmt } from "../../../features/pos/posService";
 import { CURRENCY } from "../../../features/pos/posMock";
+import { NARCOTIC_SALE_REMINDER } from "../../../components/ui/NarcoticBadge";
 import type { CartItem } from "../../../features/pos/useCart";
 import type { BillDiscount } from "../../../features/pos/useCart";
 
@@ -53,6 +54,7 @@ export default function PaymentModal({
   const remaining = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
   const isFullyPaid = totalPaid >= total && total > 0;
+  const hasNarcotic = items.some((item) => item.product.isNarcotic);
 
   function addRow() {
     setPaymentRows((prev) => [
@@ -153,6 +155,15 @@ export default function PaymentModal({
               </div>
             </div>
           </div>
+
+          {hasNarcotic && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-2">
+              <svg className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <p className="text-xs font-medium text-red-700">{NARCOTIC_SALE_REMINDER}</p>
+            </div>
+          )}
 
           {/* Payment rows */}
           <div className="flex flex-col gap-2">

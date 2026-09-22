@@ -5,6 +5,8 @@
 //   GET    /api/v1/purchasing/suppliers/{id}  (detail: POs, invoices, counts)
 //   PATCH  /api/v1/purchasing/suppliers/{id}  (update — partial body)
 //   DELETE /api/v1/purchasing/suppliers/{id}  (delete; 409 when in use)
+//   GET    /api/v1/purchasing/suppliers/{id}/products  (catalog lookup: products ordered from supplier)
+//   GET    /api/v1/purchasing/suppliers/{id}/products/{productId}/batches  (catalog lookup: supplier-owned batches)
 //
 // All requests require the authenticated session cookie
 // (HTTP-only — sent automatically with `credentials: "include"`).
@@ -91,6 +93,121 @@ export interface CreateSupplierInput {
 
 /** Body for PATCH /suppliers/{id} — all fields optional. */
 export type UpdateSupplierInput = Partial<CreateSupplierInput>;
+
+// ─── Supplier catalog lookups (purchase-return flow) ─────────────────────────
+
+/** Product ordered from the supplier — GET /suppliers/{id}/products. */
+export interface SupplierProductDto {
+  id: string;
+  name: string;
+  genericName: string | null;
+  brand: string | null;
+  sku: string;
+  isActive: boolean;
+  isNarcotic: boolean;
+}
+
+export interface SupplierProductsResult {
+  data: SupplierProductDto[];
+  meta: SupplierListMeta;
+}
+
+export interface SupplierProductsQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isActive?: boolean;
+}
+
+/** A batch of a product traceable to the supplier, with stock per location. */
+export interface SupplierProductBatchLocationDto {
+  locationId: string;
+  locationName: string;
+  availableQuantity: number;
+}
+
+export interface SupplierProductBatchDto {
+  id: string;
+  batchNumber: string;
+  productId: string;
+  productName: string;
+  supplierId: string;
+  expiryDate: string;
+  purchaseCost: number | null;
+  receivedDate: string | null;
+  locations: SupplierProductBatchLocationDto[];
+}
+
+export interface SupplierBatchLookupSummary {
+  supplier: { id: string; name: string };
+  product: { id: string; name: string };
+}
+
+/** GET /suppliers/{id}/products/{productId}/batches — no meta (unpaginated). */
+export interface SupplierBatchLookupResult {
+  data: SupplierProductBatchDto[];
+  summary?: SupplierBatchLookupSummary;
+}
+
+export interface SupplierProductBatchQuery {
+  locationId?: string;
+  inStock?: boolean;
+  excludeExpired?: boolean;
+}
+
+/** GET /suppliers/{id}/products — products actually ordered from the supplier. */
+export async function listSupplierProducts(
+  supplierId: string,
+  query: SupplierProductsQuery = {},
+): Promise<SupplierProductsResult> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({
+    page: query.page,
+    limit: query.limit,
+    search: query.search,
+    isActive: query.isActive === undefined ? undefined : String(query.isActive),
+  })) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const qs = params.toString();
+  const key = `suppliers:products:${supplierId}:${qs}`;
+  return cacheRead(key, async () => {
+    const result = await suppliersRequest<SupplierProductsResult>(
+      `/${encodeURIComponent(supplierId)}/products${qs ? `?${qs}` : ""}`,
+    );
+    return (
+      result ?? { data: [], meta: { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } }
+    );
+  });
+}
+
+/**
+ * GET /suppliers/{id}/products/{productId}/batches — batches owned by the
+ * supplier (Batch.supplierId), FEFO-sorted, with availableQuantity per
+ * location.
+ */
+export async function getSupplierProductBatches(
+  supplierId: string,
+  productId: string,
+  query: SupplierProductBatchQuery = {},
+): Promise<SupplierBatchLookupResult> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({
+    locationId: query.locationId,
+    inStock: query.inStock === undefined ? undefined : String(query.inStock),
+    excludeExpired: query.excludeExpired === undefined ? undefined : String(query.excludeExpired),
+  })) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const qs = params.toString();
+  const key = `suppliers:batches:${supplierId}:${productId}:${qs}`;
+  return cacheRead(key, async () => {
+    const result = await suppliersRequest<SupplierBatchLookupResult>(
+      `/${encodeURIComponent(supplierId)}/products/${encodeURIComponent(productId)}/batches${qs ? `?${qs}` : ""}`,
+    );
+    return result ?? { data: [] };
+  });
+}
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 

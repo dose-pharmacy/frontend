@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { POSProduct, POSUnit } from "../../../features/pos/posMock";
 import { fmt } from "../../../features/pos/posService";
+import NarcoticBadge from "../../../components/ui/NarcoticBadge";
 
 interface Props {
   product: POSProduct;
@@ -51,7 +52,10 @@ export default function ProductSelectionModal({ product, onAdd, onClose }: Props
             <ProductIcon type={product.icon} size={28} />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-[#333333] text-base leading-tight">{product.name}</h3>
+            <h3 className="font-bold text-[#333333] text-base leading-tight">
+              {product.name}
+              {product.isNarcotic && <NarcoticBadge className="ml-2 align-middle" />}
+            </h3>
             {product.brand && product.brand !== "—" && (
               <p className="text-sm text-[#666666]">{product.brand}</p>
             )}

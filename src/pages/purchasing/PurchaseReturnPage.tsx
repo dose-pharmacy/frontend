@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
@@ -10,8 +10,15 @@ import {
   type PurchaseReturnReason,
   PurchaseReturnsApiError,
 } from "../../features/purchasing/purchaseReturnsApi";
-import { listBatches, type BatchDto } from "../../features/inventory/batchesApi";
-import { searchProducts, searchSuppliers, searchLocations } from "../../features/inventory/searchSelectors";
+import {
+  listSupplierProducts,
+  getSupplierProductBatches,
+  type SupplierProductBatchDto,
+} from "../../features/purchasing/suppliersApi";
+import {
+  searchSuppliers,
+  searchLocations,
+} from "../../features/inventory/searchSelectors";
 import { useSearchableResource } from "../../hooks/useSearchableResource";
 import SearchableSelect from "../../components/ui/SearchableSelect";
 import type { SearchableOption } from "../../components/ui/SearchableSelect";
@@ -49,9 +56,18 @@ export default function PurchaseReturnPage() {
   const [debitNoteAmount, setDebitNoteAmount] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Reference data
-  const [batches, setBatches] = useState<BatchDto[]>([]);
+  // Supplier-scoped product search (manual — resets whenever the supplier changes)
+  const [productTerm, setProductTerm] = useState("");
+  const [productOptions, setProductOptions] = useState<SearchableOption[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+  const productSeq = useRef(0);
+  const productTimer = useRef<number | null>(null);
+
+  // Supplier-owned batches for the selected (supplier, product, location)
+  const [batches, setBatches] = useState<SupplierProductBatchDto[]>([]);
   const [batchesLoading, setBatchesLoading] = useState(false);
+  const batchSeq = useRef(0);
 
   // History
   const [returns, setReturns] = useState<PurchaseReturnDto[]>([]);
@@ -81,52 +97,153 @@ export default function PurchaseReturnPage() {
     }
   }, []);
 
+  useEffect(() => {
+    void loadReturns();
+  }, [loadReturns]);
+
   const supplierSearch = useSearchableResource(searchSuppliers, showForm);
-  const productSearch = useSearchableResource(searchProducts, showForm);
   const locationSearch = useSearchableResource(searchLocations, showForm);
   const selectedSupplierOption = supplierSearch.options.find((o) => o.value === supplierId) ?? null;
   const supplierOptions: SearchableOption[] = selectedSupplierOption
     ? [selectedSupplierOption, ...supplierSearch.options.filter((o) => o.value !== supplierId)]
     : supplierSearch.options;
-  const selectedProductOption = productSearch.options.find((o) => o.value === productId) ?? null;
-  const productOptions: SearchableOption[] = selectedProductOption
-    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
-    : productSearch.options;
   const selectedLocationOption = locationSearch.options.find((o) => o.value === locationId) ?? null;
   const locationOptions: SearchableOption[] = selectedLocationOption
     ? [selectedLocationOption, ...locationSearch.options.filter((o) => o.value !== locationId)]
     : locationSearch.options;
-  const selectedSupplierName = selectedSupplierOption?.label ?? supplierId;
-  const selectedProductName = selectedProductOption?.label ?? productId;
-  const selectedLocationName = selectedLocationOption?.label ?? locationId;
 
+  // ── Supplier → product (backend-filtered catalog lookup) ──────────────────
+
+  const loadSupplierProducts = useCallback(async (term: string) => {
+    if (!supplierId) {
+      setProductOptions([]);
+      return;
+    }
+    const seq = ++productSeq.current;
+    setProductsLoading(true);
+    setProductsError(null);
+    try {
+      const res = await listSupplierProducts(supplierId, {
+        page: 1,
+        limit: 50,
+        search: term.trim() || undefined,
+        isActive: true,
+      });
+      if (seq !== productSeq.current) return;
+      setProductOptions(
+        res.data.map((p) => ({
+          value: p.id,
+          label: p.name,
+          sub: `${p.sku}${p.isNarcotic ? " · Narcotic" : ""}`,
+        })),
+      );
+    } catch (e) {
+      if (seq !== productSeq.current) return;
+      setProductsError(e instanceof Error ? e.message : "Failed to load supplier products.");
+      setProductOptions([]);
+    } finally {
+      if (seq === productSeq.current) setProductsLoading(false);
+    }
+  }, [supplierId]);
+
+  // Supplier changed → reset the dependent product/batch selection and reload.
   useEffect(() => {
-    void loadReturns();
-  }, [loadReturns])
+    if (!supplierId) {
+      productSeq.current++;
+      setProductOptions([]);
+      setProductsError(null);
+      setProductId("");
+      setBatchId("");
+      setBatches([]);
+      return;
+    }
+    productSeq.current++;
+    setProductOptions([]);
+    setProductId("");
+    setBatchId("");
+    setBatches([]);
+    setProductsLoading(true);
+    setProductsError(null);
+    void loadSupplierProducts("");
+  }, [supplierId, loadSupplierProducts]);
 
-  // Product selection drives the batch list: batches are fetched per product
-  // (GET /inventory/products/{productId}/batches or ?productId= on /batches).
-  async function handleProductChange(newProductId: string) {
+  // Debounced search while typing.
+  useEffect(() => {
+    if (!supplierId) return;
+    if (productTimer.current) window.clearTimeout(productTimer.current);
+    productTimer.current = window.setTimeout(() => {
+      void loadSupplierProducts(productTerm);
+    }, 300);
+    return () => {
+      if (productTimer.current) window.clearTimeout(productTimer.current);
+    };
+  }, [productTerm, supplierId, loadSupplierProducts]);
+
+  function handleSupplierChange(v: string) {
+    setSupplierId(v);
+    setProductId("");
+    setBatchId("");
+    setBatches([]);
+    setProductTerm("");
+  }
+
+  function handleProductChange(newProductId: string) {
     setProductId(newProductId);
     setBatchId("");
     setBatches([]);
-    if (!newProductId) return;
+  }
+
+  function handleLocationChange(newLocationId: string) {
+    setLocationId(newLocationId);
+    setBatchId("");
+  }
+
+  // ── Supplier-owned batches for the selected product (+ location) ───────────
+
+  const loadBatches = useCallback(async () => {
+    if (!supplierId || !productId) {
+      setBatches([]);
+      return;
+    }
+    const seq = ++batchSeq.current;
     setBatchesLoading(true);
     try {
-      const result = await listBatches({ productId: newProductId, limit: 100 });
-      setBatches(result.data);
+      // GET /suppliers/{supplierId}/products/{productId}/batches — only batches
+      // traceable to the supplier (Batch.supplierId), FEFO-sorted, with stock
+      // at the selected location when given.
+      const res = await getSupplierProductBatches(supplierId, productId, {
+        locationId: locationId || undefined,
+        inStock: true,
+        excludeExpired: true,
+      });
+      if (seq !== batchSeq.current) return;
+      setBatches(res.data);
     } catch {
-      setBatches([]);
+      if (seq === batchSeq.current) setBatches([]);
     } finally {
-      setBatchesLoading(false);
+      if (seq === batchSeq.current) setBatchesLoading(false);
     }
-  }
+  }, [supplierId, productId, locationId]);
+
+  useEffect(() => {
+    void loadBatches();
+  }, [loadBatches]);
 
   function getAvailableStock(id: string | null): number {
     if (!id) return 0;
-    return batches.find((b) => b.id === id)?.totalQuantity ?? 0;
+    const b = batches.find((x) => x.id === id);
+    if (!b) return 0;
+    const rows = b.locations ?? [];
+    if (locationId) {
+      return rows.find((l) => l.locationId === locationId)?.availableQuantity ?? 0;
+    }
+    return rows.reduce((sum, l) => sum + l.availableQuantity, 0);
   }
 
+  const selectedProductOption = productOptions.find((o) => o.value === productId) ?? null;
+  const selectedProductName = selectedProductOption?.label ?? productId;
+  const selectedSupplierName = selectedSupplierOption?.label ?? supplierId;
+  const selectedLocationName = selectedLocationOption?.label ?? locationId;
   const selectedBatch = batches.find((b) => b.id === batchId) ?? null;
   const parsedUnitCost = parseFloat(unitCost) || 0;
   const parsedDebit = parseFloat(debitNoteAmount) || 0;
@@ -181,9 +298,9 @@ export default function PurchaseReturnPage() {
     setSuccess("");
     setSaving(true);
     try {
-      // POST /purchase-returns — batchId/unitCost/debitNoteAmount/notes are
-      // optional; the backend derives the location and stamps the return
-      // number + returnedDate itself.
+      // POST /purchase-returns — the backend re-validates supplier/product/batch
+      // ownership and live stock under lock; batchId/unitCost optional fields as
+      // documented.
       await createPurchaseReturn({
         supplierId,
         productId,
@@ -260,7 +377,7 @@ export default function PurchaseReturnPage() {
                   <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
                   <SearchableSelect
                     value={supplierId || null}
-                    onChange={setSupplierId}
+                    onChange={handleSupplierChange}
                     options={supplierOptions}
                     onSearch={supplierSearch.setTerm}
                     loading={supplierSearch.loading}
@@ -276,23 +393,25 @@ export default function PurchaseReturnPage() {
                   <label className="block text-sm text-[#666666] mb-1">Product *</label>
                   <SearchableSelect
                     value={productId || null}
-                    onChange={(v) => handleProductChange(v)}
+                    onChange={handleProductChange}
                     options={productOptions}
-                    onSearch={productSearch.setTerm}
-                    loading={productSearch.loading}
-                    error={productSearch.error}
-                    onRetry={productSearch.retry}
-                    placeholder="— Select Product —"
+                    onSearch={(t) => setProductTerm(t)}
+                    loading={productsLoading}
+                    error={productsError}
+                    onRetry={() => void loadSupplierProducts(productTerm)}
+                    disabled={!supplierId}
+                    placeholder={!supplierId ? "— Select Supplier First —" : "— Select Product —"}
                     searchPlaceholder="Search by name or SKU..."
-                    emptyMessage="No products found"
-                    noResultsMessage="No products matching your search"
+                    emptyMessage={!supplierId ? "Select a supplier first" : "No products ordered from this supplier"}
+                    noResultsMessage="No matching products from this supplier"
+                    footerHint="Only products ordered from the selected supplier are listed."
                   />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Location *</label>
                   <SearchableSelect
                     value={locationId || null}
-                    onChange={setLocationId}
+                    onChange={handleLocationChange}
                     options={locationOptions}
                     onSearch={locationSearch.setTerm}
                     loading={locationSearch.loading}
@@ -305,7 +424,7 @@ export default function PurchaseReturnPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Batch <span className="text-xs font-normal">(optional)</span></label>
+                  <label className="block text-sm text-[#666666] mb-1">Batch <span className="text-xs font-normal">(supplier-owned, optional)</span></label>
                   <select
                     value={batchId}
                     onChange={(e) => setBatchId(e.target.value)}
@@ -313,25 +432,27 @@ export default function PurchaseReturnPage() {
                     disabled={!productId || batchesLoading}
                   >
                     <option value="">
-                      {!productId
+                      {!supplierId
+                        ? "— Select a supplier first —"
+                        : !productId
                         ? "— Select a product first —"
                         : batchesLoading
                         ? "Loading batches…"
                         : batches.length === 0
-                        ? "— No batches for this product —"
+                        ? "— No supplier-owned batches in stock —"
                         : "— No specific batch —"}
                     </option>
                     {batches.map((b) => (
                       <option key={b.id} value={b.id}>
-                        {b.batchNumber} · Exp: {fmtDate(b.expiryDate)} · Stock: {b.totalQuantity}
+                        {b.batchNumber} · Exp: {fmtDate(b.expiryDate)} · Available: {getAvailableStock(b.id)}
                       </option>
                     ))}
                   </select>
                   {batches.length === 0 && productId && !batchesLoading && (
                     <p className="mt-1 text-xs text-[#666666]">
-                      This product has no batches yet.{" "}
-                      <Link to="/inventory/batches-expiry" className="text-[#49B0C1] hover:underline">Create a batch first</Link>{" "}
-                      to return stock against it.
+                      No batches of this product traceable to this supplier have stock at{" "}
+                      {locationId ? "the selected location" : "any location"}. Only supplier-received
+                      batches can be returned.
                     </p>
                   )}
                   {batchId && (
@@ -383,7 +504,7 @@ export default function PurchaseReturnPage() {
                 </Button>
                 {canSubmit && !saving && (
                   <span className="text-xs text-[#666666]">
-                    Recording a return deducts {quantity} from stock immediately and cannot be undone.
+                    Recording a return deducts {quantity} from the selected {locationId ? "location" : "batch"} and cannot be undone.
                   </span>
                 )}
               </div>

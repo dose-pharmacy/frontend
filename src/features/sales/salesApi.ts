@@ -56,6 +56,8 @@ export interface SaleItemDto {
     sku: string;
     /** Some responses embed the brand. */
     brand?: string;
+    /** Narcotic/controlled flag — present on sale-detail item products. */
+    isNarcotic?: boolean;
   };
   unitId: string;
   unit: { id: string; name: string; symbol: string };

@@ -8,6 +8,7 @@ import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import Input from "../../components/ui/Input"
 import FormError from "../../components/ui/FormError"
+import NarcoticBadge from "../../components/ui/NarcoticBadge"
 import {
   listSales,
   getSale,
@@ -30,6 +31,7 @@ interface SaleItem {
   unit: string
   qty: number
   unitPrice: number
+  isNarcotic?: boolean
 }
 
 interface SalePayment {
@@ -96,6 +98,7 @@ function adaptSale(dto: SaleDto, detail?: SaleDto | null): Sale {
     unit: it.unit?.name ?? "—",
     qty: it.quantity,
     unitPrice: it.actualUnitPrice,
+    isNarcotic: it.product?.isNarcotic ?? false,
   }))
   const payments: SalePayment[] = paymentsSource.map((p) => ({
     method: methodLabel(p.method),
@@ -454,7 +457,10 @@ function SaleDetailModal({
                   <tbody>
                     {view.items.map((item, i) => (
                       <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                        <td className="px-3 py-2.5 font-medium text-[#333333]">{item.product}</td>
+                        <td className="px-3 py-2.5 font-medium text-[#333333]">
+                          {item.product}
+                          {item.isNarcotic && <NarcoticBadge className="ml-2 align-middle" />}
+                        </td>
                         <td className="px-3 py-2.5 text-[#666666]">{item.brand}</td>
                         <td className="px-3 py-2.5 font-mono text-xs text-[#666666]">{item.batch}</td>
                         <td className="px-3 py-2.5 text-[#666666]">{item.unit}</td>

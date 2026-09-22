@@ -2,6 +2,7 @@
 // Talks to the pharmacy backend's expiry endpoints:
 //   GET  /api/v1/inventory/expiry/dashboard                    (expiry dashboard + summary)
 //   GET  /api/v1/inventory/expiry/batches                      (expiring batch list, paginated)
+//   GET  /api/v1/inventory/expired-products                    (expired products aggregated per product)
 //   GET  /api/v1/inventory/batches/{batchId}/expiry-actions    (action history)
 //   POST /api/v1/inventory/batches/{batchId}/expiry-actions    (return / clearance / dispose)
 //
@@ -136,6 +137,46 @@ export interface ExpiryBatchesQuery extends ExpiryDashboardQuery {
   limit?: number;
 }
 
+// ─── Expired products (GET /inventory/expired-products) ──────────────────────
+
+/** One expired batch/location row of an expired product. */
+export interface ExpiredProductBatchDto {
+  id: string;
+  batchNumber: string;
+  expiryDate: string;
+  purchaseCost: number | null;
+  quantity: number;
+  locationId: string;
+  locationName: string;
+}
+
+/**
+ * A product with expired stock, aggregated across its expired batches —
+ * `expiredBatches` carries one row per (batch, location) stock slice.
+ */
+export interface ExpiredProductDto {
+  productId: string;
+  productName: string;
+  sku: string;
+  brand: string | null;
+  isNarcotic: boolean;
+  batchCount: number;
+  totalExpiredQuantity: number;
+  expiredBatches: ExpiredProductBatchDto[];
+}
+
+export interface ExpiredProductsQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  locationId?: string;
+}
+
+export interface ExpiredProductsResult {
+  data: ExpiredProductDto[];
+  meta: ExpiryListMeta;
+}
+
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 export class ExpiryApiError extends Error {
@@ -200,6 +241,7 @@ async function parseErrorResponse(res: Response): Promise<ExpiryApiError> {
 // ─── Request plumbing ────────────────────────────────────────────────────────
 
 const EXPIRY_BASE = `${API_BASE_URL}/api/v1/inventory/expiry`;
+const INVENTORY_BASE = `${API_BASE_URL}/api/v1/inventory`;
 const BATCHES_BASE = `${API_BASE_URL}/api/v1/inventory/batches`;
 
 async function expiryRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -235,6 +277,36 @@ async function batchExpiryRequest<T>(path: string, init: RequestInit = {}): Prom
   let res: Response;
   try {
     res = await fetch(`${BATCHES_BASE}${path}`, {
+      credentials: "include",
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new ExpiryApiError(
+      "Cannot reach the server. Please check your connection and try again.",
+    );
+  }
+
+  if (!res.ok) throw await parseErrorResponse(res);
+
+  const text = await res.text();
+  if (!text) return null as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null as T;
+  }
+}
+
+/** Direct /inventory route (not under /expiry). */
+async function inventoryRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${INVENTORY_BASE}${path}`, {
       credentials: "include",
       ...init,
       headers: {
@@ -333,6 +405,35 @@ export async function listExpiryBatches(
     })}`,
   );
   return result ?? { data: [], meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } };
+}
+
+/**
+ * GET /inventory/expired-products — products with expired stock, aggregated
+ * per product. Supports search (name/generic/brand/sku) and an optional
+ * location filter. Distinct from `/expiry/batches`. Unwraps defensively.
+ */
+export async function listExpiredProducts(
+  query: ExpiredProductsQuery = {},
+): Promise<ExpiredProductsResult> {
+  const result = await inventoryRequest<{
+    success: boolean;
+    data: ExpiredProductDto[];
+    meta: ExpiryListMeta;
+  }>(
+    `/expired-products${buildQueryString({
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      locationId: query.locationId,
+    })}`,
+  );
+  if (result?.data) {
+    return {
+      data: result.data,
+      meta: result.meta ?? { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
+    };
+  }
+  return { data: [], meta: { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } };
 }
 
 /** GET /inventory/batches/{batchId}/expiry-actions — action history for a batch. */

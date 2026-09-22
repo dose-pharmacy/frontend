@@ -12,6 +12,7 @@ import { useAuth } from "../../features/auth/AuthContext";
 import type { POSUnit } from "../../features/pos/posMock";
 import ProductSelectionModal, { ProductIcon } from "./components/ProductSelectionModal";
 import PaymentModal from "./components/PaymentModal";
+import NarcoticBadge from "../../components/ui/NarcoticBadge";
 
 type Modal = "none" | "product" | "payment";
 
@@ -333,6 +334,9 @@ export default function POSPage() {
                           : "border-[#DBEFF3] bg-white hover:border-[#49B0C1] hover:shadow-md"
                       }`}
                     >
+                      {p.isNarcotic && (
+                        <NarcoticBadge className="absolute top-2 right-2" />
+                      )}
                       <div className="h-12 w-12 rounded-lg bg-[#DBEFF3] flex items-center justify-center text-[#49B0C1] mb-2 group-hover:bg-[#ABDBE3]/40 transition-colors">
                         <ProductIcon type={p.icon} size={24} />
                       </div>
@@ -414,7 +418,10 @@ export default function POSPage() {
                     <div className="flex gap-3">
                       {/* Left: info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[#333333] leading-tight truncate">{item.product.name}</p>
+                        <p className="text-sm font-semibold text-[#333333] leading-tight truncate">
+                          {item.product.name}
+                          {item.product.isNarcotic && <NarcoticBadge className="ml-1 align-middle" />}
+                        </p>
                         <p className="text-xs text-[#666666] mt-0.5">{item.unit.name} · {fmt(item.unitPrice)}/unit</p>
                       </div>
                       {/* Right: total + remove */}

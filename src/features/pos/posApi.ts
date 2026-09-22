@@ -37,6 +37,7 @@ export interface PosProductDto {
   availableStock: number;
   stockStatus: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | (string & {});
   isActive: boolean;
+  isNarcotic: boolean;
 }
 
 export interface PosProductsMeta {
@@ -181,5 +182,6 @@ export function adaptPosProduct(dto: PosProductDto): POSProduct {
         : Math.floor(dto.availableStock / u.conversionFactor),
     })),
     icon: "pill",
+    isNarcotic: dto.isNarcotic,
   };
 }

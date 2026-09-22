@@ -22,6 +22,8 @@ export interface POSProduct {
   availableStock: number; // base-unit stock
   units: POSUnit[];
   icon: "pill" | "box" | "drop" | "shield" | "heart";
+  /** Narcotic/controlled product flag — backend-authoritative, never inferred. */
+  isNarcotic: boolean;
 }
 
 // TAX_RATE is intentionally 0 — the backend sale schema has no tax field.

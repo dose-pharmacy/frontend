@@ -182,3 +182,15 @@ export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Pr
   if (!result?.data) throw new PurchaseReturnsApiError("Unexpected response from the server.")
   return result.data
 }
+
+/**
+ * DELETE /purchase-returns/{id} — the backend refuses to delete returns
+ * (409 PURCHASE_RETURN_IMMUTABLE) because the RETURN_TO_SUPPLIER stock
+ * movement is already recorded and reversing it would corrupt the ledger.
+ * The surfaced message explains that deletion does NOT restore stock.
+ */
+export async function deletePurchaseReturn(id: string): Promise<void> {
+  await returnRequest<{ data: null }>(`/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
+}

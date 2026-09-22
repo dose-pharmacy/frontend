@@ -19,6 +19,9 @@
 //     PATCH /api/v1/financials/reports/slow-moving/{id}
 //     DELETE /api/v1/financials/reports/slow-moving/{id}
 //     POST /api/v1/financials/reports/slow-moving/evaluate
+//   Narcotics
+//     GET  /api/v1/financials/reports/narcotics              (paginated product summary)
+//     GET  /api/v1/financials/reports/narcotics/activity     (paginated movement ledger)
 //
 // All requests require the authenticated session cookie
 // (HTTP-only — sent automatically with `credentials: "include"`).
@@ -317,6 +320,123 @@ export interface SlowMovingEvaluateResult {
   skipped: number;
   evaluatedAt: string;
   durationMs: number;
+}
+
+// ─── Narcotic report ─────────────────────────────────────────────────────────
+
+export interface NarcoticSummaryBatchDto {
+  batchId: string;
+  batchNumber: string;
+  expiryDate: string;
+  locationId: string;
+  locationName: string;
+  currentQuantity: number;
+}
+
+/**
+ * Product-level narcotic summary. Period activity metrics are omitted when the
+ * product had no such movement in the selected window.
+ */
+export interface NarcoticSummaryDto {
+  productId: string;
+  productName: string;
+  sku: string;
+  genericName: string | null;
+  brand: string | null;
+  isNarcotic: boolean;
+  batches: NarcoticSummaryBatchDto[];
+  soldQuantity?: number;
+  purchasedQuantity?: number;
+  returnedQuantity?: number;
+  adjustedQuantity?: number;
+}
+
+export interface NarcoticReportQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  productId?: string;
+  locationId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface NarcoticActivityDto {
+  transactionId: string;
+  date: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  batchId: string;
+  batchNumber: string;
+  expiryDate: string;
+  locationId: string;
+  locationName: string;
+  movementType: string;
+  direction: "IN" | "OUT";
+  quantity: number;
+  balanceAfter: number;
+  reference: string | null;
+}
+
+export interface NarcoticActivityQuery {
+  page?: number;
+  limit?: number;
+  productId?: string;
+  locationId?: string;
+  batchId?: string;
+  movementType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+/** GET /reports/narcotics — paginated narcotic product summary. */
+export async function getNarcoticReport(
+  query: NarcoticReportQuery = {},
+): Promise<ReportPaginatedResult<NarcoticSummaryDto>> {
+  const result = await reportsRequest<ReportPaginatedResult<NarcoticSummaryDto>>(
+    REPORTS_BASE,
+    `/narcotics${buildQuery({
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      productId: query.productId,
+      locationId: query.locationId,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+    })}`,
+  );
+  return (
+    result ?? {
+      data: [],
+      meta: { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
+    }
+  );
+}
+
+/** GET /reports/narcotics/activity — paginated movement ledger for narcotics. */
+export async function getNarcoticActivity(
+  query: NarcoticActivityQuery = {},
+): Promise<ReportPaginatedResult<NarcoticActivityDto>> {
+  const result = await reportsRequest<ReportPaginatedResult<NarcoticActivityDto>>(
+    REPORTS_BASE,
+    `/narcotics/activity${buildQuery({
+      page: query.page,
+      limit: query.limit,
+      productId: query.productId,
+      locationId: query.locationId,
+      batchId: query.batchId,
+      movementType: query.movementType,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+    })}`,
+  );
+  return (
+    result ?? {
+      data: [],
+      meta: { page: query.page ?? 1, limit: query.limit ?? 20, total: 0, totalPages: 1 },
+    }
+  );
 }
 
 // ─── Errors ──────────────────────────────────────────────────────────────────

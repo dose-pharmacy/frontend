@@ -144,6 +144,7 @@ const NAV: NavItem[] = [
       { to: "/reports/sales", label: "Sales" },
       { to: "/reports/profitability", label: "Profitability" },
       { to: "/reports/slow-moving", label: "Slow Moving" },
+      { to: "/reports/narcotics", label: "Narcotics" },
     ],
   },
   {
@@ -155,6 +156,7 @@ const NAV: NavItem[] = [
       { to: "/inventory/groups", label: "Product Groups" },
       { to: "/inventory/units", label: "Units" },
       { to: "/inventory/locations", label: "Locations" },
+      { to: "/settings/audit-trail", label: "Audit Trail" },
     ],
   },
 ];

@@ -2,7 +2,9 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog"
 import {
+  deletePurchaseReturn,
   getPurchaseReturn,
   type PurchaseReturnDto,
   type PurchaseReturnReason,
@@ -36,6 +38,9 @@ export default function PurchaseReturnDetailPage() {
   const [returnRecord, setReturnRecord] = useState<PurchaseReturnDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
 
   useEffect(() => {
     if (!id) return
@@ -143,15 +148,52 @@ export default function PurchaseReturnDetailPage() {
         {/* Immutability note */}
         <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
           <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Actions</p>
-          <div className="flex items-start gap-3">
-            <span className="text-xs text-[#666666]">
-              Purchase returns are permanent and cannot be deleted — the stock reduction below was
-              applied immediately when the return was recorded and is preserved for the stock-ledger
-              audit trail. If a correction is needed, record a new stock adjustment for this product.
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <span className="text-xs text-[#666666] max-w-2xl">
+              Purchase returns are permanent — the RETURN_TO_SUPPLIER stock reduction was applied when
+              the return was recorded and is preserved for the stock-ledger audit trail. Deleting the
+              record does <strong>not</strong> restore stock; a reversal requires an administrator.
             </span>
+            {deleteError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{deleteError}</p>
+            )}
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => navigate("/purchasing/returns")}>Back to Returns</Button>
+              <button
+                disabled={deleting}
+                onClick={() => { setDeleteOpen(true); setDeleteError("") }}
+                className="inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-all duration-150 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Delete Return
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={deleteOpen}
+        title="Delete Purchase Return?"
+        message={`Delete return ${returnRecord.returnNumber}? Deletion does NOT restore stock — the stock movement already recorded in the ledger stays in place and the record would only be removed from this view. The system blocks deletion because it would break the stock-ledger audit trail.`}
+        confirmLabel={deleting ? "Deleting…" : "Delete Return"}
+        danger
+        loading={deleting}
+        onConfirm={() => {
+          if (!id) return
+          setDeleting(true)
+          setDeleteError("")
+          deletePurchaseReturn(id)
+            .then(() => navigate("/purchasing/returns"))
+            .catch((e: unknown) =>
+              setDeleteError(e instanceof Error ? e.message : "The return could not be deleted."),
+            )
+            .finally(() => {
+              setDeleting(false)
+              setDeleteOpen(false)
+            })
+        }}
+        onCancel={() => { setDeleteOpen(false); setDeleteError("") }}
+      />
     </div>
   )
 }

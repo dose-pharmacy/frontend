@@ -13,6 +13,7 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import Button from "../../components/ui/Button";
 import Select from "../../components/ui/Select";
 import Modal from "../../components/ui/Modal";
+import NarcoticBadge from "../../components/ui/NarcoticBadge";
 
 // ─────────────────────────────────────────────────────────────
 // Edit form types
@@ -31,6 +32,7 @@ interface ProductForm {
   minimumStock: string;
   reorderPoint: string;
   isActive: boolean;
+  isNarcotic: boolean;
   units: UnitRow[];
 }
 
@@ -164,6 +166,7 @@ export default function ProductDetailPage() {
       minimumStock: String(product.minimumStock ?? 0),
       reorderPoint: String(product.reorderPoint ?? 0),
       isActive: product.isActive,
+      isNarcotic: product.isNarcotic,
       units: rows,
     });
 
@@ -296,6 +299,7 @@ export default function ProductDetailPage() {
         minimumStock: Number(form.minimumStock),
         reorderPoint: Number(form.reorderPoint),
         isActive: form.isActive,
+        isNarcotic: form.isNarcotic,
         units: form.units.map((u) => ({
           unitId: u.unitId,
           conversionFactor: Number(u.conversionFactor),
@@ -460,6 +464,7 @@ export default function ProductDetailPage() {
                   <div>
                     <h2 className="text-xl font-bold text-[#333333]">
                       {product.name}
+                      {product.isNarcotic && <NarcoticBadge className="ml-2" />}
                     </h2>
 
                     <p className="text-sm text-[#666666] mt-0.5">
@@ -1023,6 +1028,25 @@ export default function ProductDetailPage() {
                   form.isActive
                     ? "Active — product is available for purchase and sale"
                     : "Inactive — product will be hidden from sales"
+                }
+              />
+            </section>
+
+            {/* Narcotic / Controlled */}
+            <section className="rounded-xl border border-red-200 bg-red-50/60 p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-[#333333]">
+                  Narcotic / Controlled medicine
+                </p>
+                <p className="text-xs text-[#666666] mt-0.5">
+                  Flag this product as narcotic. Changing this flag is recorded
+                  in the audit trail.
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={form.isNarcotic}
+                onChange={(v) =>
+                  setForm((f) => (f ? { ...f, isNarcotic: v } : f))
                 }
               />
             </section>

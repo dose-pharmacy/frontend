@@ -40,6 +40,8 @@ import ReportsDashboardPage from "../pages/reports/ReportsDashboardPage";
 import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardPage";
 import SalesReportPage from "../pages/reports/SalesReportPage";
 import SlowMovingPage from "../pages/reports/SlowMovingPage";
+import NarcoticReportPage from "../pages/reports/NarcoticReportPage";
+import AuditTrailPage from "../pages/admin/AuditTrailPage";
 
 export const router = createBrowserRouter([
   {
@@ -108,6 +110,9 @@ export const router = createBrowserRouter([
           { path: "/reports/sales", Component: SalesReportPage },
           { path: "/reports/profitability", Component: ProfitabilityDashboardPage },
           { path: "/reports/slow-moving", Component: SlowMovingPage },
+          { path: "/reports/narcotics", Component: NarcoticReportPage },
+          // Settings / admin
+          { path: "/settings/audit-trail", Component: AuditTrailPage },
         ],
       },
     ],
