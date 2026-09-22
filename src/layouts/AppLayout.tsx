@@ -241,7 +241,7 @@ function Sidebar({
             </div>
             <div>
               <p className="text-sm font-bold text-[#333333] leading-none tracking-wide">
-                PharmaCare
+                DOSE PHARMACY
               </p>
               <p className="text-[10px] text-[#999999] mt-0.5">
                 Management System
@@ -464,7 +464,7 @@ function Sidebar({
       {!collapsed && (
         <div className="px-4 py-3 border-t border-[#E6ECE2] flex-shrink-0">
           <p className="text-[10px] text-[#999999] font-medium">
-            PharmaCare v2.0
+            DOSE PHARMACY v2.0
           </p>
           <p className="text-[10px] text-[#999999] mt-0.5">
             © 2026 All rights reserved

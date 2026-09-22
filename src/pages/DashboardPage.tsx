@@ -350,7 +350,6 @@ export default function DashboardPage() {
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState<string | null>(null);
 
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadSummary = useCallback(async () => {
@@ -358,7 +357,6 @@ export default function DashboardPage() {
     setSummaryError(null);
     try {
       setSummary(await getDashboardSummary());
-      setLastUpdated(new Date());
     } catch (e) {
       setSummaryError(e instanceof DashboardApiError ? e.message : "Failed to load summary.");
     } finally {
@@ -371,7 +369,6 @@ export default function DashboardPage() {
     setAttentionError(null);
     try {
       setAttention(await getDashboardAttention());
-      setLastUpdated(new Date());
     } catch (e) {
       setAttentionError(e instanceof DashboardApiError ? e.message : "Failed to load attention items.");
     } finally {
@@ -384,7 +381,6 @@ export default function DashboardPage() {
     setRecentError(null);
     try {
       setRecent(await getDashboardRecentActivity());
-      setLastUpdated(new Date());
     } catch (e) {
       setRecentError(e instanceof DashboardApiError ? e.message : "Failed to load recent activity.");
     } finally {
@@ -432,14 +428,6 @@ export default function DashboardPage() {
           subtitle="Overview of today's activity and items needing care."
           actions={
             <div className="flex items-center gap-3">
-              {lastUpdated && (
-                <p className="text-xs text-[#666666]">
-                  Last updated{" "}
-                  <span className="font-semibold text-[#333333]">
-                    {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </p>
-              )}
               <Button
                 variant="secondary"
                 onClick={() => setRefreshKey((k) => k + 1)}
