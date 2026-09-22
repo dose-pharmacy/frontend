@@ -2,7 +2,6 @@ import { NavLink } from "react-router";
 
 const SUB_LINKS = [
   { to: "/reports/slow-moving", label: "Slow Moving" },
-  { to: "/reports/narcotics", label: "Narcotics" },
 ];
 
 export default function ReportsSubNav() {

@@ -9,7 +9,6 @@ import {
   deleteGoodsReceipt,
   type GoodsReceiptDto,
   type GoodsReceiptStatus,
-  type GoodsReceiptListSummary,
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
@@ -39,7 +38,6 @@ export default function GoodsReceiptsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptDto | null>(null)
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
-  const [grSummary, setGrSummary] = useState<GoodsReceiptListSummary | null>(null)
 
   const PAGE_SIZE = 20
 
@@ -69,7 +67,6 @@ export default function GoodsReceiptsPage() {
       setReceipts(res.data)
       setTotalPages(res.meta.totalPages)
       setTotalCount(res.meta.total)
-      if (res.summary) setGrSummary(res.summary)
     } catch (e) {
       setError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to load goods receipts.")
     } finally {
@@ -112,14 +109,6 @@ export default function GoodsReceiptsPage() {
     )
   }, [receipts, search, supplierName])
 
-  // Status counts come from the server (over the filtered dataset) when available.
-  const summary = {
-    total: totalCount,
-    matched: grSummary?.matched ?? visibleReceipts.filter((r) => r.status === "MATCHED").length,
-    discrepancy: grSummary?.discrepancy ?? visibleReceipts.filter((r) => r.status === "DISCREPANCY").length,
-    resolved: grSummary?.resolved ?? visibleReceipts.filter((r) => r.status === "RESOLVED").length,
-  }
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
@@ -134,21 +123,6 @@ export default function GoodsReceiptsPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {([
-            ["Total Receipts", summary.total, "text-[#333333]"],
-            ["Matched", summary.matched, "text-green-600"],
-            ["Discrepancy", summary.discrepancy, "text-yellow-600"],
-            ["Resolved", summary.resolved, "text-blue-600"],
-          ] as [string, number, string][]).map(([label, value, accent]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-              <p className="text-xs text-[#666666]">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search receipts..." />

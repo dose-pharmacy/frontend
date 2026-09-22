@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import PageHeader from "../../components/ui/PageHeader"
+import DashboardSubNav from "../dashboard/DashboardSubNav"
 import SearchInput from "../../components/ui/SearchInput"
 import Select from "../../components/ui/Select"
 import Pagination from "../../components/ui/Pagination"
@@ -139,7 +140,6 @@ export default function SalesPage() {
   const [statusFilter, setStatusFilter] = useState("")
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
   const [selected, setSelected] = useState<Sale | null>(null)
   const [reloadTick, setReloadTick] = useState(0)
 
@@ -164,7 +164,6 @@ export default function SalesPage() {
         if (cancelled) return
         setSales(res.data.map((dto) => adaptSale(dto)))
         setTotalPages(res.meta?.totalPages ?? 1)
-        setTotalItems(res.meta?.total ?? 0)
         setLoadError(null)
       } catch (err) {
         if (cancelled) return
@@ -187,17 +186,10 @@ export default function SalesPage() {
     setPage(1)
   }, [search, dateFilter, statusFilter])
 
-  const summary = useMemo(() => ({
-    total: totalItems,
-    // Note: Since we use server-side pagination, revenue summary only reflects the current page
-    revenue: sales.filter((s) => s.status === "completed").reduce((acc, s) => acc + s.total, 0),
-    voided: sales.filter((s) => s.status === "voided").length,
-    refunded: sales.filter((s) => s.status === "refunded").length,
-  }), [sales, totalItems])
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
+        breadcrumb="Dashboard / Sales"
         title="Sales"
         subtitle="View and manage completed sales transactions, receipts, payments, and sale details."
         actions={
@@ -218,15 +210,9 @@ export default function SalesPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Summary strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <SummaryCard label="Transactions" value={loading ? "—" : summary.total} />
-          <SummaryCard label="Revenue" value={loading ? "—" : `${summary.revenue.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} />
-          <SummaryCard label="Voided" value={loading ? "—" : summary.voided} accent="text-orange-600" />
-          <SummaryCard label="Refunded" value={loading ? "—" : summary.refunded} accent="text-red-600" />
-        </div>
+      <DashboardSubNav />
 
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {loadError}
@@ -573,15 +559,6 @@ function SaleDetailModal({
 }
 
 // ─── Small components ─────────────────────────────────────────────────────────
-
-function SummaryCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-      <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">{label}</p>
-      <p className={`text-xl font-bold mt-1 ${accent ?? "text-[#333333]"}`}>{value}</p>
-    </div>
-  )
-}
 
 function MetaCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (

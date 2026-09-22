@@ -242,9 +242,6 @@ export default function UnitConfigPage() {
     setShowAll(false);
   }, [search]);
 
-  const active = units.filter((u) => u.isActive);
-  const inactive = units.filter((u) => !u.isActive);
-
   // Visible rows: preview (first N) or all
   const visibleUnits = showAll ? units : units.slice(0, PREVIEW_COUNT);
   const hasMore = units.length > PREVIEW_COUNT;
@@ -362,34 +359,6 @@ export default function UnitConfigPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Summary */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-            <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
-              Total Units
-            </p>
-            <p className="text-2xl font-bold text-[#333333] mt-1">
-              {loading ? "—" : units.length}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-            <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
-              Active
-            </p>
-            <p className="text-2xl font-bold text-green-600 mt-1">
-              {loading ? "—" : active.length}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-            <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
-              Inactive
-            </p>
-            <p className="text-2xl font-bold text-[#666666] mt-1">
-              {loading ? "—" : inactive.length}
-            </p>
-          </div>
-        </div>
-
         {/* Error banner */}
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between gap-3">

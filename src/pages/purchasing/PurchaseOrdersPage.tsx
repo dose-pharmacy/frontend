@@ -11,7 +11,6 @@ import {
   closePurchaseOrder,
   PurchaseOrdersApiError,
   type PurchaseOrderDto,
-  type POListSummaryDto,
   type POPaymentStatus,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
@@ -198,7 +197,6 @@ export default function PurchaseOrdersPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [poSummary, setPoSummary] = useState<POListSummaryDto | null>(null)
   const [toast, setToast] = useState("")
   const [actionError, setActionError] = useState("")
   const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "markDelivery" | "close" | "cancel" } | null>(null)
@@ -236,7 +234,6 @@ export default function PurchaseOrdersPage() {
         setOrders(res.data.map(toUiPO))
         setTotalPages(res.meta.totalPages)
         setTotalCount(res.meta.total)
-        if (res.summary) setPoSummary(res.summary)
       })
       .catch((err) => {
         if (!active) return
@@ -247,16 +244,6 @@ export default function PurchaseOrdersPage() {
   }, [reloadTick, page, search, suppFilter, statusFilter, paymentFilter])
 
   function refresh() { setReloadTick((t) => t + 1) }
-
-  // Summary counts come from the server (computed over the filtered dataset).
-  // Fall back to the current page's rows if the server didn't send them.
-  const summary = {
-    total:    totalCount,
-    registered: poSummary?.registered ?? orders.filter((o) => o.status === "REGISTERED").length,
-    awaiting: poSummary?.awaitingDelivery ?? orders.filter((o) => o.status === "AWAITING_DELIVERY").length,
-    received: poSummary?.received ?? orders.filter((o) => o.status === "RECEIVED").length,
-    closed:   poSummary?.closed ?? orders.filter((o) => o.status === "CLOSED").length,
-  }
 
   // For backward compatibility with table rendering
   const filtered = orders
@@ -305,22 +292,6 @@ export default function PurchaseOrdersPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {([
-            ["Total Orders",     summary.total,      "text-[#333333]"],
-            ["Registered",       summary.registered, "text-blue-600"],
-            ["Awaiting Delivery",summary.awaiting,   "text-yellow-600"],
-            ["Received",         summary.received,   "text-[#7A9076]"],
-            ["Closed",           summary.closed,     "text-green-600"],
-          ] as [string, number, string][]).map(([label, val, accent]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-              <p className="text-xs text-[#666666]">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{val}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />

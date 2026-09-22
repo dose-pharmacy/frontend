@@ -38,13 +38,6 @@ function IconTruck() {
     </svg>
   )
 }
-function IconChart() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-    </svg>
-  )
-}
 function IconCog() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -79,17 +72,6 @@ function IconMenu() {
       <path
         fillRule="evenodd"
         d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-}
-function IconReceipt() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path
-        fillRule="evenodd"
-        d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
         clipRule="evenodd"
       />
     </svg>
@@ -147,7 +129,6 @@ const NAV: NavItem[] = [
     label: "Inventory",
     icon: <IconBox />,
     children: [
-      { to: "/inventory", label: "Overview" },
       { to: "/inventory/products", label: "Products" },
       { to: "/inventory/stock", label: "Stock" },
       { to: "/inventory/batches-expiry", label: "Batches & Expiry" },
@@ -155,7 +136,6 @@ const NAV: NavItem[] = [
       { to: "/inventory/reorder", label: "Reorder" },
     ],
   },
-  { to: "/sales", label: "Sales", icon: <IconReceipt /> },
   {
     to: "/purchasing",
     label: "Purchasing",
@@ -167,15 +147,6 @@ const NAV: NavItem[] = [
       { to: "/purchasing/invoices", label: "Supplier Invoices" },
       { to: "/purchasing/payables", label: "Supplier Payables" },
       { to: "/purchasing/returns", label: "Returns" },
-    ],
-  },
-  {
-    to: "/reports",
-    label: "Reports",
-    icon: <IconChart />,
-    children: [
-      { to: "/reports/slow-moving", label: "Slow Moving" },
-      { to: "/reports/narcotics", label: "Narcotics" },
     ],
   },
   {
@@ -211,7 +182,6 @@ function Sidebar({
   function isPathActive(path: string) {
     if (path === "/dashboard") return location.pathname.startsWith("/dashboard")
     if (path === "/inventory") return location.pathname === "/inventory"
-    if (path === "/sales") return location.pathname === "/sales"
     return location.pathname.startsWith(path)
   }
 

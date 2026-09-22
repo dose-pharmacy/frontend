@@ -187,6 +187,9 @@ function ProfitabilitySection({
     loadRows();
   }, [loadSummary, loadRows]);
 
+  // Largest absolute KPI value — scales the thin horizontal bars below each stat.
+  const maxAbs = summary.reduce((m, s) => Math.max(m, Math.abs(s.value)), 0) || 1;
+
   return (
     <div className="flex flex-col gap-5">
       <ReportFilterBar
@@ -218,25 +221,51 @@ function ProfitabilitySection({
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {summaryLoading
-          ? Array.from({ length: 6 }, (_, i) => <SummaryCard key={i} label="" value="" loading />)
-          : summaryError && !summary.length
-            ? null
-            : summary.map((s) => (
-                <SummaryCard
-                  key={s.label}
-                  label={s.label}
-                  value={
-                    s.kind === "money"
-                      ? fmtMoney(s.value)
-                      : s.kind === "percent"
-                        ? fmtPercent(s.value)
-                        : fmtNumber(s.value)
-                  }
-                />
+      {(summaryLoading || summary.length > 0) && (
+        <div className="bg-white rounded-2xl border border-[#E6ECE2] shadow-sm px-6 py-5 overflow-x-auto">
+          {summaryLoading ? (
+            <div className="flex items-start gap-8 min-w-max">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="w-44">
+                  <div className="h-3 w-20 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                  <div className="h-6 w-28 rounded bg-[#E6ECE2]/40 animate-pulse mt-2" />
+                  <div className="h-1.5 w-full rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
+                </div>
               ))}
-      </div>
+            </div>
+          ) : (
+            <div className="flex items-stretch min-w-max">
+              {summary.map((s, i) => {
+                const val = s.value;
+                const formatted =
+                  s.kind === "money"
+                    ? fmtMoney(val)
+                    : s.kind === "percent"
+                      ? fmtPercent(val)
+                      : fmtNumber(val);
+                const pct = Math.min(100, (Math.abs(val) / maxAbs) * 100);
+                return (
+                  <div
+                    key={s.label}
+                    className={`w-44 py-1 ${i > 0 ? "border-l border-[#E6ECE2] pl-6" : ""} ${i < summary.length - 1 ? "pr-6" : ""}`}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#666666]">{s.label}</p>
+                    <p className={`mt-1.5 text-xl font-extrabold tracking-tight tabular-nums ${val < 0 ? "text-red-600" : "text-[#333333]"}`}>
+                      {formatted}
+                    </p>
+                    <div className="mt-3 h-1.5 w-full rounded-full bg-[#E6ECE2] overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${val < 0 ? "bg-red-400" : "bg-gradient-to-r from-[#B6C8AF] to-[#4F6B4A]"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
       {summaryError && !summary.length && (
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
           <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-center">{summaryError}</p>

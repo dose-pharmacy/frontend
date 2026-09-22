@@ -222,43 +222,6 @@ export default function SupplierPayablesPage() {
   }, [search]);
 
   // ---------------------------------------------------------------------------
-  // Supplier statistics
-  // ---------------------------------------------------------------------------
-
-  /*
-   * These are based on the real supplier list returned by the backend.
-   *
-   * totalOutstanding comes directly from SupplierDto.totalOutstanding.
-   * supplier invoice count comes from _count.supplierInvoices.
-   */
-
-  const totalOutstanding = suppliers.reduce(
-    (sum, supplier) => sum + Number(supplier.totalOutstanding ?? 0),
-    0,
-  );
-
-  const totalInvoices = suppliers.reduce(
-    (sum, supplier) => sum + Number(supplier._count?.supplierInvoices ?? 0),
-    0,
-  );
-
-  const totalSuppliers = suppliers.length;
-
-  const activeSuppliers = suppliers.filter((supplier) => supplier.isActive).length;
-
-  /*
-   * OVERDUE and PAID THIS MONTH are intentionally not calculated here.
-   *
-   * Reason:
-   * SupplierDto does not contain:
-   * - invoice due date
-   * - payment date
-   * - paid amount
-   *
-   * So calculating those values from the available API would be incorrect.
-   */
-
-  // ---------------------------------------------------------------------------
   // Pagination
   // ---------------------------------------------------------------------------
 
@@ -554,58 +517,6 @@ export default function SupplierPayablesPage() {
       />
 
       <div className="flex-1 overflow-y-auto">
-        {/* ---------------------------------------------------------------- */}
-        {/* Stats                                                           */}
-        {/* ---------------------------------------------------------------- */}
-
-        <div className="bg-white px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-[#E6ECE2]">
-          {[
-            {
-              label: "Total Outstanding",
-              value: fmtMoney(totalOutstanding),
-              color: "text-red-500",
-              icon: "💰",
-            },
-            {
-              label: "Total Invoices",
-              value: String(totalInvoices),
-              color: "text-[#333333]",
-              icon: "📄",
-            },
-            {
-              label: "Suppliers",
-              value: String(totalSuppliers),
-              color: "text-[#333333]",
-              icon: "🏢",
-            },
-            {
-              label: "Active Suppliers",
-              value: String(activeSuppliers),
-              color: "text-green-600",
-              icon: "✅",
-            },
-          ].map(({ label, value, color, icon }) => (
-            <div
-              key={label}
-              className="bg-[#E6ECE2] rounded-xl p-4 flex items-center gap-3 border border-[#C6D4BF]/30 shadow-sm"
-            >
-              <span className="text-2xl flex-shrink-0" aria-hidden>
-                {icon}
-              </span>
-
-              <div className="min-w-0">
-                <p className="text-xs text-[#666666]">{label}</p>
-
-                <p
-                  className={`text-sm font-bold ${color} truncate`}
-                >
-                  {value}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
         {/* ---------------------------------------------------------------- */}
         {/* API error                                                        */}
         {/* ---------------------------------------------------------------- */}

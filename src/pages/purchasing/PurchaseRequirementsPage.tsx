@@ -32,7 +32,7 @@ import { useProductUnits } from "../../features/inventory/useProductUnits"
 import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions"
 import type { CreateRequirementLineInput } from "../../features/purchasing/requirementsApi"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type RequirementStatus = "OPEN" | "PARTIALLY_FULFILLED" | "FULFILLED" | "CLOSED" | (string & {})
 type LineStatus = "OPEN" | "PARTIALLY_FULFILLED" | "FULFILLED" | "CLOSED" | (string & {})
@@ -74,7 +74,7 @@ interface Requirement {
   lines: RequirementLine[]
 }
 
-// ─── API → UI adapters ────────────────────────────────────────────────────────
+// â”€â”€â”€ API â†’ UI adapters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function reasonLabel(code: string | null | undefined): LineReason {
   switch (code) {
@@ -124,7 +124,7 @@ function mapRequirement(r: RequirementDto): Requirement {
     requiredBy: r.requiredBy?.slice(0, 10) ?? "",
     notes: r.notes ?? "",
     status: r.status,
-    createdBy: r.createdBy?.name ?? "—",
+    createdBy: r.createdBy?.name ?? "â€”",
     createdDate: r.createdAt?.slice(0, 10) ?? "",
     lines: (r.lines ?? []).map(mapLine),
   }
@@ -136,10 +136,10 @@ function errMessage(e: unknown): string {
     : "Something went wrong. Please try again."
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtDate(d: string) {
-  if (!d) return "—"
+  if (!d) return "â€”"
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
 }
 
@@ -171,7 +171,7 @@ function LineBadge({ status }: { status: LineStatus }) {
   return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? map.OPEN}`}>{labelMap[status] ?? status}</span>
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   useEffect(() => {
@@ -188,7 +188,7 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   )
 }
 
-// ─── OverflowMenu ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ OverflowMenu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onClick: () => void }[] }) {
   const [open, setOpen] = useState(false)
@@ -222,7 +222,7 @@ function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onC
   )
 }
 
-// ─── Root page ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Root page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function PurchaseRequirementsPage() {
   const [reqs, setReqs] = useState<Requirement[]>([])
@@ -238,7 +238,6 @@ export default function PurchaseRequirementsPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [summary, setSummary] = useState({ open: 0, partiallyFulfilled: 0, fulfilled: 0, closed: 0, total: 0 })
 
   function showToast(msg: string) { setToast(msg) }
   const reload = useCallback(() => setRefreshTick((t) => t + 1), [])
@@ -256,26 +255,6 @@ export default function PurchaseRequirementsPage() {
         setReqs(result.data.map(mapRequirement))
         setTotalPages(result.meta.totalPages)
         setTotalCount(result.meta.total)
-        // Summary comes from the server (computed over the filtered dataset)
-        // when present; otherwise fall back to the current page's rows.
-        if (result.summary) {
-          setSummary({
-            open: result.summary.open,
-            partiallyFulfilled: result.summary.partiallyFulfilled,
-            fulfilled: result.summary.fulfilled,
-            closed: result.summary.closed,
-            total: result.summary.total,
-          })
-        } else {
-          const counts = { open: 0, partiallyFulfilled: 0, fulfilled: 0, closed: 0, total: result.meta.total }
-          result.data.forEach((r) => {
-            if (r.status === "OPEN") counts.open++
-            else if (r.status === "PARTIALLY_FULFILLED") counts.partiallyFulfilled++
-            else if (r.status === "FULFILLED") counts.fulfilled++
-            else if (r.status === "CLOSED") counts.closed++
-          })
-          setSummary(counts)
-        }
       })
       .catch((e) => { if (!cancelled) setLoadError(errMessage(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -317,7 +296,6 @@ export default function PurchaseRequirementsPage() {
         setPage={setPage}
         totalPages={totalPages}
         totalCount={totalCount}
-        summary={summary}
       />
       <NewRequirementModal
         open={newOpen}
@@ -334,9 +312,9 @@ export default function PurchaseRequirementsPage() {
   )
 }
 
-// ─── Requirements List Screen ─────────────────────────────────────────────────
+// â”€â”€â”€ Requirements List Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, onNewReq, onGenerate, onToast, search, setSearch, statusFilter, setStatusFilter, page, setPage, totalPages, totalCount, summary }: {
+function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, onNewReq, onGenerate, onToast, search, setSearch, statusFilter, setStatusFilter, page, setPage, totalPages, totalCount }: {
   reqs: Requirement[]
   loading: boolean
   loadError: string
@@ -353,7 +331,6 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
   setPage: (v: number) => void
   totalPages: number
   totalCount: number
-  summary: { open: number; partiallyFulfilled: number; fulfilled: number; closed: number; total: number }
 }) {
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Requirement | null>(null)
@@ -420,29 +397,6 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
           </div>
         </div>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-{([
-            ["Open Requirements",     summary.open,     "text-[#7A9076]",  "M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"],
-            ["Partially Fulfilled", summary.partiallyFulfilled, "text-blue-600",   "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0zM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632z"],
-            ["Fulfilled Requirements", summary.fulfilled, "text-green-600",   "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z"],
-            ["Closed Requirements",   summary.closed,   "text-gray-500",   "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0-2.25-2.25z"],
-            ["Total Requirements",    summary.total,    "text-[#333333]",  "M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0-1.125.504-1.125 1.125V11.25a9 9 0 0 0-9-9z"],
-          ] as [string, number, string, string][]).map(([label, value, accent, iconPath]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex items-center gap-3">
-              <div className={`h-10 w-10 rounded-xl bg-[#E6ECE2] flex items-center justify-center shrink-0 ${accent}`}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
-                </svg>
-              </div>
-              <div>
-                <p className="text-xs text-[#666666]">{label}</p>
-                <p className={`text-2xl font-bold ${accent}`}>{value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {loading ? (
@@ -497,7 +451,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <button onClick={() => onSelect(r.id)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
-                              View →
+                              View â†’
                             </button>
                             <OverflowMenu items={[
                               { label: "View", onClick: () => onSelect(r.id) },
@@ -513,7 +467,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
               </div>
               <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * 20 + 1, totalCount)}–{Math.min(page * 20, totalCount)} of {totalCount} requirements
+                  Showing {Math.min((page - 1) * 20 + 1, totalCount)}â€“{Math.min(page * 20, totalCount)} of {totalCount} requirements
                 </p>
 <div className="flex gap-1">
                   <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Prev</button>
@@ -542,7 +496,7 @@ function RequirementsListScreen({ reqs, loading, loadError, onRetry, onSelect, o
   )
 }
 
-// ─── Requirement Detail Screen ────────────────────────────────────────────────
+// â”€â”€â”€ Requirement Detail Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
   req: Requirement
@@ -671,7 +625,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
               ["Created By",   req.createdBy],
               ["Created Date", fmtDate(req.createdDate)],
               ["Status",       reqStatus],
-              ["Notes",        req.notes || "—"],
+              ["Notes",        req.notes || "â€”"],
             ] as [string, string][]).map(([label, value]) => (
               <div key={label}>
                 <p className="text-xs text-[#999] mb-0.5">{label}</p>
@@ -720,7 +674,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                         {line.product}
                         {line.hasPo && <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5 align-middle">PO LINKED</span>}
                       </td>
-                      <td className="px-4 py-3 text-[#666666] font-mono text-xs">{line.sku || "—"}</td>
+                      <td className="px-4 py-3 text-[#666666] font-mono text-xs">{line.sku || "â€”"}</td>
                       <td className="px-4 py-3 text-right font-bold text-[#333333]">
                         {line.quantityNeeded}
                         {line.unitName && <span className="ml-1 text-xs font-normal text-[#999]">{line.unitName}</span>}
@@ -730,7 +684,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                       <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">{line.quantityDelivered}</td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden md:table-cell">{line.remainingToReceive}</td>
                       <td className="px-4 py-3"><LineBadge status={line.status} /></td>
-                      <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{line.reason || "—"}</td>
+                      <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{line.reason || "â€”"}</td>
                       {!isReadOnly && (
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -769,7 +723,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                 (line.allocations ?? []).map((alloc) => ({
                   poNumber: alloc.purchaseOrderNumber,
                   poId: alloc.purchaseOrderId,
-                  supplier: alloc.supplier?.name ?? "—",
+                  supplier: alloc.supplier?.name ?? "â€”",
                   status: alloc.purchaseOrderStatus ?? "ACTIVE",
                   allocatedQuantity: alloc.quantityAllocated,
                   orderedQuantity: alloc.quantityOrdered,
@@ -821,7 +775,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
                       </div>
                       {!alloc.active && (
                         <p className="mt-2 text-xs text-red-600 font-medium">
-                          CANCELLED — Released allocation: {alloc.allocatedQuantity}
+                          CANCELLED â€” Released allocation: {alloc.allocatedQuantity}
                         </p>
                       )}
                     </div>
@@ -874,7 +828,7 @@ function RequirementDetailScreen({ req, onBack, onChanged, onToast }: {
   )
 }
 
-// ─── New Requirement Modal ────────────────────────────────────────────────────
+// â”€â”€â”€ New Requirement Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface NewLine { productId: string; product: ProductDto | null; quantity: string; reason: LineReason; notes: string }
 
@@ -914,7 +868,7 @@ function NewRequirementModal({ open, onClose, onCreated }: {
     setError("")
     setLoading(true)
     try {
-      // POST /requirements — requiredBy and notes are optional; per-line
+      // POST /requirements â€” requiredBy and notes are optional; per-line
       // reasonCode/notes are omitted (never sent as null) to satisfy the
       // backend's request validator.
       await createRequirement({
@@ -1021,7 +975,7 @@ function NewRequirementModal({ open, onClose, onCreated }: {
   )
 }
 
-// ─── Generate from Reorder Modal ──────────────────────────────────────────────
+// â”€â”€â”€ Generate from Reorder Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function GenerateFromReorderModal({ open, onClose, onGenerated }: {
   open: boolean
@@ -1076,7 +1030,7 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
       <div className="rounded-xl border border-[#E6ECE2] p-4 mb-5 max-h-64 overflow-y-auto">
         <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Products to Purchase</p>
         {suggestions.length === 0 ? (
-          <p className="text-sm text-[#999] py-2">{loadError ? "—" : "No reorder suggestions available."}</p>
+          <p className="text-sm text-[#999] py-2">{loadError ? "â€”" : "No reorder suggestions available."}</p>
         ) : (
           <ul className="space-y-2">
             {suggestions.map((s) => (
@@ -1099,7 +1053,7 @@ function GenerateFromReorderModal({ open, onClose, onGenerated }: {
   )
 }
 
-// ─── Edit Requirement Modal ───────────────────────────────────────────────────
+// â”€â”€â”€ Edit Requirement Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function EditRequirementModal({ open, req, onClose, onSave }: {
   open: boolean
@@ -1145,7 +1099,7 @@ function EditRequirementModal({ open, req, onClose, onSave }: {
   )
 }
 
-// ─── Add Product Modal ────────────────────────────────────────────────────────
+// â”€â”€â”€ Add Product Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
   open: boolean
@@ -1242,7 +1196,7 @@ function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
           <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 text-sm text-[#333333]">
             {qty} {productUnit?.unit?.name ?? ""} ={" "}
             <span className="font-semibold text-[#7A9076]">{baseQty} {baseUnit?.name ?? ""}</span>
-            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
+            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}Ã—)</span>
           </div>
         )}
         <Fw label="Reason">
@@ -1264,7 +1218,7 @@ function AddProductModal({ open, existingProductIds, onClose, onAdd }: {
   )
 }
 
-// ─── Edit Line Modal ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Edit Line Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function EditLineModal({ open, line, onClose, onSave }: {
   open: boolean
@@ -1340,7 +1294,7 @@ function EditLineModal({ open, line, onClose, onSave }: {
           <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 text-sm text-[#333333]">
             {qty} {productUnit?.unit?.name ?? ""} ={" "}
             <span className="font-semibold text-[#7A9076]">{baseQty} {baseUnit?.name ?? ""}</span>
-            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
+            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}Ã—)</span>
           </div>
         )}
         <Fw label="Reason">
@@ -1363,7 +1317,7 @@ function EditLineModal({ open, line, onClose, onSave }: {
 }
 
 
-// ─── Confirm Modal ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Confirm Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass, onClose, onConfirm, loading }: {
   open: boolean; title: string; message: string; detail?: string
@@ -1384,7 +1338,7 @@ function ConfirmModal({ open, title, message, detail, confirmLabel, confirmClass
   )
 }
 
-// ─── Order Preview Modal ──────────────────────────────────────────────────────
+// â”€â”€â”€ Order Preview Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
   open: boolean
@@ -1437,7 +1391,7 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
             </div>
             <div>
               <p className="text-[#999]">SKU</p>
-              <p className="font-semibold text-[#333333]">{line.sku || "—"}</p>
+              <p className="font-semibold text-[#333333]">{line.sku || "â€”"}</p>
             </div>
             <div>
               <p className="text-[#999]">Required</p>
@@ -1493,7 +1447,7 @@ function OrderPreviewModal({ open, line, preview, onClose, onCreatePO }: {
   )
 }
 
-// ─── Shared atoms ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Shared atoms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
 

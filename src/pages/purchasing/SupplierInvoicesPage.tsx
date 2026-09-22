@@ -124,13 +124,6 @@ export default function SupplierInvoicesPage() {
     }
   }
 
-  const summary = {
-    total: totalCount,
-    open: invoices.filter((i) => i.status === "OPEN").length,
-    partiallyPaid: invoices.filter((i) => i.status === "PARTIALLY_PAID").length,
-    paid: invoices.filter((i) => i.status === "PAID").length,
-  }
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
@@ -145,21 +138,6 @@ export default function SupplierInvoicesPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {([
-            ["Total Invoices", summary.total, "text-[#333333]"],
-            ["Open", summary.open, "text-yellow-600"],
-            ["Partially Paid", summary.partiallyPaid, "text-orange-600"],
-            ["Paid", summary.paid, "text-green-600"],
-          ] as [string, number, string][]).map(([label, value, accent]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-              <p className="text-xs text-[#666666]">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search invoices..." />
