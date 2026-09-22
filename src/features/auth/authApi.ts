@@ -145,16 +145,16 @@ export async function getSession(): Promise<SessionPayload | null> {
   }
 }
 
-/** Invalidates the session server-side. Never throws — never trap the user. */
+/**
+ * Invalidates the session server-side (POST /api/auth/sign-out, with the
+ * session cookie). Throws an AuthError when the request fails so callers can
+ * tell the user logout did not actually happen.
+ */
 export async function signOut(): Promise<void> {
-  try {
-    await authRequest<unknown>("/api/auth/sign-out", {
-      method: "POST",
-      body: "{}",
-    });
-  } catch {
-    // Local state is cleared regardless.
-  }
+  await authRequest<unknown>("/api/auth/sign-out", {
+    method: "POST",
+    body: "{}",
+  });
 }
 
 /**

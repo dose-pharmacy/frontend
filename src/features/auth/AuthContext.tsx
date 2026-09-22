@@ -86,14 +86,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    try {
-      await signOut();
-    } finally {
-      setState({
-        user: null,
-        status: "unauthenticated",
-      });
-    }
+    // Real backend sign-out first — only clear local state when the session
+    // was actually invalidated, so a failed logout is never silently faked.
+    await signOut();
+    setState({
+      user: null,
+      status: "unauthenticated",
+    });
   }
 
   return (

@@ -462,32 +462,32 @@ export default function ProductsPage() {
             />
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-[860px] text-sm">
                   <thead>
                     <tr className="bg-[#E6ECE2] text-left">
-                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[220px]">
                         Product
                       </th>
-                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[130px]">
                         SKU
                       </th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[140px] hidden sm:table-cell">
                         Group
                       </th>
-                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[120px]">
                         Stock
                       </th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] hidden md:table-cell">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[110px] hidden md:table-cell">
                         Base Unit
                       </th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[140px] hidden lg:table-cell">
                         Nearest Expiry
                       </th>
-                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[110px]">
                         Status
                       </th>
-                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                      <th className="px-4 py-3 font-semibold text-[#333333] min-w-[90px]">
                         Actions
                       </th>
                     </tr>

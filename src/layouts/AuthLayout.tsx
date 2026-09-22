@@ -29,7 +29,7 @@ export default function AuthLayout() {
           <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm shadow-lg">
             <Cross className="h-11 w-11 text-[#333333]" strokeWidth={2} aria-hidden />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight mb-3">PharmaCare</h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-3">DOSE PHARMACY</h1>
           <p className="text-lg font-semibold text-[#333333]/90 mb-2">Pharmacy Management System</p>
           <p className="text-sm text-[#333333]/70 max-w-xs leading-relaxed">
             Streamline your pharmacy operations — from inventory and expiry tracking to point-of-sale and purchasing.
@@ -58,7 +58,7 @@ export default function AuthLayout() {
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-[#B6C8AF] shadow">
             <Cross className="h-8 w-8 text-[#333333]" strokeWidth={2} aria-hidden />
           </div>
-          <span className="text-lg font-bold text-[#333333]">PharmaCare</span>
+          <span className="text-lg font-bold text-[#333333]">DOSE PHARMACY</span>
           <span className="text-sm text-[#666666]">Pharmacy Management System</span>
         </div>
 

@@ -134,4 +134,9 @@ body {
   --color-purple-600: #65516E;
   --color-purple-700: #534258;
   --color-purple-800: #443747;
+
+  /* Accent used for the dashboard's premium metric cards */
+  --color-accent: #49B0C1;
+  --color-accent-border: #DBEFF3;
+  --color-accent-tint: #F5FBFC;
 }

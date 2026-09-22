@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router";
 import { useAuth } from "../features/auth/AuthContext";
+import FormError from "../components/ui/FormError";
 import {
   AlertTriangle,
   Bell,
@@ -14,7 +15,6 @@ import {
   PackageCheck,
   PanelLeftClose,
   PanelLeftOpen,
-  Receipt,
   Search,
   Settings,
   ShoppingCart,
@@ -51,9 +51,6 @@ function IconChevron({ open }: { open: boolean }) {
 }
 function IconMenu() {
   return <Menu className="h-5 w-5" />;
-}
-function IconReceipt() {
-  return <Receipt className="h-5 w-5" />;
 }
 function IconBell() {
   return <Bell className="h-5 w-5" />;
@@ -102,7 +99,7 @@ const NAV: NavItem[] = [
       { to: "/inventory/reorder", label: "Reorder" },
     ],
   },
-  { to: "/sales", label: "Sales", icon: <IconReceipt /> },
+  // "Sales" entry removed from the sidebar — the /sales route still exists.
   {
     to: "/purchasing",
     label: "Purchasing",
@@ -147,6 +144,28 @@ function Sidebar({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+
+  // Real logout: Better Auth POST /api/auth/sign-out (session cookie) →
+  // clear session state → redirect to /login. On failure, show the error
+  // instead of pretending the user was signed out.
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await logout();
+      navigate("/login", { replace: true });
+    } catch (err) {
+      setLogoutError(
+        err instanceof Error ? err.message : "Sign out failed. Please try again.",
+      );
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   function isPathActive(path: string) {
     if (path === "/dashboard") return location.pathname === "/dashboard";
@@ -187,7 +206,7 @@ function Sidebar({
               <Cross className="h-4 w-4 text-[#333333]" strokeWidth={2.5} aria-hidden />
             </div>
             <div>
-              <p className="text-sm font-bold text-[#333333] leading-none tracking-wide">PharmaCare</p>
+              <p className="text-sm font-bold text-[#333333] leading-none tracking-wide">DOSE PHARMACY</p>
               <p className="text-[10px] text-[#333333]/60 mt-0.5">Management System</p>
             </div>
           </div>
@@ -316,11 +335,27 @@ function Sidebar({
         })}
       </nav>
 
-      {/* Bottom: version tag */}
+      {/* Bottom: version tag + logout */}
       {!collapsed && (
         <div className="px-4 py-3 border-t border-[#E6ECE2] flex-shrink-0 bg-[#FAF9F4]">
-          <p className="text-[10px] text-[#333333]/70 font-medium">PharmaCare v2.0</p>
-          <p className="text-[10px] text-[#333333]/50 mt-0.5">© 2026 All rights reserved</p>
+          <div className="flex items-end justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] text-[#333333]/70 font-medium">DOSE PHARMACY v2.0</p>
+              <p className="text-[10px] text-[#333333]/50 mt-0.5">© 2026 All rights reserved</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="flex-shrink-0 rounded-lg bg-[#E6ECE2] hover:bg-[#C6D4BF] transition-colors px-3 py-1.5 text-xs font-semibold text-[#333333] disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[#B6C8AF]"
+            >
+              {loggingOut ? "Logging out…" : "Logout"}
+            </button>
+          </div>
+          {logoutError && (
+            <div className="mt-2">
+              <FormError message={logoutError} />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -371,9 +406,14 @@ function TopBar({
   const [notifOpen, setNotifOpen] = useState(false);
 
   async function handleLogout() {
+    try {
+      // Clears the Better Auth session server-side + local state.
+      await logout();
+    } catch {
+      // Sign-out failed — keep the session; the error is surfaced by the UI.
+      return;
+    }
     navigate("/login", { replace: true });
-    // Clears the Better Auth session server-side + local state.
-    await logout();
   }
 
   return (
