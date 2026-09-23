@@ -5,7 +5,7 @@
 //   POST   /api/v1/inventory/batches                       (create)
 //   GET    /api/v1/inventory/batches/{id}                  (get one)
 //   PATCH  /api/v1/inventory/batches/{id}                  (update — batchNumber REQUIRED)
-//   DELETE /api/v1/inventory/batches/{id}                  (soft delete → deactivate)
+//   DELETE /api/v1/inventory/batches/{id}                  (soft delete -> deactivate)
 //
 // All requests require the authenticated admin session cookie
 // (HTTP-only — sent automatically with `credentials: "include"`).
@@ -61,7 +61,7 @@ export interface CreateBatchInput {
 
 /**
  * Body for PATCH /inventory/batches/{id}.
- * ⚠️ The backend requires `batchNumber` on every PATCH even though this is a
+* NOTE: The backend requires `batchNumber` on every PATCH even though this is a
  * partial update — callers must pass the existing batch number through.
  */
 export interface UpdateBatchInput {
@@ -308,7 +308,7 @@ export async function getBatch(id: string): Promise<BatchDetailDto> {
 
 /**
  * PATCH /inventory/batches/{id} — update a batch.
- * ⚠️ `batchNumber` is required by the backend (not truly optional) — pass the
+* NOTE: `batchNumber` is required by the backend (not truly optional) — pass the
  * batch's current number through unchanged unless it is being renamed.
  */
 export async function updateBatch(

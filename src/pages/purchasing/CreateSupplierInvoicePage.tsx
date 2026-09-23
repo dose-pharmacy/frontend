@@ -2,12 +2,20 @@ import { useState, useEffect, useMemo } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
-import { getSupplierById } from "../../features/purchasing/suppliersApi"
-import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto } from "../../features/purchasing/purchaseOrdersApi"
-import { searchSuppliers } from "../../features/inventory/searchSelectors"
-import { useSearchableResource } from "../../hooks/useSearchableResource"
-import SearchableSelect from "../../components/ui/SearchableSelect"
-import type { SearchableOption } from "../../components/ui/SearchableSelect"
+import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
+import {
+  listSuppliers,
+  type SupplierDto,
+} from "../../features/purchasing/suppliersApi"
+import {
+  listPurchaseOrders,
+  getPurchaseOrder,
+  type PurchaseOrderDto,
+} from "../../features/purchasing/purchaseOrdersApi"
+import {
+  listGoodsReceipts,
+  type GoodsReceiptDto,
+} from "../../features/purchasing/goodsReceiptsApi"
 import {
   createSupplierInvoice,
   type CreateSupplierInvoiceInput,
@@ -16,30 +24,23 @@ import {
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+  return new Date(d).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
 }
 
 function fmtMoney(n: number) {
   return `${n.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`
 }
 
-const PO_STATUS_BADGE: Record<string, string> = {
-  REGISTERED: "bg-blue-100 text-blue-700",
-  AWAITING_DELIVERY: "bg-yellow-100 text-yellow-700",
-  RECEIVED: "bg-green-100 text-green-700",
-  CLOSED: "bg-gray-100 text-gray-600",
-  CANCELLED: "bg-red-100 text-red-700",
-}
-
-/** One invoicable PO line — how much of its received goods to bill. */
-interface InvoiceLine {
-  purchaseOrderItemId: string
-  productName: string
-  quantityOrdered: number
-  quantityReceived: number
-  unitCost: number
-  unitName: string
-  quantity: string
+const PO_STATUS_BADGE: Record<string, StatusTone> = {
+  REGISTERED: "blue",
+  AWAITING_DELIVERY: "amber",
+  RECEIVED: "green",
+  CLOSED: "gray",
+  CANCELLED: "red",
 }
 
 export default function CreateSupplierInvoicePage() {
@@ -54,7 +55,9 @@ export default function CreateSupplierInvoicePage() {
   const [supplierId, setSupplierId] = useState(prefillSupplierId)
   const [purchaseOrderId, setPurchaseOrderId] = useState(prefillPOId)
   const [invoiceNumber, setInvoiceNumber] = useState("")
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0])
+  const [invoiceDate, setInvoiceDate] = useState(
+    new Date().toISOString().split("T")[0],
+  )
   const [dueDate, setDueDate] = useState("")
   const [paymentTerms, setPaymentTerms] = useState("")
 
@@ -114,7 +117,9 @@ export default function CreateSupplierInvoicePage() {
     }
     const controller = new AbortController()
     listPurchaseOrders({ limit: 100, supplierId, status: "RECEIVED" })
-      .then((r) => { if (!controller.signal.aborted) setPurchaseOrders(r.data) })
+      .then((r) => {
+        if (!controller.signal.aborted) setPurchaseOrders(r.data)
+      })
       .catch(() => {})
     return () => controller.abort()
   }, [supplierId])
@@ -146,30 +151,34 @@ export default function CreateSupplierInvoicePage() {
       .finally(() => setPoLoading(false))
   }, [purchaseOrderId])
 
-  // Goods amount is DERIVED from the item allocation for PO-linked invoices
-  // (the backend validates it matches), otherwise entered directly.
-  const derivedGoods = useMemo(
-    () => lines.reduce((sum, l) => sum + (parseFloat(l.quantity) || 0) * l.unitCost, 0),
-    [lines],
-  )
-  const explicitGoods = parseFloat(goodsAmount) || 0
-  const tax = parseFloat(taxAmount) || 0
-  const charges = parseFloat(chargesAmount) || 0
-  const discount = parseFloat(discountAmount) || 0
-  const totalAmount = Math.max(0, (purchaseOrderId ? derivedGoods : explicitGoods) + tax + charges - discount)
-
-  const invoiceableLines = lines.filter((l) => (parseFloat(l.quantity) || 0) > 0)
-
-  function setLineQty(itemId: string, qty: string) {
-    setLines((prev) => prev.map((l) => (l.purchaseOrderItemId === itemId ? { ...l, quantity: qty } : l)))
-  }
+  // Suggest the invoice amount from the selected PO items when unchanged
+  const poTotal =
+    selectedPO?.items?.reduce(
+      (sum, it) => sum + (it.quantityOrdered ?? 0) * (it.unitCost ?? 0),
+      0,
+    ) ?? 0
+  const amountManuallyEdited =
+    invoiceAmount !== "" &&
+    invoiceAmount !== (poTotal > 0 ? poTotal.toString() : "")
 
   function handlePOChange(id: string) {
     setPurchaseOrderId(id)
-    setGoodsAmount("")
+    if (id) {
+      const po = purchaseOrders.find((p) => p.id === id)
+      if (po) {
+        const total = (po.items ?? []).reduce(
+          (sum, it) => sum + (it.quantityOrdered ?? 0) * (it.unitCost ?? 0),
+          0,
+        )
+        if (total > 0) setInvoiceAmount(total.toString())
+      }
+    }
   }
 
-  const filteredPOs = purchaseOrders
+  // Filter POs by selected supplier
+  const filteredPOs = purchaseOrders.filter(
+    (po) => !supplierId || po.supplierId === supplierId,
+  )
 
   async function handleSubmit() {
     if (!supplierId || !invoiceNumber) {
@@ -208,13 +217,18 @@ export default function CreateSupplierInvoicePage() {
       setSuccess("Supplier invoice created successfully.")
       setTimeout(() => navigate("/purchasing/invoices"), 1500)
     } catch (e) {
-      setError(e instanceof SupplierInvoicesApiError ? e.message : "Failed to create supplier invoice.")
+      setError(
+        e instanceof SupplierInvoicesApiError
+          ? e.message
+          : "Failed to create supplier invoice.",
+      )
     } finally {
       setSaving(false)
     }
   }
 
-  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
+  const SC =
+    "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -242,134 +256,120 @@ export default function CreateSupplierInvoicePage() {
             <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
-                  <SearchableSelect
-                    value={supplierId || null}
-                    onChange={(v) => { setSupplierId(v); setPurchaseOrderId("") }}
-                    options={supplierOptions}
-                    onSearch={supplierSearch.setTerm}
-                    loading={supplierSearch.loading}
-                    error={supplierSearch.error}
-                    onRetry={supplierSearch.retry}
-                    placeholder="Select supplier..."
-                    searchPlaceholder="Search suppliers..."
-                    emptyMessage="No suppliers found"
-                    noResultsMessage="No suppliers matching your search"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
-                  <select value={purchaseOrderId} onChange={(e) => handlePOChange(e.target.value)} className={SC} disabled={!supplierId || filteredPOs.length === 0}>
-                    <option value="">No PO linked</option>
-                    {filteredPOs.map((po) => <option key={po.id} value={po.id}>{po.poNumber}</option>)}
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Supplier *
+                  </label>
+                  <select
+                    value={supplierId}
+                    onChange={(e) => {
+                      setSupplierId(e.target.value)
+                      setPurchaseOrderId("")
+                    }}
+                    className={SC}
+                  >
+                    <option value="">Select supplier...</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Invoice Number *</label>
-                  <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-001" className={SC} />
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Purchase Order
+                  </label>
+                  <select
+                    value={purchaseOrderId}
+                    onChange={(e) => handlePOChange(e.target.value)}
+                    className={SC}
+                    disabled={!supplierId || filteredPOs.length === 0}
+                  >
+                    <option value="">No PO linked</option>
+                    {filteredPOs.map((po) => (
+                      <option key={po.id} value={po.id}>
+                        {po.poNumber}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Invoice Date</label>
-                  <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={SC} />
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Invoice Number *
+                  </label>
+                  <input
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="INV-001"
+                    className={SC}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Due Date</label>
-                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={SC} />
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Invoice Date
+                  </label>
+                  <input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    className={SC}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm text-[#666666] mb-1">Payment Terms</label>
-                  <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="e.g., Net 30" className={SC} />
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className={SC}
+                  />
                 </div>
-              </div>
-
-              {/* Items to invoice (PO-linked) */}
-              {purchaseOrderId && (
-                <div className="mt-5">
-                  <p className="text-sm font-semibold text-[#333333] mb-1">Items to Invoice</p>
-                  <p className="text-xs text-[#999] mb-3">
-                    Choose how much of each received item to bill. The quantity can't exceed the goods received but not yet invoiced on this order.
-                  </p>
-                  {lines.length > 0 ? (
-                    <div className="overflow-x-auto -mx-5 px-5">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-xs text-[#666666] border-b border-[#E6ECE2]">
-                            <th className="py-2 pr-2">Product</th>
-                            <th className="py-2 px-2 text-right">Ordered</th>
-                            <th className="py-2 px-2 text-right">Received</th>
-                            <th className="py-2 px-2 text-right">Unit Cost</th>
-                            <th className="py-2 pl-2 text-right">To Invoice</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lines.map((l) => (
-                            <tr key={l.purchaseOrderItemId} className="border-b border-[#E6ECE2]/60">
-                              <td className="py-2 pr-2 font-medium text-[#333333]">{l.productName}</td>
-                              <td className="py-2 px-2 text-right text-[#666666]">{l.quantityOrdered} {l.unitName}</td>
-                              <td className="py-2 px-2 text-right text-[#666666]">{l.quantityReceived} {l.unitName}</td>
-                              <td className="py-2 px-2 text-right text-[#666666]">{fmtMoney(l.unitCost)}</td>
-                              <td className="py-2 pl-2 text-right w-24">
-                                <div className="flex items-end justify-end gap-1">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={l.quantityReceived}
-                                    step={0.01}
-                                    value={l.quantity}
-                                    onChange={(e) => setLineQty(l.purchaseOrderItemId, e.target.value)}
-                                    className="w-20 rounded-lg border border-[#C6D4BF] px-2 py-1 text-right text-sm focus:border-[#B6C8AF] focus:outline-none"
-                                  />
-                                  {l.unitName && <span className="text-xs text-[#999] pb-1 whitespace-nowrap">{l.unitName}</span>}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#999]">No items on this purchase order.</p>
+                <div>
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Invoice Amount (ETB) *
+                  </label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step="0.01"
+                    value={invoiceAmount}
+                    onChange={(e) => setInvoiceAmount(e.target.value)}
+                    placeholder={poTotal > 0 ? poTotal.toString() : "0.00"}
+                    className={SC}
+                  />
+                  {poTotal > 0 && !amountManuallyEdited && (
+                    <p className="text-[11px] text-[#7A9076] mt-1">
+                      Suggested from PO total: {fmtMoney(poTotal)}
+                    </p>
                   )}
                 </div>
-              )}
-
-              {/* Financial split */}
-              <div className="mt-5 grid sm:grid-cols-2 gap-4 border-t border-[#E6ECE2] pt-4">
-                {purchaseOrderId ? (
-                  <div>
-                    <label className="block text-sm text-[#666666] mb-1">Goods Amount</label>
-                    <input value={derivedGoods ? derivedGoods.toFixed(2) : ""} readOnly className={`${SC} bg-[#E6ECE2]/30 text-[#333333]`} />
-                    <p className="text-[11px] text-[#999] mt-1">Derived from the item quantities above.</p>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm text-[#666666] mb-1">Goods Amount (ETB) *</label>
-                    <input type="number" min={0} step="0.01" value={goodsAmount} onChange={(e) => setGoodsAmount(e.target.value)} className={SC} />
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm text-[#666666] mb-1">VAT / Tax</label>
-                  <input type="number" min={0} step="0.01" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)} placeholder="0.00" className={SC} />
-                </div>
-                <div>
-                  <label className="block text-sm text-[#666666] mb-1">Additional Charges</label>
-                  <input type="number" min={0} step="0.01" value={chargesAmount} onChange={(e) => setChargesAmount(e.target.value)} placeholder="0.00" className={SC} />
-                </div>
-                <div>
-                  <label className="block text-sm text-[#666666] mb-1">Discount</label>
-                  <input type="number" min={0} step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0.00" className={SC} />
-                </div>
                 <div className="sm:col-span-2">
-                  <div className="rounded-lg bg-[#E6ECE2]/50 px-4 py-3 flex items-center justify-between">
-                    <span className="text-sm text-[#666666]">Total Amount</span>
-                    <span className="text-lg font-bold text-[#333333]">{fmtMoney(totalAmount)}</span>
-                  </div>
+                  <label className="block text-sm text-[#666666] mb-1">
+                    Payment Terms
+                  </label>
+                  <input
+                    value={paymentTerms}
+                    onChange={(e) => setPaymentTerms(e.target.value)}
+                    placeholder="e.g., Net 30"
+                    className={SC}
+                  />
                 </div>
               </div>
 
               <div className="flex items-center gap-3 mt-6 pt-4 border-t border-[#E6ECE2]">
-                <Button variant="secondary" onClick={() => navigate("/purchasing/invoices")}>Cancel</Button>
-                <Button onClick={handleSubmit} loading={saving} disabled={!supplierId || !invoiceNumber}>
+                <Button
+                  variant="secondary"
+                  onClick={() => navigate("/purchasing/invoices")}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  loading={saving}
+                  disabled={!supplierId || !invoiceNumber || !invoiceAmount}
+                >
                   {saving ? "Creating…" : "Create Invoice"}
                 </Button>
               </div>
@@ -380,62 +380,90 @@ export default function CreateSupplierInvoicePage() {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
               <div className="px-4 py-3 bg-[#E6ECE2]/50 border-b border-[#E6ECE2]">
-                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Linked Purchase Order</p>
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
+                  Linked Purchase Order
+                </p>
               </div>
               {purchaseOrderId && selectedPO ? (
                 <div className="p-4 flex flex-col gap-4">
                   <div className="flex items-center justify-between">
-                    <p className="font-bold text-[#333333]">{selectedPO.poNumber}</p>
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${PO_STATUS_BADGE[selectedPO.status] ?? "bg-gray-100 text-gray-600"}`}>
-                      {selectedPO.status}
-                    </span>
+                    <p className="font-bold text-[#333333]">
+                      {selectedPO.poNumber}
+                    </p>
+                    <StatusChip
+                      label={selectedPO.status}
+                      tone={PO_STATUS_BADGE[selectedPO.status] ?? "gray"}
+                    />
                   </div>
-                  {selectedPO.receivingSummary && (
-                    <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
-                      {([
-                        ["Ordered", selectedPO.receivingSummary.orderedQuantity],
-                        ["Received", selectedPO.receivingSummary.receivedQuantity],
-                        ["Shortage", selectedPO.receivingSummary.shortQuantity],
-                        ["Remaining", selectedPO.receivingSummary.remainingQuantity],
-                      ] as [string, number][]).map(([label, val]) => (
-                        <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
-                          <span className="text-[#666666]">{label}</span>
-                          <span className="font-semibold text-[#333333]">{val}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {selectedPO.goodsSummary && (
-                    <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
-                      {([
-                        ["Received Goods", selectedPO.goodsSummary.receivedGoodsValue],
-                        ["Goods Invoiced", selectedPO.goodsSummary.goodsInvoicedAmount],
-                        ["Still to Invoice", selectedPO.goodsSummary.remainingGoodsToInvoice],
-                      ] as [string, number][]).map(([label, val]) => (
-                        <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
-                          <span className="text-[#666666]">{label}</span>
-                          <span className="font-semibold text-[#333333]">{fmtMoney(val)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div>
+                    <p className="text-xs text-[#666666] mb-1.5">Items</p>
+                    {selectedPO.items && selectedPO.items.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {selectedPO.items.map((it) => (
+                          <div
+                            key={it.id}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="text-[#333333]">
+                              {it.product?.name ?? "Product"}
+                            </span>
+                            <span className="text-[#666666] whitespace-nowrap">
+                              {it.quantityOrdered} × {fmtMoney(it.unitCost)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#999]">No items available.</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#666666] mb-1.5">
+                      Goods Receipts
+                    </p>
+                    {goodsReceipts.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {goodsReceipts.map((gr) => (
+                          <span
+                            key={gr.id}
+                            className="inline-flex items-center rounded-full border border-[#C6D4BF] bg-[#E6ECE2]/40 px-2.5 py-0.5 text-xs font-semibold text-[#333333]"
+                          >
+                            {gr.receiptNumber}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#999]">
+                        No goods receipts yet.
+                      </p>
+                    )}
+                  </div>
                   <div className="border-t border-[#E6ECE2] pt-3">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-[#666666]">Ordered</span>
-                      <span className="font-semibold text-[#333333]">{fmtDate(selectedPO.orderDate)}</span>
+                      <span className="text-[#666666]">PO Total</span>
+                      <span className="font-semibold text-[#333333]">
+                        {fmtMoney(poTotal)}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-[#666666]">Expected Delivery</span>
-                      <span className="font-semibold text-[#333333]">{fmtDate(selectedPO.expectedDeliveryDate)}</span>
+                      <span className="text-[#666666]">Expected</span>
+                      <span className="font-semibold text-[#333333]">
+                        {fmtDate(selectedPO.orderDate)}
+                      </span>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="p-4">
                   {poLoading ? (
-                    <p className="text-sm text-[#666666]">Loading purchase order...</p>
+                    <p className="text-sm text-[#666666]">
+                      Loading purchase order...
+                    </p>
                   ) : (
-                    <p className="text-sm text-[#999]">Select a purchase order to invoice its received goods.</p>
+                    <p className="text-sm text-[#999]">
+                      Select a purchase order to see its items, goods receipts,
+                      and total.
+                    </p>
                   )}
                 </div>
               )}

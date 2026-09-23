@@ -158,7 +158,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => alert("Password recovery will be available once the backend is configured.")}
-            className="text-sm font-medium text-[#7A9076] hover:text-[#A5B89E] transition-colors focus:outline-none focus-visible:underline"
+            className="text-sm font-medium text-[#7A9076] hover:text-[#7A9076] transition-colors focus:outline-none focus-visible:underline"
           >
             Forgot password?
           </button>
@@ -204,7 +204,7 @@ export default function LoginPage() {
         Don&apos;t have an account?{" "}
         <Link
           to="/signup"
-          className="font-semibold text-[#7A9076] hover:text-[#A5B89E] transition-colors focus:outline-none focus-visible:underline"
+          className="font-semibold text-[#7A9076] hover:text-[#7A9076] transition-colors focus:outline-none focus-visible:underline"
         >
           Sign up
         </Link>

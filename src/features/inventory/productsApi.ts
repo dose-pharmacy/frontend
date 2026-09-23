@@ -5,7 +5,7 @@
 //   POST   /api/v1/inventory/products              (create, with units)
 //   GET    /api/v1/inventory/products/{id}         (detail)
 //   PATCH  /api/v1/inventory/products/{id}         (update, units optional)
-//   DELETE /api/v1/inventory/products/{id}         (soft delete → deactivate)
+//   DELETE /api/v1/inventory/products/{id}         (soft delete -> deactivate)
 //
 // All requests require the authenticated admin session cookie
 // (HTTP-only — sent automatically with `credentials: "include"`).

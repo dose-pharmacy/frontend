@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Search } from "lucide-react"
 import {
   listLocations,
   createLocation,
@@ -8,43 +9,45 @@ import {
   LocationsApiError,
   type LocationDto,
   type LocationListMeta,
-} from "../../features/inventory/locationsApi";
-import PageHeader from "../../components/ui/PageHeader";
-import Button from "../../components/ui/Button";
-import EmptyState from "../../components/ui/EmptyState";
-import Modal from "../../components/ui/Modal";
-import Input from "../../components/ui/Input";
-import FormError from "../../components/ui/FormError";
+} from "../../features/inventory/locationsApi"
+import PageHeader from "../../components/ui/PageHeader"
+import Button from "../../components/ui/Button"
+import Pagination from "../../components/ui/Pagination"
+import EmptyState from "../../components/ui/EmptyState"
+import StatusChip from "../../components/ui/StatusChip"
+import Modal from "../../components/ui/Modal"
+import Input from "../../components/ui/Input"
+import FormError from "../../components/ui/FormError"
 
-const PAGE_LIMIT = 20;
+const PAGE_LIMIT = 20
 
-type StatusFilter = "all" | "active" | "inactive";
+type StatusFilter = "all" | "active" | "inactive"
 
 interface LocationForm {
-  name: string;
-  description: string;
-  isActive: boolean;
+  name: string
+  description: string
+  isActive: boolean
 }
 
 function emptyForm(): LocationForm {
-  return { name: "", description: "", isActive: true };
+  return { name: "", description: "", isActive: true }
 }
 
 function formErrors(f: LocationForm) {
-  const e: Partial<Record<keyof LocationForm, string>> = {};
-  if (!f.name.trim()) e.name = "Name is required.";
-  return e;
+  const e: Partial<Record<keyof LocationForm, string>> = {}
+  if (!f.name.trim()) e.name = "Name is required."
+  return e
 }
 
 function apiErrorMessage(err: unknown, fallback: string): string {
-  return err instanceof LocationsApiError ? err.message : fallback;
+  return err instanceof LocationsApiError ? err.message : fallback
 }
 
 function formatDate(value?: string) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+  if (!value) return "—"
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return value
+  return d.toLocaleString()
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -55,9 +58,9 @@ function ToggleSwitch({
   onChange,
   label,
 }: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label?: string;
+  checked: boolean
+  onChange: (v: boolean) => void
+  label?: string
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -82,107 +85,105 @@ function ToggleSwitch({
         </span>
       )}
     </div>
-  );
+  )
 }
 
 export default function LocationsPage() {
   // ── List state ──
-  const [locations, setLocations] = useState<LocationDto[]>([]);
-  const [meta, setMeta] = useState<LocationListMeta | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [locations, setLocations] = useState<LocationDto[]>([])
+  const [meta, setMeta] = useState<LocationListMeta | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const requestSeq = useRef(0);
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const requestSeq = useRef(0)
 
   // ── Modal state ──
-  const [formMode, setFormMode] = useState<"add" | "edit" | null>(null);
-  const [editTarget, setEditTarget] = useState<LocationDto | null>(null);
-  const [detailTarget, setDetailTarget] = useState<LocationDto | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [formMode, setFormMode] = useState<"add" | "edit" | null>(null)
+  const [editTarget, setEditTarget] = useState<LocationDto | null>(null)
+  const [detailTarget, setDetailTarget] = useState<LocationDto | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   // Deactivate / reactivate confirmation
-  const [confirmTarget, setConfirmTarget] = useState<LocationDto | null>(null);
-  const [confirmAction, setConfirmAction] = useState<"deactivate" | "reactivate">(
-    "deactivate",
-  );
-  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<LocationDto | null>(null)
+  const [confirmAction, setConfirmAction] =
+    useState<"deactivate" | "reactivate">("deactivate")
+  const [confirmBusy, setConfirmBusy] = useState(false)
 
   // ── Form state ──
-  const [form, setForm] = useState<LocationForm>(emptyForm());
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof LocationForm, string>>
-  >({});
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [form, setForm] = useState<LocationForm>(emptyForm())
+  const [errors, setErrors] =
+    useState<Partial<Record<keyof LocationForm, string>>>({})
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   // ── Load locations from the API (server-side search + pagination) ──
   const reload = useCallback(
     async (searchTerm: string, pageNum: number, filter: StatusFilter) => {
-      const seq = ++requestSeq.current;
-      setLoading(true);
-      setLoadError(null);
+      const seq = ++requestSeq.current
+      setLoading(true)
+      setLoadError(null)
       try {
         const res = await listLocations({
           page: pageNum,
           limit: PAGE_LIMIT,
           search: searchTerm.trim() || undefined,
           isActive: filter === "all" ? undefined : filter === "active",
-        });
-        if (seq !== requestSeq.current) return;
-        setLocations(res.data);
-        setMeta(res.meta);
+        })
+        if (seq !== requestSeq.current) return
+        setLocations(res.data)
+        setMeta(res.meta)
       } catch (err) {
-        if (seq !== requestSeq.current) return;
+        if (seq !== requestSeq.current) return
         setLoadError(
           apiErrorMessage(err, "Failed to load locations. Please try again."),
-        );
+        )
       } finally {
-        if (seq === requestSeq.current) setLoading(false);
+        if (seq === requestSeq.current) setLoading(false)
       }
     },
     [],
-  );
+  )
 
   useEffect(() => {
     const t = setTimeout(
       () => void reload(search, page, statusFilter),
       search ? 300 : 0,
-    );
-    return () => clearTimeout(t);
-  }, [reload, search, page, statusFilter]);
+    )
+    return () => clearTimeout(t)
+  }, [reload, search, page, statusFilter])
 
   // Reset to page 1 whenever filters change
   useEffect(() => {
-    setPage(1);
-  }, [search, statusFilter]);
+    setPage(1)
+  }, [search, statusFilter])
 
   function openAdd() {
-    setEditTarget(null);
-    setForm(emptyForm());
-    setErrors({});
-    setFormError(null);
-    setFormMode("add");
+    setEditTarget(null)
+    setForm(emptyForm())
+    setErrors({})
+    setFormError(null)
+    setFormMode("add")
   }
 
   function openEdit(loc: LocationDto) {
-    setEditTarget(loc);
+    setEditTarget(loc)
     setForm({
       name: loc.name,
       description: loc.description ?? "",
       isActive: loc.isActive,
-    });
-    setErrors({});
-    setFormError(null);
-    setFormMode("edit");
+    })
+    setErrors({})
+    setFormError(null)
+    setFormMode("edit")
   }
 
   // ── Detail: open with row data, then refetch the full record ──
   function openDetail(loc: LocationDto) {
-    setDetailTarget(loc);
-    setDetailLoading(true);
+    setDetailTarget(loc)
+    setDetailLoading(true)
     getLocation(loc.id)
       .then((fresh) =>
         setDetailTarget((cur) => (cur?.id === fresh.id ? fresh : cur)),
@@ -190,34 +191,34 @@ export default function LocationsPage() {
       .catch(() => {
         /* keep the row data if the refetch fails */
       })
-      .finally(() => setDetailLoading(false));
+      .finally(() => setDetailLoading(false))
   }
 
   async function handleSave() {
-    const e = formErrors(form);
+    const e = formErrors(form)
     if (Object.keys(e).length) {
-      setErrors(e);
-      return;
+      setErrors(e)
+      return
     }
-    setSaving(true);
-    setFormError(null);
+    setSaving(true)
+    setFormError(null)
     try {
       if (formMode === "edit" && editTarget) {
         await updateLocation(editTarget.id, {
           name: form.name.trim(),
           description: form.description.trim() || null,
           isActive: form.isActive,
-        });
+        })
       } else {
         await createLocation({
           name: form.name.trim(),
           description: form.description.trim() || null,
           isActive: form.isActive,
-        });
+        })
       }
-      setFormMode(null);
-      setEditTarget(null);
-      await reload(search, page, statusFilter);
+      setFormMode(null)
+      setEditTarget(null)
+      await reload(search, page, statusFilter)
     } catch (err) {
       setFormError(
         apiErrorMessage(
@@ -226,48 +227,48 @@ export default function LocationsPage() {
             ? "Could not save the location. Please try again."
             : "Could not create the location. Please try again.",
         ),
-      );
+      )
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
 
   function requestToggleActive(loc: LocationDto) {
-    setConfirmAction(loc.isActive ? "deactivate" : "reactivate");
-    setConfirmTarget(loc);
+    setConfirmAction(loc.isActive ? "deactivate" : "reactivate")
+    setConfirmTarget(loc)
   }
 
   // ── Deactivate = DELETE (soft delete); reactivate = PATCH isActive: true ──
   async function confirmToggleActive() {
-    const loc = confirmTarget;
-    if (!loc) return;
-    setConfirmBusy(true);
-    setLoadError(null);
+    const loc = confirmTarget
+    if (!loc) return
+    setConfirmBusy(true)
+    setLoadError(null)
     try {
       if (confirmAction === "deactivate") {
-        await deactivateLocation(loc.id);
+        await deactivateLocation(loc.id)
       } else {
-        await updateLocation(loc.id, { isActive: true });
+        await updateLocation(loc.id, { isActive: true })
       }
-      setConfirmTarget(null);
-      await reload(search, page, statusFilter);
+      setConfirmTarget(null)
+      await reload(search, page, statusFilter)
     } catch (err) {
       setLoadError(
         apiErrorMessage(
           err,
           "Could not update the location status. Please try again.",
         ),
-      );
-      setConfirmTarget(null);
+      )
+      setConfirmTarget(null)
     } finally {
-      setConfirmBusy(false);
+      setConfirmBusy(false)
     }
   }
 
-  const active = locations.filter((l) => l.isActive).length;
-  const inactive = locations.length - active;
-  const totalLocations = meta?.total ?? locations.length;
-  const totalPages = meta?.totalPages ?? 1;
+  const active = locations.filter((l) => l.isActive).length
+  const inactive = locations.length - active
+  const totalLocations = meta?.total ?? locations.length
+  const totalPages = meta?.totalPages ?? 1
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -328,30 +329,23 @@ export default function LocationsPage() {
         {/* Toolbar: search + status filter + pagination info */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="relative max-w-sm flex-1 min-w-[200px]">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666666]"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]"
               aria-hidden
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path strokeLinecap="round" d="M20 20l-3.5-3.5" />
-            </svg>
+            />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by location name…"
-              className="w-full rounded-lg border border-[#E6ECE2] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-9 pr-9 py-2.5 text-sm text-[#333333] placeholder:text-[#999] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 transition-all"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#666666] hover:text-[#333333]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-[#333333]"
               >
                 ×
               </button>
@@ -421,10 +415,12 @@ export default function LocationsPage() {
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") openDetail(loc);
+                    if (e.key === "Enter" || e.key === " ") openDetail(loc)
                   }}
                   className={`group bg-white rounded-xl border p-5 flex flex-col gap-3 cursor-pointer transition-shadow hover:shadow-md ${
-                    loc.isActive ? "border-[#E6ECE2]" : "border-gray-200 opacity-60"
+                    loc.isActive
+                      ? "border-[#E6ECE2]"
+                      : "border-gray-200 opacity-60"
                   }`}
                 >
                   {/* Header: name/desc + status pill + delete icon on hover */}
@@ -439,22 +435,17 @@ export default function LocationsPage() {
                     </div>
 
                     <div className="ml-3 flex-shrink-0 flex items-center gap-2">
-                      <span
-                        className={`text-xs font-semibold rounded-full px-2.5 py-1 ${
-                          loc.isActive
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
-                        }`}
-                      >
-                        {loc.isActive ? "Active" : "Inactive"}
-                      </span>
+                      <StatusChip
+                        label={loc.isActive ? "Active" : "Inactive"}
+                        tone={loc.isActive ? "green" : "gray"}
+                      />
 
                       {/* Trash = deactivate (soft delete). Hidden until hover. */}
                       {loc.isActive && (
                         <button
                           onClick={(e) => {
-                            e.stopPropagation();
-                            requestToggleActive(loc);
+                            e.stopPropagation()
+                            requestToggleActive(loc)
                           }}
                           aria-label={`Deactivate ${loc.name}`}
                           title="Deactivate location"
@@ -481,10 +472,10 @@ export default function LocationsPage() {
                   <div className="flex gap-2 mt-auto pt-1">
                     <button
                       onClick={(e) => {
-                        e.stopPropagation();
+                        e.stopPropagation()
                         alert(
                           `View stock at ${loc.name} — backend integration pending`,
-                        );
+                        )
                       }}
                       className="flex-1 rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#7A9076] hover:bg-[#E6ECE2] transition-colors"
                     >
@@ -492,8 +483,8 @@ export default function LocationsPage() {
                     </button>
                     <button
                       onClick={(e) => {
-                        e.stopPropagation();
-                        openEdit(loc);
+                        e.stopPropagation()
+                        openEdit(loc)
                       }}
                       className="flex-1 rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#666666] hover:bg-[#E6ECE2] transition-colors"
                     >
@@ -505,27 +496,14 @@ export default function LocationsPage() {
             </div>
 
             {/* Pagination footer */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="secondary"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                >
-                  ← Previous
-                </Button>
-                <span className="text-xs text-[#666666]">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  variant="secondary"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                >
-                  Next →
-                </Button>
-              </div>
-            )}
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              total={totalLocations}
+              pageSize={PAGE_LIMIT}
+              itemLabel="locations"
+            />
           </>
         )}
       </div>
@@ -547,15 +525,10 @@ export default function LocationsPage() {
             <DetailRow
               label="Status"
               value={
-                <span
-                  className={`inline-block text-xs font-semibold rounded-full px-2.5 py-1 ${
-                    detailTarget.isActive
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {detailTarget.isActive ? "Active" : "Inactive"}
-                </span>
+                <StatusChip
+                  label={detailTarget.isActive ? "Active" : "Inactive"}
+                  tone={detailTarget.isActive ? "green" : "gray"}
+                />
               }
             />
             <DetailRow
@@ -573,9 +546,9 @@ export default function LocationsPage() {
               </Button>
               <Button
                 onClick={() => {
-                  const loc = detailTarget;
-                  setDetailTarget(null);
-                  openEdit(loc);
+                  const loc = detailTarget
+                  setDetailTarget(null)
+                  openEdit(loc)
                 }}
               >
                 Edit Location
@@ -599,8 +572,8 @@ export default function LocationsPage() {
             label="Name"
             value={form.name}
             onChange={(e) => {
-              setForm((f) => ({ ...f, name: e.target.value }));
-              setErrors((er) => ({ ...er, name: undefined }));
+              setForm((f) => ({ ...f, name: e.target.value }))
+              setErrors((er) => ({ ...er, name: undefined }))
             }}
             error={errors.name}
             placeholder="e.g. Main Store"
@@ -656,8 +629,8 @@ export default function LocationsPage() {
             : "Reactivate Location"
         }
         onClose={() => {
-          if (confirmBusy) return;
-          setConfirmTarget(null);
+          if (confirmBusy) return
+          setConfirmTarget(null)
         }}
         size="sm"
       >
@@ -667,7 +640,7 @@ export default function LocationsPage() {
               <div
                 className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                   confirmAction === "deactivate"
-                    ? "bg-amber-100 text-amber-600"
+                    ? "bg-amber-500 text-white"
                     : "bg-green-100 text-green-600"
                 }`}
               >
@@ -750,18 +723,12 @@ export default function LocationsPage() {
         )}
       </Modal>
     </div>
-  );
+  )
 }
 
 /* ---------------- helpers ---------------- */
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function DetailRow({ label, value }: { label: string, value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-6 py-2 border-b border-[#E6ECE2] last:border-b-0">
       <span className="text-xs font-medium text-[#666666] uppercase tracking-wide">
@@ -769,5 +736,5 @@ function DetailRow({
       </span>
       <span className="text-sm text-[#333333] text-right">{value}</span>
     </div>
-  );
+  )
 }

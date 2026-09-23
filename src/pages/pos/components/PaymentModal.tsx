@@ -106,12 +106,12 @@ export default function PaymentModal({
     >
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95vh]">
         {/* Header */}
-        <div className="bg-[#E6ECE2] px-6 py-4 flex items-center justify-between gap-4 border-b border-[#C6D4BF]">
+        <div className="bg-white border-b border-[#E6ECE2] px-6 py-4 flex items-center justify-between gap-4">
           <h2 id="pay-title" className="text-base font-bold text-[#333333]">
             Payment
           </h2>
-          <div className="text-xl font-bold text-[#4F6B4A]">{fmt(total)}</div>
-          <button onClick={onBack} className="text-[#666666] hover:text-[#333333]" aria-label="Back">
+          <div className="text-xl font-bold text-[#333333]">{fmt(total)}</div>
+          <button onClick={onBack} className="text-[#333333]/80 hover:text-[#333333]" aria-label="Back">
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
@@ -253,7 +253,7 @@ export default function PaymentModal({
         <div className="bg-white border-t border-[#E6ECE2] px-4 py-3 flex gap-3 justify-end">
           <button
             onClick={onBack}
-            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] bg-[#C6D4BF] hover:bg-[#B5C6AE] transition-colors"
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] bg-[#C6D4BF] hover:bg-[#B5C8AE] transition-colors"
           >
             Back
           </button>

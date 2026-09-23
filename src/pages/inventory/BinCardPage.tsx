@@ -1,233 +1,250 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
-import { getBinCard, type BinCardResult } from "../../features/inventory/stockApi";
-import { listLocations } from "../../features/inventory/locationsApi";
-import { listProductBatches, type BatchDto } from "../../features/inventory/batchesApi";
-import { searchProducts, searchLocations } from "../../features/inventory/searchSelectors";
-import { useProductUnits } from "../../features/inventory/useProductUnits";
-import { useSearchableResource } from "../../hooks/useSearchableResource";
-import SearchableSelect from "../../components/ui/SearchableSelect";
-import type { SearchableOption } from "../../components/ui/SearchableSelect";
-import PageHeader from "../../components/ui/PageHeader";
-import Select from "../../components/ui/Select";
-import Button from "../../components/ui/Button";
-import EmptyState from "../../components/ui/EmptyState";
+import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "react-router"
+import {
+  getBinCard,
+  type BinCardResult,
+  type StockTransactionDto,
+} from "../../features/inventory/stockApi"
+import {
+  fetchProductOptions,
+  type ProductOption,
+} from "../../features/inventory/inventoryService"
+import { listLocations } from "../../features/inventory/locationsApi"
+import {
+  listProductBatches,
+  type BatchDto,
+} from "../../features/inventory/batchesApi"
+import PageHeader from "../../components/ui/PageHeader"
+import Select from "../../components/ui/Select"
+import Button from "../../components/ui/Button"
+import EmptyState from "../../components/ui/EmptyState"
+import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
 
 function fmtDate(d: string) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function fmtDateTime(d: string) {
-  return new Date(d).toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
+  if (!d) return "—"
+  return new Date(d).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
 }
 
 function prettyType(t: string) {
-  if (!t) return "";
-  const spaced = t.replace(/_/g, " ");
-  if (spaced === spaced.toUpperCase()) return spaced.charAt(0) + spaced.slice(1).toLowerCase();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  if (!t) return ""
+  if (t === t.toUpperCase()) return t.charAt(0) + t.slice(1).toLowerCase()
+  return t.charAt(0).toUpperCase() + t.slice(1)
 }
 
 function TxTypeBadge({ type }: { type: string }) {
-  // Keys match the backend StockTransactionType enum (lowercased).
-  const map: Record<string, string> = {
-    opening:           "bg-[#E6ECE2] text-[#7A9076]",
-    purchase:          "bg-green-100 text-green-700",
-    sale:              "bg-blue-100 text-blue-700",
-    transfer_in:       "bg-purple-100 text-purple-700",
-    transfer_out:      "bg-purple-100 text-purple-700",
-    adjustment_in:     "bg-orange-100 text-orange-700",
-    adjustment_out:    "bg-orange-100 text-orange-700",
-    return_in:         "bg-yellow-100 text-yellow-700",
-    return_out:        "bg-yellow-100 text-yellow-700",
-    return_to_supplier:"bg-yellow-100 text-yellow-700",
-    expiry:            "bg-amber-100 text-amber-700",
-    disposal:          "bg-red-100 text-red-700",
-    correction:        "bg-slate-200 text-slate-700",
-    clearance_sale:    "bg-cyan-100 text-cyan-700",
-    closing:           "bg-gray-100 text-gray-600",
-  };
+  const map: Record<string, StatusTone> = {
+    received: "green",
+    sale: "blue",
+    transfer: "purple",
+    adjustment: "orange",
+    opening: "sage",
+    disposal: "red",
+    return: "amber",
+    receipt: "green",
+  }
   return (
-    <span className={`text-xs font-semibold rounded-full px-2 py-0.5 capitalize ${map[type.toLowerCase()] ?? "bg-gray-100 text-gray-600"}`}>
-      {prettyType(type)}
-    </span>
-  );
+    <StatusChip
+      label={prettyType(type)}
+      tone={map[type.toLowerCase()] ?? "gray"}
+    />
+  )
 }
 
 export default function BinCardPage() {
-  const [params, setParams] = useSearchParams();
-  const initProductId = params.get("productId") || "";
-  const initBatchId = params.get("batchId") || "";
-  const initLocationId = params.get("locationId") || "";
+  const [params, setParams] = useSearchParams()
+  const initProductId = params.get("productId") || ""
+  const initBatchId = params.get("batchId") || ""
+  const initLocationId = params.get("locationId") || ""
 
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
-  const [batches, setBatches] = useState<BatchDto[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [locations, setLocations] = useState<{ id: string, name: string }[]>([])
+  const [batches, setBatches] = useState<BatchDto[]>([])
 
-  const [productId, setProductId] = useState(initProductId);
-  const [batchId, setBatchId] = useState(initBatchId);
-  const [locationId, setLocationId] = useState(initLocationId);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 100;
+  const [productId, setProductId] = useState(initProductId)
+  const [batchId, setBatchId] = useState(initBatchId)
+  const [locationId, setLocationId] = useState(initLocationId)
 
-  const [card, setCard] = useState<BinCardResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
+  const [card, setCard] = useState<BinCardResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  const productSearch = useSearchableResource(searchProducts);
-  const unitsProd = useProductUnits(initProductId || productId);
-
-  const selectedProductOption = productSearch.options.find((o) => o.value === productId)
-    ?? (unitsProd.product && productId === unitsProd.product?.id
-      ? { value: unitsProd.product.id, label: unitsProd.product.name }
-      : null)
-  const productOptions: SearchableOption[] = selectedProductOption
-    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
-    : productSearch.options
-
-  const locationSearch = useSearchableResource(searchLocations);
-  const locationOptions: SearchableOption[] = [
-    ...locations.map((l) => ({ value: l.id, label: l.name })),
-    ...locationSearch.options.filter((o) => !locations.some((l) => l.id === o.value)),
-  ]
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
+  const [typeFilter, setTypeFilter] = useState("")
 
   useEffect(() => {
-    listLocations({ limit: 100 })
-      .then((res) => setLocations(res.data.filter((x) => x.isActive).map((x) => ({ id: x.id, name: x.name }))))
-      .catch(() => {});
-  }, []);
+    Promise.all([fetchProductOptions(), listLocations({ limit: 100 })]).then(
+      ([p, l]) => {
+        setProducts(p)
+        setLocations(
+          l.data
+            .filter((x) => x.isActive)
+            .map((x) => ({ id: x.id, name: x.name })),
+        )
+      },
+    )
+  }, [])
 
   useEffect(() => {
     if (!productId) {
-      setBatches([]);
-      return;
+      setBatches([])
+      return
     }
-    listProductBatches(productId, { limit: 100 })
-      .then((b) => setBatches(b.data))
-      .catch(() => setBatches([]));
-  }, [productId]);
-
-  const hasSelection = !!(productId && locationId);
+    listProductBatches(productId, { limit: 100 }).then((b) => {
+      setBatches(b.data)
+    })
+  }, [productId])
 
   useEffect(() => {
-    if (!hasSelection) {
-      setCard(null);
-      return;
+    if (!productId || !locationId) {
+      setCard(null)
+      return
     }
-    let cancelled = false;
-    setLoading(true);
-    setError("");
-    getBinCard({
-      productId,
-      locationId,
-      batchId: batchId || undefined,
-      startDate: fromDate || undefined,
-      endDate: toDate || undefined,
-      page,
-      pageSize: PAGE_SIZE,
-    })
-      .then((res) => { if (!cancelled) setCard(res); })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load bin card"); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [hasSelection, productId, locationId, batchId, fromDate, toDate, page, reloadKey]);
+    setLoading(true)
+    setError("")
+    getBinCard({ productId, locationId, batchId: batchId || undefined })
+      .then((res) => setCard(res))
+      .catch((err) =>
+        setError(
+          err instanceof Error ? err.message : "Failed to load bin card",
+        ),
+      )
+      .finally(() => setLoading(false))
+  }, [productId, locationId, batchId])
 
-  const tx = card?.transactions ?? [];
+  const hasFilters = !!(fromDate || toDate || typeFilter)
+
+  const ledger = useMemo(() => {
+    const all = card?.transactions ?? []
+    const filtered = all.filter((t) => {
+      if (fromDate && t.date < fromDate) return false
+      if (toDate && t.date > toDate) return false
+      if (typeFilter && t.transactionType !== typeFilter) return false
+      return true
+    })
+    let running = card?.openingBalance ?? 0
+    return filtered.map((t) => {
+      running += t.in - t.out
+      return { ...t, runningBalance: running }
+    })
+  }, [card, fromDate, toDate, typeFilter])
+
+  const openingBalance = card?.openingBalance ?? 0
+  const closing = ledger.length
+    ? ledger[ledger.length - 1].runningBalance
+    : openingBalance
   const totals = useMemo(
     () => ({
-      in: tx.reduce((a, t) => a + (t.in || 0), 0),
-      out: tx.reduce((a, t) => a + (t.out || 0), 0),
+      totalIn: ledger.reduce((a, t) => a + t.in, 0),
+      totalOut: ledger.reduce((a, t) => a + t.out, 0),
     }),
-    [tx],
-  );
-
-  const selectedProduct = unitsProd.product ?? (selectedProductOption ? { name: selectedProductOption.label } : null);
-  const selectedLocation = locations.find((l) => l.id === locationId);
-  const selectedBatch = batches.find((b) => b.id === batchId);
-  const unit = card?.baseUnit?.name || unitsProd.product?.baseUnit?.name || "";
-  const unitLabel = unit ? `${unit}s` : "";
+    [ledger],
+  )
 
   function handleExportCSV() {
-    const header = "Date,Reference,Type,Notes,In,Out,Balance,Cost\n";
-    const rows = tx
-      .map((e) => [
-        e.date,
-        (e.reference || "").replace(/,/g, " "),
-        e.transactionType,
-        (e.notes || "").replace(/,/g, " "),
-        e.in || 0,
-        e.out || 0,
-        e.balance,
-        e.costPrice ?? "",
-      ].join(","))
-      .join("\n");
-    const blob = new Blob([header + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "bin-card.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    const header = "Date,Reference,Type,In,Out,Balance\n"
+    const rows = ledger
+      .map(
+        (e) =>
+          `${e.date},${e.reference || ""},${e.transactionType},${e.in},${e.out},${e.runningBalance}`,
+      )
+      .join("\n")
+    const blob = new Blob([header + rows], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "bin-card.csv"
+    a.click()
+    URL.revokeObjectURL(url)
   }
+
+  const selectedProduct = products.find((p) => p.id === productId)
+  const selectedLocation = locations.find((l) => l.id === locationId)
+  const selectedBatch = batches.find((b) => b.id === batchId)
+  const unit = card?.baseUnit?.name || selectedProduct?.baseUnit || ""
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
-        title={selectedProduct ? `Bin Card — ${selectedProduct.name}` : "Bin Card"}
+        title={
+          selectedProduct ? `Bin Card — ${selectedProduct.name}` : "Bin Card"
+        }
         subtitle="Stock movement history and ledger"
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => window.print()} disabled={!card}>Print</Button>
-            <Button onClick={handleExportCSV} disabled={!card || tx.length === 0}>Export CSV</Button>
+            <Button
+              variant="secondary"
+              onClick={() => window.print()}
+              disabled={!card}
+            >
+              Print
+            </Button>
+            <Button
+              onClick={handleExportCSV}
+              disabled={!card || ledger.length === 0}
+            >
+              Export CSV
+            </Button>
           </div>
         }
       />
 
       <div className="p-6 flex flex-col gap-6 overflow-y-auto">
-        {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-4">
-          <p className="text-sm font-semibold text-[#333333]">Bin Card Selection</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-[#666666]">Product *</label>
-              <SearchableSelect
-                value={productId || null}
-                onChange={(v) => { setProductId(v); setBatchId(""); setPage(1); setParams({}); }}
-                options={productOptions}
-                onSearch={productSearch.setTerm}
-                loading={productSearch.loading}
-                error={productSearch.error}
-                onRetry={productSearch.retry}
-                placeholder="Search and select a product..."
-                searchPlaceholder="Search by name or SKU..."
-                emptyMessage="No products found"
-                noResultsMessage="No products matching your search"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-[#666666]">Location *</label>
-              <SearchableSelect
-                value={locationId || null}
-                onChange={(v) => { setLocationId(v); setPage(1); setParams({}); }}
-                options={locationOptions}
-                onSearch={locationSearch.setTerm}
-                loading={locationSearch.loading}
-                error={locationSearch.error}
-                onRetry={locationSearch.retry}
-                placeholder="Search and select a location..."
-                searchPlaceholder="Search locations..."
-                emptyMessage="No locations found"
-                noResultsMessage="No locations matching your search"
-              />
-            </div>
-            <Select label="Batch" value={batchId} onChange={(e) => { setBatchId(e.target.value); setPage(1); setParams({}); }} disabled={!productId}>
+          <p className="text-sm font-semibold text-[#333333]">
+            Bin Card Selection
+          </p>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Select
+              label="Product *"
+              value={productId}
+              onChange={(e) => {
+                setProductId(e.target.value)
+                setBatchId("")
+                setParams({})
+              }}
+            >
+              <option value="">Select Product...</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Location *"
+              value={locationId}
+              onChange={(e) => {
+                setLocationId(e.target.value)
+                setParams({})
+              }}
+            >
+              <option value="">Select Location...</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Batch (Optional)"
+              value={batchId}
+              onChange={(e) => {
+                setBatchId(e.target.value)
+                setParams({})
+              }}
+              disabled={!productId}
+            >
               <option value="">All Batches</option>
-              {batches.map((b) => <option key={b.id} value={b.id}>{b.batchNumber}</option>)}
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.batchNumber}
+                </option>
+              ))}
             </Select>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#666666]">From Date</label>
@@ -243,106 +260,228 @@ export default function BinCardPage() {
           )}
         </div>
 
-        {!hasSelection ? (
-          <EmptyState title="Select Product and Location" description="A product and location must be selected to view the bin card." />
+        {!productId || !locationId ? (
+          <EmptyState
+            title="Select Product and Location"
+            description="A product and location must be selected to view the bin card."
+          />
         ) : error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3">
-            <span>{error}</span>
-            <button onClick={() => setReloadKey((k) => k + 1)} className="text-xs font-semibold text-red-700 hover:underline whitespace-nowrap">Retry</button>
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
           </div>
-        ) : loading && !card ? (
-          <div className="p-6 space-y-3 animate-pulse">{[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-[#E6ECE2] rounded-lg" />)}</div>
+        ) : loading ? (
+          <div className="p-6 space-y-3 animate-pulse">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-20 bg-[#E6ECE2] rounded-lg" />
+            ))}
+          </div>
         ) : card ? (
           <div className="flex flex-col gap-6">
-            {/* Header */}
             <div className="rounded-xl bg-[#E6ECE2]/40 p-4 border border-[#E6ECE2]">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-[#666666] mb-1">Product</p>
-                  <p className="font-bold text-[#333333]">{selectedProduct?.name}</p>
+                  <p className="font-bold text-[#333333]">
+                    {selectedProduct?.name}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[#666666] mb-1">Location</p>
-                  <p className="font-semibold text-[#333333]">{selectedLocation?.name}</p>
+                  <p className="font-semibold text-[#333333]">
+                    {selectedLocation?.name}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[#666666] mb-1">Batch</p>
-                  <p className="font-mono font-semibold text-[#333333]">{selectedBatch ? selectedBatch.batchNumber : "All Batches"}</p>
+                  <p className="font-mono font-semibold text-[#333333]">
+                    {selectedBatch ? selectedBatch.batchNumber : "All Batches"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[#666666] mb-1">Unit</p>
-                  <p className="font-semibold text-[#333333]">{unitLabel || "—"}</p>
+                  <p className="font-semibold text-[#333333]">
+                    {unit ? `${unit}s` : "—"}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {([
-                ["Opening Balance", card.openingBalance.toLocaleString()],
-                ["Total IN", `+${totals.in.toLocaleString()}`],
-                ["Total OUT", `−${totals.out.toLocaleString()}`],
-                ["Closing Balance", card.closingBalance.toLocaleString()],
-              ] as [string, string][]).map(([label, value]) => (
-                <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-                  <p className="text-xs text-[#666666]">{label}</p>
-                  <p className="text-2xl font-bold text-[#333333] mt-1">{value}</p>
-                </div>
-              ))}
+            <div className="rounded-xl border border-[#E6ECE2] p-4 flex items-center justify-between bg-white">
+              <span className="text-xs font-semibold text-[#666666] uppercase tracking-wide">
+                Opening Balance
+              </span>
+              <span className="text-xl font-bold text-[#333333]">
+                {openingBalance.toLocaleString()} {unit ? `${unit}s` : ""}
+              </span>
             </div>
 
-            {/* Ledger */}
+            <div className="flex flex-wrap gap-3 items-end">
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-xs font-medium text-[#666666] block mb-1">
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="w-full rounded-xl border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+                />
+              </div>
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-xs font-medium text-[#666666] block mb-1">
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="w-full rounded-xl border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+                />
+              </div>
+              <div className="flex-1 min-w-[150px]">
+                <label className="text-xs font-medium text-[#666666] block mb-1">
+                  Movement Type
+                </label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full rounded-xl border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+                >
+                  <option value="">All Movements</option>
+                  {[
+                    "RECEIPT",
+                    "SALE",
+                    "TRANSFER",
+                    "ADJUSTMENT",
+                    "OPENING",
+                    "DISPOSAL",
+                    "RETURN",
+                  ].map((t) => (
+                    <option key={t} value={t}>
+                      {prettyType(t)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {hasFilters && (
+                <button
+                  onClick={() => {
+                    setFromDate("")
+                    setToDate("")
+                    setTypeFilter("")
+                  }}
+                  className="text-xs font-semibold text-[#7A9076] hover:underline pb-2"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
             <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="sticky top-0 z-10">
                     <tr className="bg-[#E6ECE2] text-left">
-                      <th className="px-4 py-3 font-semibold text-[#333333]">Date</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333]">Reference</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333]">Type</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] hidden xl:table-cell">Batch</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">IN</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">OUT</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">Balance</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] text-right hidden lg:table-cell">Cost</th>
-                      <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">By</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                        Date
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                        Reference
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">
+                        Type
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                        IN
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                        OUT
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                        Balance
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] text-right hidden lg:table-cell">
+                        Cost
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {tx.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-8 text-center text-sm text-[#999]">No movements in the selected range.</td>
+                        <td
+                          colSpan={7}
+                          className="px-4 py-8 text-center text-sm text-[#999]"
+                        >
+                          No movements in the selected range.
+                        </td>
                       </tr>
                     ) : (
-                      tx.map((t, i) => {
-                        const batchRef = (t.batch as { batchNumber?: string } | undefined)?.batchNumber;
-                        const userRef = (t.user as { name?: string } | undefined)?.name;
-                        return (
-                          <tr key={t.transactionId} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
-                            <td className="px-4 py-3 text-[#666666] whitespace-nowrap text-xs">{fmtDateTime(t.date)}</td>
-                            <td className="px-4 py-3 font-mono text-xs text-[#666666]">{t.reference || "—"}</td>
-                            <td className="px-4 py-3"><TxTypeBadge type={t.transactionType} /></td>
-                            <td className="px-4 py-3 font-mono text-xs text-[#666666] hidden xl:table-cell">{batchRef ?? "—"}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-green-700">{t.in > 0 ? t.in.toLocaleString() : <span className="text-[#999] font-normal">—</span>}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-red-600">{t.out > 0 ? t.out.toLocaleString() : <span className="text-[#999] font-normal">—</span>}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-[#333333]">{t.balance.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-right text-[#666666] hidden lg:table-cell">{t.costPrice != null ? `${t.costPrice.toLocaleString()} ETB` : "—"}</td>
-                            <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">{userRef ?? "—"}</td>
-                          </tr>
-                        );
-                      })
+                      ledger.map((t, i) => (
+                        <tr
+                          key={t.transactionId}
+                          className={
+                            i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
+                          }
+                        >
+                          <td className="px-4 py-3 text-[#666666] whitespace-nowrap text-xs">
+                            {fmtDate(t.date)}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-[#666666]">
+                            {t.reference || "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <TxTypeBadge type={t.transactionType} />
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-green-700">
+                            {t.in > 0 ? (
+                              t.in.toLocaleString()
+                            ) : (
+                              <span className="text-[#999] font-normal">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-red-600">
+                            {t.out > 0 ? (
+                              t.out.toLocaleString()
+                            ) : (
+                              <span className="text-[#999] font-normal">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-[#333333]">
+                            {t.runningBalance.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[#666666] hidden lg:table-cell">
+                            {t.costPrice != null
+                              ? `${t.costPrice.toLocaleString()} ETB`
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
               </div>
-              {card.totalPages && card.totalPages > 1 && (
-                <div className="border-t border-[#E6ECE2] px-5 py-3 flex items-center justify-between">
-                  <p className="text-xs text-[#666666]">
-                    Page {page} of {card.totalPages} · {card.total ?? tx.length} movements
-                  </p>
-                  <div className="flex gap-1">
-                    <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">← Prev</button>
-                    <button disabled={page >= (card.totalPages ?? 1)} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Next →</button>
+
+              <div className="border-t border-[#E6ECE2] bg-[#E6ECE2]/20">
+                <div className="grid grid-cols-3 px-4 py-4 text-sm">
+                  <div>
+                    <p className="text-xs text-[#999]">Total IN</p>
+                    <p className="font-bold text-green-700">
+                      +{totals.totalIn.toLocaleString()}{" "}
+                      {unit ? `${unit}s` : ""}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#999]">Total OUT</p>
+                    <p className="font-bold text-red-600">
+                      −{totals.totalOut.toLocaleString()}{" "}
+                      {unit ? `${unit}s` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-[#999]">Closing Balance</p>
+                    <p className="font-bold text-[#333333]">
+                      {closing.toLocaleString()} {unit ? `${unit}s` : ""}
+                    </p>
                   </div>
                 </div>
               )}
@@ -351,5 +490,5 @@ export default function BinCardPage() {
         ) : null}
       </div>
     </div>
-  );
+  )
 }

@@ -126,7 +126,7 @@ export async function fetchBatches(locationId?: string): Promise<Batch[]> {
 }
 
 
-/** Build batchId → location name(s) from live stock rows (the batch list
+/** Build batchId -> location name(s) from live stock rows (the batch list
  *  endpoint itself carries no location data). Batches split across more
  *  than one location are joined with ", ". */
 async function buildBatchLocationMap(): Promise<Map<string, string>> {
@@ -185,7 +185,7 @@ export async function fetchProductOptions(): Promise<ProductOption[]> {
 }
 
 // PATCH /inventory/batches/{id}
-// ⚠️ The backend REQUIRES batchNumber on every PATCH — callers must pass the
+// !  The backend REQUIRES batchNumber on every PATCH — callers must pass the
 // batch's current batch number through unchanged unless renaming it.
 export interface UpdateBatchPayload {
   batchNumber: string

@@ -22,41 +22,22 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
+import { TrendingUp, ShoppingCart, Receipt, Tag, Percent } from "lucide-react";
 
 function IconTrend() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-    </svg>
-  );
+  return <TrendingUp className="h-5 w-5" aria-hidden />;
 }
 function IconCart() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path d="M1 1.75A.75.75 0 011.75 1h1.628a1.75 1.75 0 011.734 1.51L5.18 3a65.25 65.25 0 0113.36 1.412.75.75 0 01.58.875 48.645 48.645 0 01-1.618 6.2.75.75 0 01-.712.513H6a2.503 2.503 0 00-2.292 1.5H17.25a.75.75 0 010 1.5H2.76a.75.75 0 01-.748-.807 4.002 4.002 0 012.716-3.486L3.626 2.716a.25.25 0 00-.248-.216H1.75A.75.75 0 011 1.75zM6 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm8.5 1.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
-    </svg>
-  );
+  return <ShoppingCart className="h-5 w-5" aria-hidden />;
 }
 function IconReceipt() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13.78c0 .585.38 1.1.936 1.285a1.5 1.5 0 001.598-.423l.151-.177a.75.75 0 011.13 0l.15.177a1.5 1.5 0 002.27 0l.15-.177a.75.75 0 011.13 0l.151.177a1.5 1.5 0 001.598.423A1.5 1.5 0 0015 17.28V3.5A1.5 1.5 0 0013.5 2h-9zM8.25 5a.75.75 0 100 1.5h1.5A.75.75 0 109.75 5h-1.5zm-3 .75a.75.75 0 01.75-.75h.5a.75.75 0 010 1.5h-.5a.75.75 0 01-.75-.75zm3.5 3a.75.75 0 000 1.5h1.5a.75.75 0 100-1.5h-1.5zm-3 .75a.75.75 0 01.75-.75h.5a.75.75 0 010 1.5h-.5a.75.75 0 01-.75-.75z" clipRule="evenodd" />
-    </svg>
-  );
+  return <Receipt className="h-5 w-5" aria-hidden />;
 }
 function IconTag() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path d="M1 6.5A3.5 3.5 0 014.5 3h5.879a1.5 1.5 0 011.06.44l4.122 4.12A1.5 1.5 0 0116 8.622V13.5a3.5 3.5 0 01-3.5 3.5h-6A3.5 3.5 0 013 13.5v-7z" />
-    </svg>
-  );
+  return <Tag className="h-5 w-5" aria-hidden />;
 }
 function IconPercent() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path fillRule="evenodd" d="M8.984.974a.75.75 0 00-1.06 0L5.6 3.6a5.854 5.854 0 00-.64.361L2.027.974a.75.75 0 00-1.06 1.06l2.768 2.769-.304.56a5.854 5.854 0 000 5.236l.304.56L.967 13.908a.75.75 0 00 1.06 1.06l2.768-2.768.56.304a5.854 5.854 0 005.236 0l.56-.304 2.768 2.768a.75.75 0 001.06-1.06l-2.768-2.769.304-.56a5.854 5.854 0 000-5.236l-.304-.56L13.908.967a.75.75 0 00-1.06-1.06l-2.769 2.768-.56-.304a5.854 5.854 0 00-5.236 0l-.56.304L.967 1.703a.75.75 0 00-1.06 1.06zM6.5 4.5a2 2 0 100 4 2 2 0 000-4zm7 5a2 2 0 110 4 2 2 0 010-4z" clipRule="evenodd" />
-    </svg>
-  );
+  return <Percent className="h-5 w-5" aria-hidden />;
 }
 
 const PERIODS: { value: SalesTrendPeriod; label: string }[] = [

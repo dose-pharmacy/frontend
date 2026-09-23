@@ -269,7 +269,7 @@ export async function getTransfer(id: string): Promise<TransferDto> {
 
 /**
  * PATCH /inventory/transfers/{id} — update the transfer itself (date/reason).
- * ⚠️ The exact accepted fields are not fully confirmed; only send what the
+* NOTE: The exact accepted fields are not fully confirmed; only send what the
  * Swagger definition documents as updatable.
  */
 export async function updateTransfer(
@@ -328,7 +328,7 @@ export async function updateTransferItem(
 
 /**
  * DELETE /inventory/transfers/{transferId}/items/{itemId}.
- * ⚠️ The exact Swagger response body is unconfirmed — don't rely on it; the
+* NOTE: The exact Swagger response body is unconfirmed — don't rely on it; the
  * caller should refetch the transfer after a successful delete.
  */
 export async function deleteTransferItem(
@@ -344,7 +344,7 @@ export async function deleteTransferItem(
 /**
  * POST /inventory/transfers/{id}/complete — completes the transfer and moves
  * the stock. No request body.
- * ⚠️ Response schema not fully confirmed — the caller refetches after this.
+* NOTE: Response schema not fully confirmed — the caller refetches after this.
  */
 export async function completeTransfer(id: string): Promise<TransferDto> {
   const result = await transfersRequest<unknown>(
@@ -356,7 +356,7 @@ export async function completeTransfer(id: string): Promise<TransferDto> {
 
 /**
  * POST /inventory/transfers/{id}/cancel — cancels the transfer. No request
- * body. ⚠️ Response schema not fully confirmed — the caller refetches.
+ * body. !  Response schema not fully confirmed — the caller refetches.
  */
 export async function cancelTransfer(id: string): Promise<TransferDto> {
   const result = await transfersRequest<unknown>(

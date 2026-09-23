@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { ChevronRight, Search, Trash2 } from "lucide-react";
 import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
@@ -182,7 +183,7 @@ export default function CreateRequirementPage() {
     <div className="flex flex-col min-h-0 flex-1">
       <PageHeader
         title="Create Purchase Requirement"
-        subtitle="Purchasing → Requirements → New"
+        subtitle="Purchasing / Requirements / New"
       />
       
       <div className="flex-1 overflow-y-auto pb-24">
@@ -225,8 +226,8 @@ export default function CreateRequirementPage() {
               <div className="relative flex-1 min-w-[180px]">
                 <label className="block text-xs text-[#666666] mb-1">Product Search</label>
                 <div className="relative">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#666666]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd"/></svg>
-                  <input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search for a product..." className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-8 pr-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" aria-hidden />
+                  <input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search for a product..." className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-9 pr-4 py-2.5 text-sm text-[#333333] placeholder:text-[#999] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 transition-all" />
                 </div>
                 {suggestions.length > 0 && (
                   <div className="absolute top-full left-0 right-0 z-20 bg-white border border-[#C6D4BF] rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
@@ -258,7 +259,7 @@ export default function CreateRequirementPage() {
                 <table className="w-full text-sm min-w-[600px]">
                   <thead>
                     <tr className="bg-[#C6D4BF]">
-                      {["#", "Product", "Qty & Unit", "Reason", "Notes", ""].map((h) => (
+                      {["#", "Product", "Qty Needed", "Reason", "Notes", ""].map((h) => (
                         <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -269,21 +270,21 @@ export default function CreateRequirementPage() {
                         <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                         <td className="px-3 py-2.5 font-medium text-[#333333]">{p.productName}</td>
                         <td className="px-3 py-2.5">
-                          <ProductUnitRowEditor row={p} onUpdate={(patch) => patchProduct(p.id, patch)} />
+                          <input type="number" min={1} value={p.quantityNeeded} onChange={(e) => updateProduct(p.id, "quantityNeeded", Number(e.target.value))} className="w-20 rounded-lg border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none" />
                         </td>
                         <td className="px-3 py-2.5">
-                          <select value={p.reasonCode} onChange={(e) => updateProduct(p.id, "reasonCode", e.target.value)} className="rounded border border-gray-200 px-2 py-1 text-xs">
+                          <select value={p.reasonCode} onChange={(e) => updateProduct(p.id, "reasonCode", e.target.value)} className="rounded-lg border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none">
                             <option value="LOW_STOCK">Low Stock</option>
                             <option value="REORDER_ALERT">Reorder Alert</option>
                             <option value="MANUAL">Manual</option>
                           </select>
                         </td>
                         <td className="px-3 py-2.5">
-                          <input type="text" value={p.notes} onChange={(e) => updateProduct(p.id, "notes", e.target.value)} placeholder="Optional note" className="w-full rounded border border-gray-200 px-2 py-1 text-xs" />
+                          <input type="text" value={p.notes} onChange={(e) => updateProduct(p.id, "notes", e.target.value)} placeholder="Optional note" className="w-full rounded-lg border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none" />
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <button onClick={() => removeProduct(p.id)} className="text-red-400 hover:text-red-600" aria-label="Remove">
-                            <svg className="h-4 w-4 inline-block" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd"/></svg>
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </td>
                       </tr>
@@ -318,9 +319,9 @@ export default function CreateRequirementPage() {
         <button
           onClick={handleSave}
           disabled={products.length === 0 || saving}
-          className="rounded-lg bg-[#B6C8AF] px-6 py-2.5 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+          className="rounded-lg bg-[#B6C8AF] px-6 py-2.5 text-sm font-bold text-[#333333] hover:bg-[#A0B59C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
         >
-          {saving ? "Saving…" : "Create Requirement →"}
+          {saving ? "Saving…" : (<span className="inline-flex items-center gap-1.5">Create Requirement <ChevronRight className="h-4 w-4" /></span>)}
         </button>
       </div>
     </div>

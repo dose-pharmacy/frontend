@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Search } from "lucide-react"
 import {
   createProductGroup,
   deactivateProductGroup,
@@ -8,43 +9,45 @@ import {
   ProductGroupsApiError,
   type ProductGroupDto,
   type ProductGroupListMeta,
-} from "../../features/inventory/productGroupsApi";
-import PageHeader from "../../components/ui/PageHeader";
-import Button from "../../components/ui/Button";
-import EmptyState from "../../components/ui/EmptyState";
-import Modal from "../../components/ui/Modal";
-import Input from "../../components/ui/Input";
-import FormError from "../../components/ui/FormError";
-import MetricCard from "../../components/ui/MetricCard";
+} from "../../features/inventory/productGroupsApi"
+import PageHeader from "../../components/ui/PageHeader"
+import Button from "../../components/ui/Button"
+import Pagination from "../../components/ui/Pagination"
+import EmptyState from "../../components/ui/EmptyState"
+import StatusChip from "../../components/ui/StatusChip"
+import Modal from "../../components/ui/Modal"
+import Input from "../../components/ui/Input"
+import FormError from "../../components/ui/FormError"
+import MetricCard from "../../components/ui/MetricCard"
 
-const PAGE_LIMIT = 20;
+const PAGE_LIMIT = 20
 
 interface GroupForm {
-  name: string;
-  description: string;
-  margin: string;
-  isActive: boolean;
+  name: string
+  description: string
+  margin: string
+  isActive: boolean
 }
 
 function emptyForm(): GroupForm {
-  return { name: "", description: "", margin: "", isActive: true };
+  return { name: "", description: "", margin: "", isActive: true }
 }
 
 function formErrors(f: GroupForm) {
-  const e: Partial<Record<keyof GroupForm, string>> = {};
-  if (!f.name.trim()) e.name = "Name is required.";
+  const e: Partial<Record<keyof GroupForm, string>> = {}
+  if (!f.name.trim()) e.name = "Name is required."
   if (
     !f.margin ||
     isNaN(Number(f.margin)) ||
     Number(f.margin) < 0 ||
     Number(f.margin) > 100
   )
-    e.margin = "Enter a valid margin (0–100).";
-  return e;
+    e.margin = "Enter a valid margin (0–100)."
+  return e
 }
 
 function apiErrorMessage(err: unknown, fallback: string): string {
-  return err instanceof ProductGroupsApiError ? err.message : fallback;
+  return err instanceof ProductGroupsApiError ? err.message : fallback
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -55,9 +58,9 @@ function ToggleSwitch({
   onChange,
   label,
 }: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label?: string;
+  checked: boolean
+  onChange: (v: boolean) => void
+  label?: string
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -82,104 +85,103 @@ function ToggleSwitch({
         </span>
       )}
     </div>
-  );
+  )
 }
 
 export default function ProductGroupsPage() {
   // ── List state ──
-  const [groups, setGroups] = useState<ProductGroupDto[]>([]);
-  const [meta, setMeta] = useState<ProductGroupListMeta | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [groups, setGroups] = useState<ProductGroupDto[]>([])
+  const [meta, setMeta] = useState<ProductGroupListMeta | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const requestSeq = useRef(0);
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const requestSeq = useRef(0)
 
   // ── Modal state ──
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<ProductGroupDto | null>(null);
-  const [detailTarget, setDetailTarget] = useState<ProductGroupDto | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<ProductGroupDto | null>(null)
+  const [detailTarget, setDetailTarget] = useState<ProductGroupDto | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   // Confirm activate/deactivate target
   const [confirmTarget, setConfirmTarget] = useState<ProductGroupDto | null>(
     null,
-  );
+  )
 
   // ── Form state ──
-  const [form, setForm] = useState<GroupForm>(emptyForm());
-  const [errors, setErrors] = useState<Partial<Record<keyof GroupForm, string>>>(
-    {},
-  );
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [form, setForm] = useState<GroupForm>(emptyForm())
+  const [errors, setErrors] =
+    useState<Partial<Record<keyof GroupForm, string>>>({})
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   // ── Row action state ──
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   // ── Load groups from the API (server-side search + pagination) ──
   const reload = useCallback(async (searchTerm: string, pageNum: number) => {
-    const seq = ++requestSeq.current;
-    setLoading(true);
-    setLoadError(null);
+    const seq = ++requestSeq.current
+    setLoading(true)
+    setLoadError(null)
     try {
       const res = await listProductGroups({
         page: pageNum,
         limit: PAGE_LIMIT,
         search: searchTerm.trim() || undefined,
-      });
-      if (seq !== requestSeq.current) return;
-      setGroups(res.data);
-      setMeta(res.meta);
+      })
+      if (seq !== requestSeq.current) return
+      setGroups(res.data)
+      setMeta(res.meta)
     } catch (err) {
-      if (seq !== requestSeq.current) return;
+      if (seq !== requestSeq.current) return
       setLoadError(
         apiErrorMessage(
           err,
           "Failed to load product groups. Please try again.",
         ),
-      );
+      )
     } finally {
-      if (seq === requestSeq.current) setLoading(false);
+      if (seq === requestSeq.current) setLoading(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    const t = setTimeout(() => void reload(search, page), search ? 300 : 0);
-    return () => clearTimeout(t);
-  }, [reload, search, page]);
+    const t = setTimeout(() => void reload(search, page), search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [reload, search, page])
 
   // Reset to page 1 whenever the search query changes
   useEffect(() => {
-    setPage(1);
-  }, [search]);
+    setPage(1)
+  }, [search])
 
   function openAdd() {
-    setEditTarget(null);
-    setForm(emptyForm());
-    setErrors({});
-    setFormError(null);
-    setModalOpen(true);
+    setEditTarget(null)
+    setForm(emptyForm())
+    setErrors({})
+    setFormError(null)
+    setModalOpen(true)
   }
 
   function openEdit(g: ProductGroupDto) {
-    setEditTarget(g);
+    setEditTarget(g)
     setForm({
       name: g.name,
       description: g.description ?? "",
       margin: String(g.defaultProfitMargin ?? 0),
       isActive: g.isActive,
-    });
-    setErrors({});
-    setFormError(null);
-    setModalOpen(true);
+    })
+    setErrors({})
+    setFormError(null)
+    setModalOpen(true)
   }
 
   // ── Detail: open with row data, then refetch the full record ──
   function openDetail(g: ProductGroupDto) {
-    setDetailTarget(g);
-    setDetailLoading(true);
+    setDetailTarget(g)
+    setDetailLoading(true)
     getProductGroup(g.id)
       .then((fresh) =>
         setDetailTarget((cur) => (cur?.id === fresh.id ? fresh : cur)),
@@ -187,17 +189,17 @@ export default function ProductGroupsPage() {
       .catch(() => {
         /* keep the row data if the refetch fails */
       })
-      .finally(() => setDetailLoading(false));
+      .finally(() => setDetailLoading(false))
   }
 
   async function handleSave() {
-    const e = formErrors(form);
+    const e = formErrors(form)
     if (Object.keys(e).length) {
-      setErrors(e);
-      return;
+      setErrors(e)
+      return
     }
-    setSaving(true);
-    setFormError(null);
+    setSaving(true)
+    setFormError(null)
     try {
       if (editTarget) {
         await updateProductGroup(editTarget.id, {
@@ -205,17 +207,17 @@ export default function ProductGroupsPage() {
           description: form.description.trim() || null,
           defaultProfitMargin: Number(form.margin),
           isActive: form.isActive,
-        });
+        })
       } else {
         await createProductGroup({
           name: form.name.trim(),
           description: form.description.trim() || null,
           defaultProfitMargin: Number(form.margin),
           isActive: form.isActive,
-        });
+        })
       }
-      setModalOpen(false);
-      await reload(search, page);
+      setModalOpen(false)
+      await reload(search, page)
     } catch (err) {
       setFormError(
         apiErrorMessage(
@@ -224,41 +226,41 @@ export default function ProductGroupsPage() {
             ? "Could not save the group. Please try again."
             : "Could not create the group. Please try again.",
         ),
-      );
+      )
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
 
   // ── Ask for confirmation (opens custom modal) ──
   function requestToggleActive(g: ProductGroupDto) {
-    setConfirmTarget(g);
+    setConfirmTarget(g)
   }
 
   // ── Perform the actual toggle (called from confirm modal) ──
   async function confirmToggleActive() {
-    const g = confirmTarget;
-    if (!g) return;
-    setTogglingId(g.id);
-    setLoadError(null);
+    const g = confirmTarget
+    if (!g) return
+    setTogglingId(g.id)
+    setLoadError(null)
     try {
       if (g.isActive) {
-        await deactivateProductGroup(g.id);
+        await deactivateProductGroup(g.id)
       } else {
-        await updateProductGroup(g.id, { isActive: true });
+        await updateProductGroup(g.id, { isActive: true })
       }
-      setConfirmTarget(null);
-      await reload(search, page);
+      setConfirmTarget(null)
+      await reload(search, page)
     } catch (err) {
       setLoadError(
         apiErrorMessage(
           err,
           "Could not update the group status. Please try again.",
         ),
-      );
-      setConfirmTarget(null);
+      )
+      setConfirmTarget(null)
     } finally {
-      setTogglingId(null);
+      setTogglingId(null)
     }
   }
 
@@ -267,10 +269,10 @@ export default function ProductGroupsPage() {
         groups.reduce((s, g) => s + (g.defaultProfitMargin ?? 0), 0) /
         groups.length
       ).toFixed(1)
-    : "—";
+    : "—"
 
-  const totalGroups = meta?.total ?? groups.length;
-  const totalPages = meta?.totalPages ?? 1;
+  const totalGroups = meta?.total ?? groups.length
+  const totalPages = meta?.totalPages ?? 1
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -314,30 +316,23 @@ export default function ProductGroupsPage() {
           {/* Toolbar: search + pagination info */}
           <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666666]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]"
                 aria-hidden
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path strokeLinecap="round" d="M20 20l-3.5-3.5" />
-              </svg>
+              />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by group name…"
-                className="w-full rounded-lg border border-[#E6ECE2] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
+                className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-9 pr-9 py-2.5 text-sm text-[#333333] placeholder:text-[#999] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 transition-all"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
                   aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#666666] hover:text-[#333333]"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-[#333333]"
                 >
                   ×
                 </button>
@@ -419,15 +414,10 @@ export default function ProductGroupsPage() {
                           {g.defaultProfitMargin}%
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`text-xs font-semibold rounded-full px-2.5 py-1 ${
-                              g.isActive
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-500"
-                            }`}
-                          >
-                            {g.isActive ? "Active" : "Inactive"}
-                          </span>
+                          <StatusChip
+                            label={g.isActive ? "Active" : "Inactive"}
+                            tone={g.isActive ? "green" : "gray"}
+                          />
                         </td>
                         <td
                           className="px-4 py-3"
@@ -437,10 +427,18 @@ export default function ProductGroupsPage() {
                             <button
                               onClick={() => openEdit(g)}
                               disabled={togglingId === g.id}
-                              className="text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Edit"
                             >
-                              ✏️ Edit
+                              <svg
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                className="h-3.5 w-3.5"
+                                aria-hidden
+                              >
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                              </svg>
+                              Edit
                             </button>
                             <button
                               onClick={() => requestToggleActive(g)}
@@ -450,11 +448,41 @@ export default function ProductGroupsPage() {
                               }`}
                               title={g.isActive ? "Deactivate" : "Activate"}
                             >
-                              {togglingId === g.id
-                                ? "Saving…"
-                                : g.isActive
-                                  ? "🗑️ Deactivate"
-                                  : "↻ Activate"}
+                              {togglingId === g.id ? (
+                                "Saving…"
+                              ) : g.isActive ? (
+                                <>
+                                  <svg
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    className="h-3.5 w-3.5"
+                                    aria-hidden
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM8 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm3-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>{" "}
+                                  Deactivate
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    className="h-3.5 w-3.5"
+                                    aria-hidden
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>{" "}
+                                  Activate
+                                </>
+                              )}
                             </button>
                           </div>
                         </td>
@@ -465,27 +493,14 @@ export default function ProductGroupsPage() {
               </div>
 
               {/* Pagination footer */}
-              {totalPages > 1 && (
-                <div className="px-4 py-3 border-t border-[#E6ECE2] bg-[#E6ECE2]/20 flex items-center justify-between">
-                  <Button
-                    variant="secondary"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1}
-                  >
-                    ← Previous
-                  </Button>
-                  <span className="text-xs text-[#666666]">
-                    Page {page} of {totalPages}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page >= totalPages}
-                  >
-                    Next →
-                  </Button>
-                </div>
-              )}
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                total={totalGroups}
+                pageSize={PAGE_LIMIT}
+                itemLabel="groups"
+              />
             </>
           )}
         </div>
@@ -505,8 +520,8 @@ export default function ProductGroupsPage() {
             label="Group Name"
             value={form.name}
             onChange={(e) => {
-              setForm((f) => ({ ...f, name: e.target.value }));
-              setErrors((er) => ({ ...er, name: undefined }));
+              setForm((f) => ({ ...f, name: e.target.value }))
+              setErrors((er) => ({ ...er, name: undefined }))
             }}
             error={errors.name}
           />
@@ -532,8 +547,8 @@ export default function ProductGroupsPage() {
             max={100}
             value={form.margin}
             onChange={(e) => {
-              setForm((f) => ({ ...f, margin: e.target.value }));
-              setErrors((er) => ({ ...er, margin: undefined }));
+              setForm((f) => ({ ...f, margin: e.target.value }))
+              setErrors((er) => ({ ...er, margin: undefined }))
             }}
             error={errors.margin}
           />
@@ -572,15 +587,12 @@ export default function ProductGroupsPage() {
               <h3 className="text-lg font-bold text-[#333333]">
                 {detailTarget.name}
               </h3>
-              <span
-                className={`inline-block text-xs font-semibold rounded-full px-2.5 py-1 mt-2 ${
-                  detailTarget.isActive
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-500"
-                }`}
-              >
-                {detailTarget.isActive ? "Active" : "Inactive"}
-              </span>
+              <div className="mt-2">
+                <StatusChip
+                  label={detailTarget.isActive ? "Active" : "Inactive"}
+                  tone={detailTarget.isActive ? "green" : "gray"}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -674,9 +686,9 @@ export default function ProductGroupsPage() {
               </Button>
               <Button
                 onClick={() => {
-                  const g = detailTarget;
-                  setDetailTarget(null);
-                  openEdit(g);
+                  const g = detailTarget
+                  setDetailTarget(null)
+                  openEdit(g)
                 }}
               >
                 Edit Group
@@ -693,8 +705,8 @@ export default function ProductGroupsPage() {
           confirmTarget?.isActive ? "Deactivate Group" : "Reactivate Group"
         }
         onClose={() => {
-          if (togglingId) return; // block close while saving
-          setConfirmTarget(null);
+          if (togglingId) return // block close while saving
+          setConfirmTarget(null)
         }}
         size="sm"
       >
@@ -704,7 +716,7 @@ export default function ProductGroupsPage() {
               <div
                 className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                   confirmTarget.isActive
-                    ? "bg-amber-100 text-amber-600"
+                    ? "bg-amber-500 text-white"
                     : "bg-green-100 text-green-600"
                 }`}
               >
@@ -787,7 +799,7 @@ export default function ProductGroupsPage() {
         )}
       </Modal>
     </div>
-  );
+  )
 }
 
 function GroupIcon() {
@@ -806,7 +818,7 @@ function GroupIcon() {
         d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"
       />
     </svg>
-  );
+  )
 }
 
 function PercentIcon() {
@@ -825,5 +837,5 @@ function PercentIcon() {
         d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"
       />
     </svg>
-  );
+  )
 }

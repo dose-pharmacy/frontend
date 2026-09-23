@@ -8,7 +8,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 const BADGE_STYLES: Record<string, string> = {
   RETURN_TO_SUPPLIER: "bg-[#E6ECE2] text-[#7A9076]",
-  DISPOSE: "bg-red-50 text-red-600",
+  DISPOSE: "bg-red-500 text-white",
 };
 
 function formatDateTime(iso: string) {

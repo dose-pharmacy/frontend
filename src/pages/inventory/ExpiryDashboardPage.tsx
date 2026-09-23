@@ -256,7 +256,7 @@ export default function ExpiryDashboardPage() {
 function ExpirySection({ title, batches, urgency, onAction }: {
   title: string; batches: ExpiryBatchDto[]; urgency: "high" | "medium" | "low" | "expired"; onAction: (b: ExpiryBatchDto) => void;
 }) {
-  const headerBg = urgency === "high" ? "bg-red-600" : urgency === "medium" ? "bg-yellow-600" : urgency === "expired" ? "bg-gray-600" : "bg-[#4F6B4A]";
+  const headerBg = urgency === "high" ? "bg-red-500" : urgency === "medium" ? "bg-yellow-500" : urgency === "expired" ? "bg-gray-500" : "bg-[#7A9076]";
   return (
     <section>
       <div className={`${headerBg} px-4 py-2 rounded-t-xl`}>
@@ -289,7 +289,13 @@ function ExpirySection({ title, batches, urgency, onAction }: {
                         <span className={`font-bold ${urgency === "high" ? "text-red-600" : urgency === "medium" ? "text-yellow-600" : urgency === "expired" ? "text-red-700" : "text-[#7A9076]"}`}>
                           {days} days
                         </span>
-                        {urgency === "high" && <span className="ml-2 text-xs text-red-400" aria-label="Urgent">⚠</span>}
+                        {urgency === "high" && (
+                          <span className="ml-1.5 inline-flex text-red-400" aria-label="Urgent">
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                            </svg>
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

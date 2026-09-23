@@ -1,165 +1,138 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useEffect, useState } from "react"
+import { useParams, useNavigate } from "react-router"
 import {
   fetchBatchById,
   daysUntilExpiry,
   updateBatch,
   deleteBatch,
   type BatchDetail,
-} from "../../features/inventory/inventoryService";
-import { getBatchTransactions, type StockTransactionDto } from "../../features/inventory/stockApi";
-import Breadcrumb from "../../components/ui/Breadcrumb";
-import StatusBadge from "../../components/ui/StatusBadge";
-import Button from "../../components/ui/Button";
-import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
-import Modal from "../../components/ui/Modal";
-import Input from "../../components/ui/Input";
-import FormError from "../../components/ui/FormError";
+} from "../../features/inventory/inventoryService"
+import type { Transaction } from "../../features/inventory/inventoryMock"
+import Breadcrumb from "../../components/ui/Breadcrumb"
+import StatusBadge from "../../components/ui/StatusBadge"
+import Button from "../../components/ui/Button"
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog"
+import Modal from "../../components/ui/Modal"
+import Input from "../../components/ui/Input"
+import FormError from "../../components/ui/FormError"
 
 interface EditBatchForm {
-  batchNumber: string;
-  expiryDate: string;
-  purchaseCost: string;
-  supplierReference: string;
-}
-
-interface TxRow {
-  id: string;
-  type: string;
-  direction: "IN" | "OUT";
-  quantity: number;
-  balanceAfter: number;
-  date: string;
-  reference: string;
-}
-
-function adaptTx(tx: StockTransactionDto): TxRow {
-  return {
-    id: tx.id,
-    type: tx.transactionType,
-    direction: tx.direction,
-    quantity: tx.quantity,
-    balanceAfter: tx.balanceAfter,
-    date: tx.createdAt,
-    reference: [tx.referenceType, tx.referenceId].filter(Boolean).join(" · ") || "—",
-  };
-}
-
-function prettyTxType(t: string) {
-  if (!t) return "";
-  const spaced = t.replace(/_/g, " ");
-  if (spaced === spaced.toUpperCase()) return spaced.charAt(0) + spaced.slice(1).toLowerCase();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  batchNumber: string
+  expiryDate: string
+  purchaseCost: string
+  supplierReference: string
 }
 
 export default function BatchDetailPage() {
-  const { batchId } = useParams<{ batchId: string }>();
-  const navigate = useNavigate();
-  const [batch, setBatch] = useState<BatchDetail | null>(null);
-  const [transactions, setTransactions] = useState<TxRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { batchId } = useParams<{ batchId: string }>()
+  const navigate = useNavigate()
+  const [batch, setBatch] = useState<BatchDetail | null>(null)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Deactivate (was Recall)
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Edit (was Adjust)
-  const [editOpen, setEditOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState<EditBatchForm>({
     batchNumber: "",
     expiryDate: "",
     purchaseCost: "",
     supplierReference: "",
-  });
-  const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditBatchForm, string>>>({});
-  const [editError, setEditError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  })
+  const [editErrors, setEditErrors] =
+    useState<Partial<Record<keyof EditBatchForm, string>>>({})
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
-    if (!batchId) return;
-    let cancelled = false;
+    if (!batchId) return
+    let cancelled = false
     fetchBatchById(batchId)
       .then(async (b) => {
-        if (cancelled) return;
+        if (cancelled) return
         if (!b) {
-          navigate("/inventory/batches");
-          return;
+          navigate("/inventory/batches")
+          return
         }
-        setBatch(b);
-        // GET /inventory/batches/{id}/transactions — real ledger for this batch.
-        const t = await getBatchTransactions(batchId as string, { limit: 100 });
-        if (cancelled) return;
-        setTransactions(t.data.map(adaptTx));
-        setLoading(false);
+        setBatch(b)
+        // Transactions aren't exposed by the batches endpoints yet — mock
+        // data until that endpoint ships.
+        const t = await getTransactions(b.productId)
+        if (cancelled) return
+        setTransactions(t.filter((tx) => tx.batchId === batchId))
+        setLoading(false)
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (cancelled) return
         setLoadError(
           err instanceof Error
             ? err.message
             : "Failed to load batch. Please try again.",
-        );
-        setLoading(false);
-      });
+        )
+        setLoading(false)
+      })
     return () => {
-      cancelled = true;
-    };
-  }, [batchId, navigate]);
+      cancelled = true
+    }
+  }, [batchId, navigate])
 
   // ── Deactivate (DELETE) ──
   async function handleDelete() {
-    if (!batch) return;
-    setDeleting(true);
-    setDeleteError(null);
+    if (!batch) return
+    setDeleting(true)
+    setDeleteError(null)
     try {
-      await deleteBatch(batch.id);
-      setDeleteOpen(false);
-      navigate("/inventory/batches");
+      await deleteBatch(batch.id)
+      setDeleteOpen(false)
+      navigate("/inventory/batches")
     } catch (err) {
       setDeleteError(
         err instanceof Error ? err.message : "Failed to deactivate batch.",
-      );
+      )
     } finally {
-      setDeleting(false);
+      setDeleting(false)
     }
   }
 
   // ── Edit (PATCH) ──
   function openEdit() {
-    if (!batch) return;
+    if (!batch) return
     setEditForm({
       batchNumber: batch.batchNumber,
       expiryDate: batch.expiryDate,
       purchaseCost: String(batch.purchaseCost ?? ""),
       supplierReference: batch.supplierReference ?? "",
-    });
-    setEditErrors({});
-    setEditError(null);
-    setEditOpen(true);
+    })
+    setEditErrors({})
+    setEditError(null)
+    setEditOpen(true)
   }
 
   function validateEdit(f: EditBatchForm) {
-    const e: Partial<Record<keyof EditBatchForm, string>> = {};
-    if (!f.batchNumber.trim()) e.batchNumber = "Batch number is required.";
-    if (!f.expiryDate) e.expiryDate = "Expiry date is required.";
+    const e: Partial<Record<keyof EditBatchForm, string>> = {}
+    if (!f.batchNumber.trim()) e.batchNumber = "Batch number is required."
+    if (!f.expiryDate) e.expiryDate = "Expiry date is required."
     else if (f.expiryDate < batch!.receivedDate)
-      e.expiryDate = "Expiry must be after received date.";
+      e.expiryDate = "Expiry must be after received date."
     if (f.purchaseCost.trim() !== "" && Number.isNaN(Number(f.purchaseCost)))
-      e.purchaseCost = "Purchase cost must be a number.";
-    return e;
+      e.purchaseCost = "Purchase cost must be a number."
+    return e
   }
 
   async function handleEdit() {
-    if (!batch) return;
-    const e = validateEdit(editForm);
+    if (!batch) return
+    const e = validateEdit(editForm)
     if (Object.keys(e).length) {
-      setEditErrors(e);
-      return;
+      setEditErrors(e)
+      return
     }
-    setEditing(true);
-    setEditError(null);
+    setEditing(true)
+    setEditError(null)
     try {
       const updated = await updateBatch(
         batch.id,
@@ -173,15 +146,15 @@ export default function BatchDetailPage() {
           supplierReference: editForm.supplierReference.trim() || undefined,
         },
         batch.productName,
-      );
-      setBatch(updated);
-      setEditOpen(false);
+      )
+      setBatch(updated)
+      setEditOpen(false)
     } catch (err) {
       setEditError(
         err instanceof Error ? err.message : "Failed to update batch.",
-      );
+      )
     } finally {
-      setEditing(false);
+      setEditing(false)
     }
   }
 
@@ -194,7 +167,7 @@ export default function BatchDetailPage() {
           ))}
         </div>
       </div>
-    );
+    )
 
   if (loadError)
     return (
@@ -205,11 +178,11 @@ export default function BatchDetailPage() {
           </div>
         </div>
       </div>
-    );
+    )
 
-  if (!batch) return null;
+  if (!batch) return null
 
-  const days = daysUntilExpiry(batch.expiryDate);
+  const days = daysUntilExpiry(batch.expiryDate)
   const daysColor =
     days < 0
       ? "text-red-600"
@@ -217,7 +190,7 @@ export default function BatchDetailPage() {
         ? "text-orange-600"
         : days <= 60
           ? "text-yellow-600"
-          : "text-green-600";
+          : "text-green-600"
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -229,7 +202,7 @@ export default function BatchDetailPage() {
         ]}
       />
 
-      <div className="p-6 flex flex-col gap-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-6">
         {/* Batch info */}
         <div className="bg-[#E6ECE2] rounded-xl p-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -241,11 +214,17 @@ export default function BatchDetailPage() {
             <InfoItem label="Supplier" value={batch.supplier} />
             <InfoItem label="Location" value={batch.location} />
             <div>
-              <p className="text-xs text-[#666666] font-medium uppercase tracking-wide">Status</p>
-              <div className="mt-1"><StatusBadge status={batch.status} /></div>
+              <p className="text-xs text-[#666666] font-medium uppercase tracking-wide">
+                Status
+              </p>
+              <div className="mt-1">
+                <StatusBadge status={batch.status} />
+              </div>
             </div>
             <div>
-              <p className="text-xs text-[#666666] font-medium uppercase tracking-wide">Days Remaining</p>
+              <p className="text-xs text-[#666666] font-medium uppercase tracking-wide">
+                Days Remaining
+              </p>
               <p className={`text-2xl font-bold mt-1 ${daysColor}`}>
                 {days < 0 ? "Expired" : `${days} days`}
               </p>
@@ -255,32 +234,45 @@ export default function BatchDetailPage() {
 
         {/* Transaction history */}
         <section>
-          <h3 className="text-base font-bold text-[#333333] mb-3">Transaction History</h3>
+          <h3 className="text-base font-bold text-[#333333] mb-3">
+            Transaction History
+          </h3>
           <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
             {transactions.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-[#666666]">No transactions recorded for this batch.</p>
+              <p className="px-4 py-8 text-center text-sm text-[#666666]">
+                No transactions recorded for this batch.
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#E6ECE2]">
-                      {["Date", "Type", "Movement", "Balance After", "Reference"].map((h) => (
-                        <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
+                      {["Date", "Type", "Quantity", "Reference"].map((h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-left font-semibold text-[#333333]"
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {transactions.map((t, i) => (
-                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"}>
-                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
-                          {new Date(t.date).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      <tr
+                        key={t.id}
+                        className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"}
+                      >
+                        <td className="px-4 py-3 text-[#666666]">{t.date}</td>
+                        <td className="px-4 py-3 capitalize text-[#333333]">
+                          {t.type}
                         </td>
-                        <td className="px-4 py-3 capitalize text-[#333333]">{prettyTxType(t.type)}</td>
-                        <td className={`px-4 py-3 font-semibold ${t.direction === "IN" ? "text-green-700" : "text-red-700"}`}>
-                          {t.direction === "IN" ? "+" : "−"}{t.quantity.toLocaleString()}
+                        <td className="px-4 py-3 font-semibold text-[#333333]">
+                          {t.quantity}
                         </td>
-                        <td className="px-4 py-3 text-[#666666]">{t.balanceAfter.toLocaleString()}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-[#666666]">{t.reference}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-[#666666]">
+                          {t.reference}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -294,15 +286,21 @@ export default function BatchDetailPage() {
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => {
-              setDeleteError(null);
-              setDeleteOpen(true);
+              setDeleteError(null)
+              setDeleteOpen(true)
             }}
             className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
           >
             Deactivate Batch
           </button>
-          <Button onClick={() => alert("Transfer — backend integration pending")}>Transfer</Button>
-          <Button variant="secondary" onClick={openEdit}>Edit</Button>
+          <Button
+            onClick={() => alert("Transfer — backend integration pending")}
+          >
+            Transfer
+          </Button>
+          <Button variant="secondary" onClick={openEdit}>
+            Edit
+          </Button>
         </div>
       </div>
 
@@ -318,8 +316,8 @@ export default function BatchDetailPage() {
         confirmLabel="Deactivate Batch"
         onConfirm={handleDelete}
         onCancel={() => {
-          if (deleting) return;
-          setDeleteOpen(false);
+          if (deleting) return
+          setDeleteOpen(false)
         }}
         loading={deleting}
         danger
@@ -337,8 +335,10 @@ export default function BatchDetailPage() {
 
           {/* Product — locked */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#333333]">Product</label>
-            <div className="flex items-center justify-between rounded-lg border border-[#E6ECE2] bg-[#FAF9F4] px-3.5 py-2.5 text-sm text-[#666666]">
+            <label className="text-sm font-medium text-[#333333]">
+              Product
+            </label>
+            <div className="flex items-center justify-between rounded-lg border border-[#E6ECE2] bg-[#FBFAF7] px-3.5 py-2.5 text-sm text-[#666666]">
               <span>{batch.productName}</span>
               <svg
                 className="h-4 w-4 text-[#666666]"
@@ -359,16 +359,18 @@ export default function BatchDetailPage() {
             label="Batch Number *"
             value={editForm.batchNumber}
             onChange={(e) => {
-              setEditForm((f) => ({ ...f, batchNumber: e.target.value }));
-              setEditErrors((er) => ({ ...er, batchNumber: undefined }));
+              setEditForm((f) => ({ ...f, batchNumber: e.target.value }))
+              setEditErrors((er) => ({ ...er, batchNumber: undefined }))
             }}
             error={editErrors.batchNumber}
           />
 
           {/* Received Date — locked */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#333333]">Received Date</label>
-            <div className="flex items-center justify-between rounded-lg border border-[#E6ECE2] bg-[#FAF9F4] px-3.5 py-2.5 text-sm text-[#666666]">
+            <label className="text-sm font-medium text-[#333333]">
+              Received Date
+            </label>
+            <div className="flex items-center justify-between rounded-lg border border-[#E6ECE2] bg-[#FBFAF7] px-3.5 py-2.5 text-sm text-[#666666]">
               <span>{batch.receivedDate || "—"}</span>
               <svg
                 className="h-4 w-4 text-[#666666]"
@@ -390,8 +392,8 @@ export default function BatchDetailPage() {
             type="date"
             value={editForm.expiryDate}
             onChange={(e) => {
-              setEditForm((f) => ({ ...f, expiryDate: e.target.value }));
-              setEditErrors((er) => ({ ...er, expiryDate: undefined }));
+              setEditForm((f) => ({ ...f, expiryDate: e.target.value }))
+              setEditErrors((er) => ({ ...er, expiryDate: undefined }))
             }}
             error={editErrors.expiryDate}
           />
@@ -403,8 +405,8 @@ export default function BatchDetailPage() {
             step="0.01"
             value={editForm.purchaseCost}
             onChange={(e) => {
-              setEditForm((f) => ({ ...f, purchaseCost: e.target.value }));
-              setEditErrors((er) => ({ ...er, purchaseCost: undefined }));
+              setEditForm((f) => ({ ...f, purchaseCost: e.target.value }))
+              setEditErrors((er) => ({ ...er, purchaseCost: undefined }))
             }}
             error={editErrors.purchaseCost}
           />
@@ -433,14 +435,30 @@ export default function BatchDetailPage() {
         </div>
       </Modal>
     </div>
-  );
+  )
 }
 
-function InfoItem({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function InfoItem({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+}) {
   return (
     <div>
-      <p className="text-xs text-[#666666] font-medium uppercase tracking-wide">{label}</p>
-      <p className={`mt-1 font-semibold text-[#333333] ${mono ? "font-mono text-sm" : "text-sm"}`}>{value}</p>
+      <p className="text-xs text-[#666666] font-medium uppercase tracking-wide">
+        {label}
+      </p>
+      <p
+        className={`mt-1 font-semibold text-[#333333] ${
+          mono ? "font-mono text-sm" : "text-sm"
+        }`}
+      >
+        {value}
+      </p>
     </div>
-  );
+  )
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { ChevronRight } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto, PurchaseOrdersApiError } from "../../features/purchasing/purchaseOrdersApi";
 import { createGoodsReceipt, type CreateGoodsReceiptInput, GoodsReceiptsApiError } from "../../features/purchasing/goodsReceiptsApi";
@@ -176,14 +177,14 @@ export default function DeliveryRegistrationPage() {
     <div className="flex flex-col min-h-0 flex-1">
       <PageHeader
         title="Register Goods Receipt"
-        subtitle="Purchasing → Goods Receipts → New"
+        subtitle="Purchasing / Goods Receipts / New"
         actions={
           <button
             onClick={handleSubmit}
             disabled={!selectedPoId || saving || items.length === 0}
-            className="rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg border border-[#C6D4BF] bg-white px-4 py-2 text-sm font-semibold text-[#7A9076] hover:bg-[#E6ECE2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
           >
-            {saving ? "Registering…" : "Register Receipt →"}
+            {saving ? "Registering…" : (<span className="inline-flex items-center gap-1.5">Register Receipt <ChevronRight className="h-4 w-4" /></span>)}
           </button>
         }
       />
@@ -202,20 +203,16 @@ export default function DeliveryRegistrationPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Supplier</label>
-                <SearchableSelect
-                  value={supplierFilter || null}
-                  onChange={(v) => { setSupplierFilter(v); setSelectedPoId(""); setSelectedPo(null); setItems([]); }}
-                  options={supplierFilterOptions}
-                  onSearch={supplierSearch.setTerm}
-                  loading={supplierSearch.loading}
-                  error={supplierSearch.error}
-                  onRetry={supplierSearch.retry}
-                  allowClear
-                  placeholder="All Suppliers"
-                  searchPlaceholder="Search by name, contact or email..."
-                  emptyMessage="No suppliers available"
-                  noResultsMessage="No suppliers matching your search"
-                />
+                <select
+                  value={supplierFilter}
+                  onChange={(e) => { setSupplierFilter(e.target.value); setSelectedPoId(""); setSelectedPo(null); setItems([]); }}
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+                >
+                  <option value="">All Suppliers</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
@@ -265,7 +262,7 @@ export default function DeliveryRegistrationPage() {
               <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="bg-[#C6D4BF]">
-                    {["#", "Product", "Ordered", "Received", "Location", "Delivered Qty", "Actual Qty", "Batch #", "Mfg Date", "Expiry Date"].map((h) => (
+                    {["#", "Product", "Ordered", "Location", "Delivered Qty", "Actual Qty", "Batch #", "Mfg Date", "Expiry Date"].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -295,16 +292,10 @@ export default function DeliveryRegistrationPage() {
                           </select>
                         </td>
                         <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-1">
-                            <input type="number" min={0} value={item.deliveredQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "deliveredQty", Number(e.target.value))} className="w-16 rounded border border-[#C6D4BF] bg-white px-2 py-1 text-sm focus:outline-none" />
-                            {item.unitLabel && <span className="text-[10px] text-[#999] whitespace-nowrap">{item.unitLabel}</span>}
-                          </div>
+                          <input type="number" min={0} value={item.deliveredQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "deliveredQty", Number(e.target.value))} className="w-16 rounded border border-[#C6D4BF] bg-white px-2 py-1 text-sm focus:outline-none" />
                         </td>
                         <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-1">
-                            <input type="number" min={0} value={item.actualQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "actualQty", Number(e.target.value))} className={`w-16 rounded border px-2 py-1 text-sm focus:outline-none ${isDiscrepancy ? "border-red-300 bg-red-50" : "border-[#C6D4BF] bg-white"}`} />
-                            {item.unitLabel && <span className="text-[10px] text-[#999] whitespace-nowrap">{item.unitLabel}</span>}
-                          </div>
+                          <input type="number" min={0} value={item.actualQty} onChange={(e) => updateItem(item.purchaseOrderItemId, "actualQty", Number(e.target.value))} className={`w-16 rounded border px-2 py-1 text-sm focus:outline-none ${isDiscrepancy ? "border-red-300 bg-red-50" : "border-[#C6D4BF] bg-white"}`} />
                         </td>
                         <td className="px-3 py-2.5">
                           <input value={item.batchNumber} onChange={(e) => updateItem(item.purchaseOrderItemId, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:outline-none" />
@@ -323,8 +314,11 @@ export default function DeliveryRegistrationPage() {
             </div>
 
             {hasDiscrepancy && (
-              <div className="mt-3 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-2.5 text-sm text-yellow-700">
-                ⚠ Some quantities differ from what was ordered — this receipt will be marked as <strong>DISCREPANCY</strong> and require resolution before confirmation.
+              <div className="mt-3 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-2.5 text-sm text-yellow-700 flex items-start gap-2">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden>
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                </svg>
+                <span>Some quantities differ from what was ordered — this receipt will be marked as <strong>DISCREPANCY</strong> and require resolution before confirmation.</span>
               </div>
             )}
           </div>
@@ -343,9 +337,9 @@ export default function DeliveryRegistrationPage() {
         <button
           onClick={handleSubmit}
           disabled={!selectedPoId || saving || items.length === 0}
-          className="rounded-lg bg-[#B6C8AF] px-6 py-2.5 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rounded-lg bg-[#B6C8AF] px-6 py-2.5 text-sm font-bold text-[#333333] hover:bg-[#A0B59C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
         >
-          {saving ? "Registering…" : "Register Receipt →"}
+          {saving ? "Registering…" : (<span className="inline-flex items-center gap-1.5">Register Receipt <ChevronRight className="h-4 w-4" /></span>)}
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import Button from "./Button";
+import { Loader2 } from "lucide-react";
 
 interface ConfirmationDialogProps {
   open: boolean;
@@ -31,13 +32,10 @@ export default function ConfirmationDialog({
           <button
             onClick={onConfirm}
             disabled={loading}
-            className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] transition-all disabled:opacity-60 ${danger ? "bg-red-500 hover:bg-red-600" : "bg-[#B6C8AF] hover:bg-[#A5B89E]"}`}
+            className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] transition-all disabled:opacity-60 ${danger ? "bg-red-500 hover:bg-red-600" : "bg-[#B6C8AF] hover:bg-[#A0B59C]"}`}
           >
             {loading && (
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
-              </svg>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             )}
             {confirmLabel}
           </button>

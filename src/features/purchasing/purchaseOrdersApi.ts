@@ -3,13 +3,10 @@
 //   GET    /api/v1/purchasing/purchase-orders                     (list, filter)
 //   POST   /api/v1/purchasing/purchase-orders                     (create)
 //   GET    /api/v1/purchasing/purchase-orders/{id}                (detail)
-//   PATCH  /api/v1/purchasing/purchase-orders/{id}                (update — dates/notes only)
-//   PATCH  /api/v1/purchasing/purchase-orders/items/{itemId}      (update item)
-//   DELETE /api/v1/purchasing/purchase-orders/items/{itemId}      (remove item)
-//   POST   /api/v1/purchasing/purchase-orders/items/{itemId}/accept-shortage (accept shortage)
-//   POST   /api/v1/purchasing/purchase-orders/{id}/mark-awaiting-delivery (→ AWAITING_DELIVERY)
-//   POST   /api/v1/purchasing/purchase-orders/{id}/cancel         (→ CANCELLED)
-//   POST   /api/v1/purchasing/purchase-orders/{id}/close          (→ CLOSED)
+//   PATCH  /api/v1/purchasing/purchase-orders/{id}                (update)
+//   POST   /api/v1/purchasing/purchase-orders/{id}/mark-awaiting-delivery (-> AWAITING_DELIVERY)
+//   POST   /api/v1/purchasing/purchase-orders/{id}/cancel         (-> CANCELLED)
+//   POST   /api/v1/purchasing/purchase-orders/{id}/close          (-> CLOSED)
 //
 // All requests require the authenticated session cookie
 // (HTTP-only — sent automatically with `credentials: "include"`).

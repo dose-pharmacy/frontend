@@ -9,6 +9,7 @@ import Button from "../../components/ui/Button"
 import Input from "../../components/ui/Input"
 import FormError from "../../components/ui/FormError"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
 import {
   listSales,
   getSale,
@@ -56,7 +57,7 @@ interface Sale {
   status: SaleStatusUi
 }
 
-// ─── DTO → UI adaptation ─────────────────────────────────────────────────────
+// ─── DTO -> UI adaptation ─────────────────────────────────────────────────────
 
 const METHOD_TO_UI: Record<string, PaymentMethod> = {
   CASH: "Cash",
@@ -78,19 +79,28 @@ function toUiStatus(status: SaleStatus): SaleStatusUi {
 function fmtDateTime(iso: string) {
   const d = new Date(iso)
   return {
-    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    date: d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
     time: d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
   }
 }
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
 }
 
 function adaptSale(dto: SaleDto, detail?: SaleDto | null): Sale {
-  const itemsSource = dto.items.length > 0 ? dto.items : detail?.items ?? []
-  const paymentsSource = dto.payments.length > 0 ? dto.payments : detail?.payments ?? []
+  const itemsSource = dto.items.length > 0 ? dto.items : (detail?.items ?? [])
+  const paymentsSource =
+    dto.payments.length > 0 ? dto.payments : (detail?.payments ?? [])
   const items: SaleItem[] = itemsSource.map((it) => ({
     product: it.product?.name ?? it.productId,
     brand: it.product?.brand ?? "—",
@@ -123,7 +133,12 @@ function adaptSale(dto: SaleDto, detail?: SaleDto | null): Sale {
   }
 }
 
-const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "Card", "Digital Transfer", "Insurance"]
+const PAYMENT_METHODS: PaymentMethod[] = [
+  "Cash",
+  "Card",
+  "Digital Transfer",
+  "Insurance",
+]
 
 const PAGE_SIZE = 8
 const SWEEP_LIMIT = 100
@@ -159,7 +174,7 @@ export default function SalesPage() {
           toDate.setDate(toDate.getDate() + 1)
           query.dateTo = toDate.toISOString()
         }
-        
+
         const res = await listSales(query)
         if (cancelled) return
         setSales(res.data.map((dto) => adaptSale(dto)))
@@ -171,7 +186,7 @@ export default function SalesPage() {
         setLoadError(
           err instanceof SalesApiError
             ? err.message
-            : "Failed to load sales. Please try again."
+            : "Failed to load sales. Please try again.",
         )
       } finally {
         if (!cancelled) setLoading(false)
@@ -187,13 +202,18 @@ export default function SalesPage() {
     setPage(1)
   }, [search, dateFilter, statusFilter])
 
-  const summary = useMemo(() => ({
-    total: totalItems,
-    // Note: Since we use server-side pagination, revenue summary only reflects the current page
-    revenue: sales.filter((s) => s.status === "completed").reduce((acc, s) => acc + s.total, 0),
-    voided: sales.filter((s) => s.status === "voided").length,
-    refunded: sales.filter((s) => s.status === "refunded").length,
-  }), [sales, totalItems])
+  const summary = useMemo(
+    () => ({
+      total: totalItems,
+      // Note: Since we use server-side pagination, revenue summary only reflects the current page
+      revenue: sales
+        .filter((s) => s.status === "completed")
+        .reduce((acc, s) => acc + s.total, 0),
+      voided: sales.filter((s) => s.status === "voided").length,
+      refunded: sales.filter((s) => s.status === "refunded").length,
+    }),
+    [sales, totalItems],
+  )
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -204,13 +224,13 @@ export default function SalesPage() {
           <div className="flex gap-2">
             <button
               onClick={() => alert("Export — backend integration pending")}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
             >
               <DownloadIcon /> Export
             </button>
             <button
               onClick={() => alert("Print — backend integration pending")}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
             >
               <PrintIcon /> Print
             </button>
@@ -221,10 +241,28 @@ export default function SalesPage() {
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
         {/* Summary strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <SummaryCard label="Transactions" value={loading ? "—" : summary.total} />
-          <SummaryCard label="Revenue" value={loading ? "—" : `${summary.revenue.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} />
-          <SummaryCard label="Voided" value={loading ? "—" : summary.voided} accent="text-orange-600" />
-          <SummaryCard label="Refunded" value={loading ? "—" : summary.refunded} accent="text-red-600" />
+          <SummaryCard
+            label="Transactions"
+            value={loading ? "—" : summary.total}
+          />
+          <SummaryCard
+            label="Revenue"
+            value={
+              loading
+                ? "—"
+                : `${summary.revenue.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`
+            }
+          />
+          <SummaryCard
+            label="Voided"
+            value={loading ? "—" : summary.voided}
+            accent="text-orange-600"
+          />
+          <SummaryCard
+            label="Refunded"
+            value={loading ? "—" : summary.refunded}
+            accent="text-red-600"
+          />
         </div>
 
         {loadError && (
@@ -234,7 +272,7 @@ export default function SalesPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
           <SearchInput
             value={search}
             onChange={(v) => { setSearch(v); setPage(1) }}
@@ -250,8 +288,11 @@ export default function SalesPage() {
             <Input
               type="date"
               value={dateFilter}
-              onChange={(e) => { setDateFilter(e.target.value); setPage(1) }}
-              className="flex-1 min-w-[130px]"
+              onChange={(e) => {
+                setDateFilter(e.target.value)
+                setPage(1)
+              }}
+              className="sm:w-48"
             />
           </div>
         </div>
@@ -261,13 +302,16 @@ export default function SalesPage() {
           {loading ? (
             <LoadingSkeleton />
           ) : sales.length === 0 ? (
-            <EmptyState title="No sales found" description="Adjust your search or filters." />
+            <EmptyState
+              title="No sales found"
+              description="Adjust your search or filters."
+            />
           ) : (
             <>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#E6ECE2] text-left">
+                    <tr className="bg-[#DBEFF3] text-left">
                       <th className="px-4 py-3 font-semibold text-[#333333] whitespace-nowrap">Date &amp; Time</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Invoice #</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Items</th>
@@ -285,36 +329,58 @@ export default function SalesPage() {
                       <tr
                         key={sale.id}
                         onClick={() => setSelected(sale)}
-                        className={`cursor-pointer hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/10"}`}
+                        className={`cursor-pointer hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/10"}`}
                       >
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
-                          <span className="block text-xs text-[#999]">{sale.date}</span>
-                          <span className="text-sm font-medium text-[#333333]">{sale.time}</span>
+                          <span className="block text-xs text-[#999]">
+                            {sale.date}
+                          </span>
+                          <span className="text-sm font-medium text-[#333333]">
+                            {sale.time}
+                          </span>
                         </td>
-                        <td className="px-4 py-3 font-mono text-sm font-semibold text-[#333333]">{sale.invoice}</td>
+                        <td className="px-4 py-3 font-mono text-sm font-semibold text-[#333333]">
+                          {sale.invoice}
+                        </td>
                         <td className="px-4 py-3 text-[#666666]">
-                          {sale.items.length} item{sale.items.length !== 1 ? "s" : ""}
+                          {sale.items.length} item
+                          {sale.items.length !== 1 ? "s" : ""}
                         </td>
-                        <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{sale.location}</td>
-                        <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{sale.cashier}</td>
+                        <td className="px-4 py-3 text-[#666666] hidden md:table-cell">
+                          {sale.location}
+                        </td>
+                        <td className="px-4 py-3 text-[#666666] hidden md:table-cell">
+                          {sale.cashier}
+                        </td>
                         <td className="px-4 py-3 hidden lg:table-cell">
                           <div className="flex flex-wrap gap-1">
-                            {sale.payments.length === 0
-                              ? <span className="text-[#999] text-xs">—</span>
-                              : sale.payments.map((p, idx) => (
-                                <PaymentBadge key={`${p.method}-${idx}`} method={p.method} />
-                              ))}
+                            {sale.payments.length === 0 ? (
+                              <span className="text-[#999] text-xs">—</span>
+                            ) : (
+                              sale.payments.map((p, idx) => (
+                                <PaymentBadge
+                                  key={`${p.method}-${idx}`}
+                                  method={p.method}
+                                />
+                              ))
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right hidden xl:table-cell">
                           {sale.discount > 0 ? (
-                            <span className="text-orange-600">−{sale.discount.toLocaleString()} ETB</span>
+                            <span className="text-orange-600">
+                              −{sale.discount.toLocaleString()} ETB
+                            </span>
                           ) : (
                             <span className="text-[#999]">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-[#333333] whitespace-nowrap">
-                          {sale.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
+                          {sale.total.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          ETB
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={sale.status} />
@@ -322,7 +388,7 @@ export default function SalesPage() {
                         <td className="px-4 py-3">
                           <button
                             onClick={(e) => { e.stopPropagation(); setSelected(sale) }}
-                            className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                            className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap"
                           >
                             View
                           </button>
@@ -332,7 +398,11 @@ export default function SalesPage() {
                   </tbody>
                 </table>
               </div>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </div>
@@ -365,7 +435,9 @@ function SaleDetailModal({
   onVoided: () => void
 }) {
   // Always fetch the receipt detail — list rows can omit items/payments.
-  const [detail, setDetail] = useState<Sale | null>(sale.items.length > 0 ? sale : null)
+  const [detail, setDetail] = useState<Sale | null>(
+    sale.items.length > 0 ? sale : null,
+  )
   const [detailLoading, setDetailLoading] = useState(sale.items.length === 0)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [voiding, setVoiding] = useState(false)
@@ -376,17 +448,25 @@ function SaleDetailModal({
   useEffect(() => {
     let cancelled = false
     getSale(sale.id)
-      .then((dto) => { if (!cancelled) setDetail(adaptSale(dto)) })
+      .then((dto) => {
+        if (!cancelled) setDetail(adaptSale(dto))
+      })
       .catch((err: unknown) => {
         if (cancelled) return
         // Fall back to the row data we already have.
         setDetail(sale)
         setDetailError(
-          err instanceof SalesApiError ? err.message : "Failed to load the receipt detail."
+          err instanceof SalesApiError
+            ? err.message
+            : "Failed to load the receipt detail.",
         )
       })
-      .finally(() => { if (!cancelled) setDetailLoading(false) })
-    return () => { cancelled = true }
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [sale])
 
   const view = detail ?? sale
@@ -402,7 +482,7 @@ function SaleDetailModal({
       setVoidError(
         err instanceof SalesApiError
           ? err.message
-          : "Failed to cancel the sale. Please try again."
+          : "Failed to cancel the sale. Please try again.",
       )
     } finally {
       setVoiding(false)
@@ -420,25 +500,36 @@ function SaleDetailModal({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <MetaCell label="Date" value={`${view.date} ${view.time}`} />
           <MetaCell label="Cashier" value={view.cashier} />
-          <MetaCell label="Status" value={<StatusBadge status={view.status} />} />
-          <MetaCell label="Payment" value={
-            <div className="flex flex-wrap gap-1">
-              {view.payments.length === 0
-                ? <span className="text-[#999] text-xs">—</span>
-                : view.payments.map((p, idx) => (
-                  <PaymentBadge key={`${p.method}-${idx}`} method={p.method} />
-                ))}
-            </div>
-          } />
+          <MetaCell
+            label="Status"
+            value={<StatusBadge status={view.status} />}
+          />
+          <MetaCell
+            label="Payment"
+            value={
+              <div className="flex flex-wrap gap-1">
+                {view.payments.length === 0 ? (
+                  <span className="text-[#999] text-xs">—</span>
+                ) : (
+                  view.payments.map((p, idx) => (
+                    <PaymentBadge
+                      key={`${p.method}-${idx}`}
+                      method={p.method}
+                    />
+                  ))
+                )}
+              </div>
+            }
+          />
         </div>
 
         {/* Items */}
         <div>
           <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-2">Items</p>
-          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
             {detailLoading ? (
               <div className="p-4 space-y-2 animate-pulse">
-                {[...Array(3)].map((_, i) => <div key={i} className="h-8 rounded-lg bg-[#E6ECE2]" />)}
+                {[...Array(3)].map((_, i) => <div key={i} className="h-8 rounded-lg bg-[#DBEFF3]" />)}
               </div>
             ) : view.items.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-[#666666]">
@@ -448,7 +539,7 @@ function SaleDetailModal({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#E6ECE2] text-left">
+                    <tr className="bg-[#DBEFF3] text-left">
                       {["Product", "Brand", "Batch", "Unit", "Qty", "Unit Price", "Line Total"].map((h) => (
                         <th key={h} className="px-3 py-2.5 font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                       ))}
@@ -457,17 +548,18 @@ function SaleDetailModal({
                   <tbody>
                     {view.items.map((item, i) => (
                       <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
-                        <td className="px-3 py-2.5 font-medium text-[#333333]">
-                          {item.product}
-                          {item.isNarcotic && <NarcoticBadge className="ml-2 align-middle" />}
-                        </td>
+                        <td className="px-3 py-2.5 font-medium text-[#333333]">{item.product}</td>
                         <td className="px-3 py-2.5 text-[#666666]">{item.brand}</td>
                         <td className="px-3 py-2.5 font-mono text-xs text-[#666666]">{item.batch}</td>
                         <td className="px-3 py-2.5 text-[#666666]">{item.unit}</td>
                         <td className="px-3 py-2.5 text-center font-semibold text-[#333333]">{item.qty}</td>
                         <td className="px-3 py-2.5 text-right text-[#333333]">{item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB</td>
                         <td className="px-3 py-2.5 text-right font-semibold text-[#333333]">
-                          {(item.qty * item.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB
+                          {(item.qty * item.unitPrice).toLocaleString(
+                            undefined,
+                            { minimumFractionDigits: 2 },
+                          )}{" "}
+                          ETB
                         </td>
                       </tr>
                     ))}
@@ -481,32 +573,43 @@ function SaleDetailModal({
         {/* Summary + Payment side by side */}
         <div className="grid sm:grid-cols-2 gap-4">
           {/* Summary */}
-          <div className="bg-[#E6ECE2]/40 rounded-xl p-4 flex flex-col gap-2">
+          <div className="bg-[#DBEFF3]/40 rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Financial Summary</p>
             <SummaryRow label="Subtotal" value={`${view.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} />
             {view.discount > 0 && (
-              <SummaryRow label="Bill Discount" value={`−${view.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} accent />
+              <SummaryRow
+                label="Bill Discount"
+                value={`−${view.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`}
+                accent
+              />
             )}
-            <div className="border-t border-[#C6D4BF] pt-2 mt-1">
+            <div className="border-t border-[#ABDBE3] pt-2 mt-1">
               <SummaryRow label="Total" value={`${view.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} bold />
             </div>
-            <div className="border-t border-[#C6D4BF] pt-2 mt-1">
+            <div className="border-t border-[#ABDBE3] pt-2 mt-1">
               <SummaryRow label="Paid" value={`${view.paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} />
               {view.changeAmount > 0 && (
-                <SummaryRow label="Change" value={`${view.changeAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} />
+                <SummaryRow
+                  label="Change"
+                  value={`${view.changeAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`}
+                />
               )}
             </div>
           </div>
 
           {/* Payment breakdown */}
-          <div className="bg-[#E6ECE2]/40 rounded-xl p-4 flex flex-col gap-2">
+          <div className="bg-[#DBEFF3]/40 rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Payment</p>
             {view.payments.length === 0 ? (
               <p className="text-sm text-[#999]">No payments recorded.</p>
             ) : (
               <>
                 {view.payments.map((p, idx) => (
-                  <SummaryRow key={`${p.method}-${idx}`} label={p.method} value={`${p.amount.toLocaleString()} ETB`} />
+                  <SummaryRow
+                    key={`${p.method}-${idx}`}
+                    label={p.method}
+                    value={`${p.amount.toLocaleString()} ETB`}
+                  />
                 ))}
                 <div className="border-t border-[#C6D4BF] pt-2 mt-1">
                   <SummaryRow
@@ -529,13 +632,20 @@ function SaleDetailModal({
             {view.status === "completed" && (
               <Button
                 variant="secondary"
-                onClick={() => { setVoidPromptOpen(true); setVoidReason(""); setVoidError(null) }}
+                onClick={() => {
+                  setVoidPromptOpen(true)
+                  setVoidReason("")
+                  setVoidError(null)
+                }}
                 loading={voiding}
               >
                 Cancel Sale
               </Button>
             )}
-            <Button variant="secondary" onClick={() => alert("Return / Refund — backend pending")}>
+            <Button
+              variant="secondary"
+              onClick={() => alert("Return / Refund — backend pending")}
+            >
               Return / Refund
             </Button>
           </div>
@@ -558,10 +668,18 @@ function SaleDetailModal({
               placeholder="e.g. Wrong items scanned"
             />
             <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setVoidPromptOpen(false)} disabled={voiding}>
+              <Button
+                variant="secondary"
+                onClick={() => setVoidPromptOpen(false)}
+                disabled={voiding}
+              >
                 Keep Sale
               </Button>
-              <Button onClick={() => void handleVoid()} loading={voiding} disabled={!voidReason.trim()}>
+              <Button
+                onClick={() => void handleVoid()}
+                loading={voiding}
+                disabled={!voidReason.trim()}
+              >
                 Confirm Cancel
               </Button>
             </div>
@@ -574,16 +692,24 @@ function SaleDetailModal({
 
 // ─── Small components ─────────────────────────────────────────────────────────
 
-function SummaryCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+function SummaryCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string
+  value: string | number
+  accent?: string
+}) {
   return (
-    <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+    <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
       <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">{label}</p>
       <p className={`text-xl font-bold mt-1 ${accent ?? "text-[#333333]"}`}>{value}</p>
     </div>
   )
 }
 
-function MetaCell({ label, value }: { label: string; value: React.ReactNode }) {
+function MetaCell({ label, value }: { label: string value: React.ReactNode }) {
   return (
     <div>
       <p className="text-xs text-[#666666]">{label}</p>
@@ -592,25 +718,49 @@ function MetaCell({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-function SummaryRow({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {
+function SummaryRow({
+  label,
+  value,
+  bold,
+  accent,
+}: {
+  label: string
+  value: string
+  bold?: boolean
+  accent?: boolean
+}) {
   return (
     <div className="flex items-center justify-between">
-      <span className={`text-sm ${bold ? "font-semibold text-[#333333]" : "text-[#666666]"}`}>{label}</span>
-      <span className={`text-sm ${bold ? "font-bold text-[#333333]" : accent ? "text-orange-600 font-medium" : "text-[#333333]"}`}>{value}</span>
+      <span
+        className={`text-sm ${
+          bold ? "font-semibold text-[#333333]" : "text-[#666666]"
+        }`}
+      >
+        {label}
+      </span>
+      <span
+        className={`text-sm ${
+          bold
+            ? "font-bold text-[#333333]"
+            : accent
+              ? "text-orange-600 font-medium"
+              : "text-[#333333]"
+        }`}
+      >
+        {value}
+      </span>
     </div>
   )
 }
 
 function StatusBadge({ status }: { status: SaleStatusUi }) {
-  const cfg: Record<SaleStatusUi, { label: string; cls: string }> = {
-    completed: { label: "Completed", cls: "bg-green-100 text-green-700" },
-    voided: { label: "Voided", cls: "bg-orange-100 text-orange-700" },
-    refunded: { label: "Refunded", cls: "bg-red-100 text-red-700" },
+  const cfg: Record<SaleStatusUi, { label: string tone: StatusTone }> = {
+    completed: { label: "Completed", tone: "green" },
+    voided: { label: "Voided", tone: "orange" },
+    refunded: { label: "Refunded", tone: "red" },
   }
   const c = cfg[status]
-  return (
-    <span className={`text-xs font-semibold rounded-full px-2.5 py-0.5 ${c.cls}`}>{c.label}</span>
-  )
+  return <StatusChip label={c.label} tone={c.tone} />
 }
 
 function PaymentBadge({ method }: { method: PaymentMethod }) {
@@ -618,33 +768,49 @@ function PaymentBadge({ method }: { method: PaymentMethod }) {
     Cash: "bg-green-100 text-green-700",
     Card: "bg-blue-100 text-blue-700",
     "Digital Transfer": "bg-purple-100 text-purple-700",
-    Insurance: "bg-[#E6ECE2] text-[#7A9076]",
+    Insurance: "bg-[#DBEFF3] text-[#49B0C1]",
   }
-  return (
-    <span className={`text-xs font-semibold rounded-full px-2 py-0.5 whitespace-nowrap ${cfg[method]}`}>{method}</span>
-  )
+  return <StatusChip label={method} tone={cfg[method]} />
 }
 
 function LoadingSkeleton() {
   return (
     <div className="p-6 space-y-3 animate-pulse">
-      {[...Array(6)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#E6ECE2]" />)}
+      {[...Array(6)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-[#DBEFF3]" />)}
     </div>
   )
 }
 
 function DownloadIcon() {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path
+        fillRule="evenodd"
+        d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+        clipRule="evenodd"
+      />
     </svg>
   )
 }
 
 function PrintIcon() {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9v-1h8v1H6zm6-4a1 1 0 110-2 1 1 0 010 2z" clipRule="evenodd" />
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path
+        fillRule="evenodd"
+        d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9v-1h8v1H6zm6-4a1 1 0 110-2 1 1 0 010 2z"
+        clipRule="evenodd"
+      />
     </svg>
   )
 }

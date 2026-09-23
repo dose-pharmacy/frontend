@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { X } from "lucide-react";
 import Button from "../../components/ui/Button";
 import {
   generatePurchaseRequirements,
@@ -100,7 +101,7 @@ export default function GenerateRequirementsModal({
             aria-label="Close"
             className="text-[#333333]/60 hover:text-[#333333] transition-colors text-lg leading-none"
           >
-            ✕
+            <X className="h-5 w-5" />
           </button>
         </div>
 

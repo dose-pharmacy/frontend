@@ -19,7 +19,7 @@ import Breadcrumb from "../../components/ui/Breadcrumb";
 interface Config { minStock: string; reorderPoint: string; leadTime: string; reorderQty: string; useVelocity: boolean; formula: string; buffer: string; }
 const empty = (): Config => ({ minStock: "", reorderPoint: "", leadTime: "", reorderQty: "", useVelocity: false, formula: "basic", buffer: "10" });
 
-/** Map a backend reorder-config to the form state (numbers → strings for inputs). */
+/** Map a backend reorder-config to the form state (numbers -> strings for inputs). */
 function fromDto(dto: ReorderConfigDto): Config {
   return {
     minStock: String(dto.minimumStockLevel ?? ""),

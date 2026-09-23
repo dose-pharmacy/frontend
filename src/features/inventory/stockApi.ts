@@ -163,10 +163,8 @@ export interface OpeningStockDto {
 
 /**
  * Body for POST /inventory/stock-adjustments.
- * direction is the backend StockDirection enum ("IN" | "OUT"); quantity is
- * in the unit referenced by unitId (server converts to base units).
- * reason is REQUIRED. notes is not part of the schema — it is stripped by
- * the backend, but harmless to send.
+* NOTE: Exact request schema not yet confirmed from Swagger — keep payloads
+ * minimal and validate against the live backend before extending.
  */
 export interface StockAdjustmentInput {
   productId: string;
@@ -424,9 +422,9 @@ export async function createOpeningStock(input: OpeningStockInput): Promise<Open
 }
 
 /**
- * POST /inventory/stock-adjustments — adjust recorded stock. The backend
- * derives the StockTransactionType (ADJUSTMENT_IN/ADJUSTMENT_OUT) from the
- * direction and returns the created transaction + updated stock row.
+ * POST /inventory/stock-adjustments — adjust recorded stock.
+* NOTE: Exact request/response schema unconfirmed — adjust the payload once the
+ * Swagger definition is available.
  */
 export async function createStockAdjustment(
   input: StockAdjustmentInput,

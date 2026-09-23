@@ -623,101 +623,47 @@ export default function BatchesExpiryPage() {
 
         {/* ── EXPIRED TAB ── */}
         {tab === "expired" && (
-          <>
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <SearchInput
-                    value={expiredSearch}
-                    onChange={setExpiredSearch}
-                    placeholder="Search expired product, brand or SKU..."
-                  />
-                </div>
-                <div className="sm:w-44">
-                  <SearchableSelect
-                    value={locationFilter || null}
-                    onChange={(v) => { setLocationFilter(v); setExpiredPage(1) }}
-                    options={locationFilterOptions}
-                    onSearch={locationSearch.setTerm}
-                    loading={locationSearch.loading}
-                    error={locationSearch.error}
-                    onRetry={locationSearch.retry}
-                    allowClear
-                    placeholder="All Locations"
-                    searchPlaceholder="Search locations..."
-                    emptyMessage="No locations found"
-                    noResultsMessage="No locations matching your search"
-                  />
-                </div>
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            {expiryLoading ? (
+              <LoadingSkeleton />
+            ) : expired.length === 0 ? (
+              <EmptyState title="No expired batches" description="All batches are within their expiry date." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-red-50 text-left">
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Expired</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Quantity</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Location</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expired.map((b, i) => (
+                      <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-red-50/40"}>
+                        <td className="px-4 py-3 font-medium text-[#333333]">{b.product.name}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
+                        <td className="px-4 py-3 text-red-600 font-semibold">{formatDate(b.expiryDate)}</td>
+                        <td className="px-4 py-3 font-semibold text-[#333333]">
+                          {b.stock.quantity.toLocaleString()} {productUnit(b.product.id)}s
+                        </td>
+                        <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{b.stock.location.name}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button onClick={() => openAction(b, "return")} className="text-xs font-semibold text-[#7A9076] hover:underline">Return</button>
+                            <button onClick={() => openAction(b, "dispose")} className="text-xs font-semibold text-red-500 hover:underline">Dispose</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-              {expiredProductsLoading ? (
-                <LoadingSkeleton />
-              ) : expiredProductsError ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-4 px-6">
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{expiredProductsError}</p>
-                  <Button onClick={() => void loadExpiredProducts()}>Retry</Button>
-                </div>
-              ) : expiredRows.length === 0 ? (
-                <EmptyState title="No expired products" description="No products have batches past their expiry date with stock on hand." />
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-red-50 text-left">
-                          <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
-                          <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
-                          <th className="px-4 py-3 font-semibold text-[#333333]">Expired</th>
-                          <th className="px-4 py-3 font-semibold text-[#333333]">Quantity</th>
-                          <th className="px-4 py-3 font-semibold text-[#333333]">Unit Cost</th>
-                          <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Location</th>
-                          <th className="px-4 py-3 font-semibold text-[#333333]">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {expiredRows.map(({ product: p, row }, i) => {
-                          const b = toActionBatch(p, row)
-                          return (
-                            <tr key={`${row.id}-${row.locationId}`} className={i % 2 === 0 ? "bg-white" : "bg-red-50/40"}>
-                              <td className="px-4 py-3 font-medium text-[#333333]">
-                                {p.productName}
-                                {p.isNarcotic && <NarcoticBadge className="ml-2 align-middle" />}
-                              </td>
-                              <td className="px-4 py-3 font-mono text-xs text-[#666666]">{row.batchNumber}</td>
-                              <td className="px-4 py-3 text-red-600 font-semibold">{formatDate(row.expiryDate)}</td>
-                              <td className="px-4 py-3 font-semibold text-[#333333]">
-                                {row.quantity.toLocaleString()} {productUnit(p.productId)}s
-                              </td>
-                              <td className="px-4 py-3 text-[#666666]">
-                                {row.purchaseCost != null ? `${Number(row.purchaseCost).toFixed(2)} ETB` : "—"}
-                              </td>
-                              <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{row.locationName}</td>
-                              <td className="px-4 py-3">
-                                <div className="flex gap-2">
-                                  <button onClick={() => openAction(b, "return")} className="text-xs font-semibold text-[#49B0C1] hover:underline">Return</button>
-                                  <button onClick={() => openAction(b, "dispose")} className="text-xs font-semibold text-red-500 hover:underline">Dispose</button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
-                    <p className="text-xs text-[#666666]">
-                      {expiredTotal} expired {expiredTotal === 1 ? "product" : "products"} · page {expiredPage} of {expiredTotalPages}
-                    </p>
-                    <Pagination page={expiredPage} totalPages={expiredTotalPages} onPageChange={setExpiredPage} />
-                  </div>
-                </>
-              )}
-            </div>
-          </>
+            )}
+          </div>
         )}
       </div>
 
