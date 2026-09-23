@@ -47,6 +47,232 @@ function fmtMoney(n: number) { return `${n.toLocaleString("en-ET")} ETB` }
 function itemTotal(item: POItem) { return item.quantity * item.unitCost }
 function orderTotal(items: POItem[]) { return items.reduce((s, i) => s + itemTotal(i), 0) }
 
+// ─── Custom DatePicker (branded popup calendar) ───────────────────────────────
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+const WEEKDAYS = ["Mo","Tu","We","Th","Fr","Sa","Su"]
+
+function toISO(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function fromISO(s: string): Date | null {
+  if (!s) return null
+  const d = new Date(s + "T00:00:00")
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function fmtDisplay(s: string): string {
+  const d = fromISO(s)
+  if (!d) return ""
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+/** Build a 6x7 grid (Monday-first) for the given month. */
+function buildGrid(viewDate: Date): Date[] {
+  const year = viewDate.getFullYear()
+  const month = viewDate.getMonth()
+  const first = new Date(year, month, 1)
+  // Monday = 0 ... Sunday = 6
+  const startOffset = (first.getDay() + 6) % 7
+  const gridStart = new Date(year, month, 1 - startOffset)
+  const cells: Date[] = []
+  for (let i = 0; i < 42; i++) {
+    cells.push(new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i))
+  }
+  return cells
+}
+
+function DatePicker({
+  value,
+  onChange,
+  disabled,
+  placeholder = "Select a date...",
+}: {
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = fromISO(value)
+  const [viewDate, setViewDate] = useState<Date>(selected ?? new Date())
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Keep the popup month in sync when the value changes externally.
+  useEffect(() => {
+    const d = fromISO(value)
+    if (d) setViewDate(d)
+  }, [value])
+
+  // Close on outside click / Escape.
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDoc)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const today = new Date()
+  const todayISO = toISO(today)
+  const selectedISO = selected ? toISO(selected) : ""
+  const viewYear = viewDate.getFullYear()
+  const viewMonth = viewDate.getMonth()
+  const grid = buildGrid(viewDate)
+
+  function prevMonth() {
+    setViewDate(new Date(viewYear, viewMonth - 1, 1))
+  }
+  function nextMonth() {
+    setViewDate(new Date(viewYear, viewMonth + 1, 1))
+  }
+  function pick(d: Date) {
+    onChange(toISO(d))
+    setOpen(false)
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      {/* Trigger — matches the other inputs */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="w-full rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-left text-[#4A4A4A] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between gap-2 transition-colors hover:border-[#B6C8AF]"
+      >
+        <span className={value ? "text-[#4A4A4A]" : "text-[#9A9A9A]"}>
+          {value ? fmtDisplay(value) : placeholder}
+        </span>
+        <svg
+          className="h-4 w-4 text-[#7A9076] shrink-0"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {/* Popup calendar */}
+      {open && (
+        <div className="absolute z-50 mt-2 rounded-xl border border-[#E6ECE2] bg-white shadow-lg p-3 w-[19rem]">
+          {/* Header: prev / month-year / next */}
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={prevMonth}
+              aria-label="Previous month"
+              className="h-8 w-8 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            <div className="text-sm font-bold text-[#4A4A4A]">
+              {MONTHS[viewMonth]} {viewYear}
+            </div>
+
+            <button
+              type="button"
+              onClick={nextMonth}
+              aria-label="Next month"
+              className="h-8 w-8 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Weekday header */}
+          <div className="grid grid-cols-7 mb-1">
+            {WEEKDAYS.map((d) => (
+              <div
+                key={d}
+                className="h-8 flex items-center justify-center text-[0.7rem] uppercase tracking-wide text-[#8A8A8A] font-semibold"
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Day grid */}
+          <div className="grid grid-cols-7">
+            {grid.map((d, i) => {
+              const iso = toISO(d)
+              const inMonth = d.getMonth() === viewMonth
+              const isSelected = iso === selectedISO
+              const isToday = iso === todayISO
+
+              let cls =
+                "h-9 w-9 mx-auto rounded-lg text-sm inline-flex items-center justify-center transition-colors "
+
+              if (isSelected) {
+                cls += "bg-[#B6C8AF] text-[#333333] font-bold hover:bg-[#A5B89E]"
+              } else if (!inMonth) {
+                cls += "text-[#C8C8C8] hover:bg-[#F3F5F0]"
+              } else if (isToday) {
+                cls += "text-[#4A4A4A] ring-1 ring-inset ring-[#B6C8AF] hover:bg-[#E6ECE2]"
+              } else {
+                cls += "text-[#4A4A4A] hover:bg-[#E6ECE2]"
+              }
+
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => pick(d)}
+                  className={cls}
+                >
+                  {d.getDate()}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Quick actions */}
+          <div className="mt-3 pt-3 border-t border-[#E6ECE2] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                onChange("")
+                setOpen(false)
+              }}
+              className="text-xs font-semibold text-[#7A7A7A] hover:text-[#4A4A4A] transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => pick(today)}
+              className="text-xs font-semibold text-[#7A9076] hover:text-[#5F7359] transition-colors"
+            >
+              Today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Status timeline ──────────────────────────────────────────────────────────
 
 const STATUS_FLOW: POStatus[] = ["REGISTERED", "AWAITING_DELIVERY", "RECEIVED", "CLOSED"]
@@ -164,8 +390,6 @@ function AddProductModal({ open, reqLines, existingProductIds, onClose, onAdd }:
     setProduct(""); setUnitId(""); setQuantity(""); setUnitCost(""); setReqLineId("")
   }
 
-  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
-
   return (
     <Modal open={open} title="Add Product to Purchase Order" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -272,8 +496,6 @@ function EditItemModal({ item, error, onClose, onSave }: {
     )
   }
 
-  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
-
   return (
     <Modal open={!!item} title="Edit Order Item" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -313,7 +535,6 @@ function AcceptShortageModal({ target, quantity, reason, error, setQuantity, set
   onClose: () => void
   onConfirm: () => void
 }) {
-  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
   return (
     <Modal open={!!target} title="Accept Shortage" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -362,6 +583,11 @@ function ConfirmModal({ open, title, message, detail, error, confirmLabel, confi
     </Modal>
   )
 }
+
+// ─── Shared input class ───────────────────────────────────────────────────────
+
+const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 bg-white"
+const ROC = "w-full rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-3.5 py-2.5 text-sm text-[#666666]"
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -708,9 +934,6 @@ export default function CreatePurchaseOrderPage() {
     }
   }
 
-  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
-  const ROC = "w-full rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-3.5 py-2.5 text-sm text-[#666666]"
-
   const reference = poState?.poNumber ?? (isNew ? "New Purchase Order" : "")
 
   if (loadingPO) {
@@ -814,7 +1037,11 @@ export default function CreatePurchaseOrderPage() {
                   {isReadOnly ? (
                     <div className={ROC}>{fmtDate(poState?.orderDate ?? orderDate)}</div>
                   ) : (
-                    <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className={SC} />
+                    <DatePicker
+                      value={orderDate}
+                      onChange={setOrderDate}
+                      placeholder="Select order date..."
+                    />
                   )}
                 </div>
                 <div>
@@ -822,7 +1049,11 @@ export default function CreatePurchaseOrderPage() {
                   {isReadOnly ? (
                     <div className={ROC}>{fmtDate(delivDate) || "—"}</div>
                   ) : (
-                    <input type="date" value={delivDate} onChange={(e) => setDelivDate(e.target.value)} className={SC} />
+                    <DatePicker
+                      value={delivDate}
+                      onChange={setDelivDate}
+                      placeholder="Select delivery date..."
+                    />
                   )}
                 </div>
               </div>
@@ -868,7 +1099,7 @@ export default function CreatePurchaseOrderPage() {
             </div>
 
             {/* Order items */}
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Order Items</p>

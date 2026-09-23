@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
+import DatePicker from "../../components/ui/DatePicker";
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
 import { createRequirement, type CreateRequirementInput, type RequirementReasonCode } from "../../features/purchasing/requirementsApi";
 import { useProductUnits } from "../../features/inventory/useProductUnits";
@@ -199,7 +200,11 @@ export default function CreateRequirementPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Required By Date</label>
-                <input type="date" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+                <DatePicker
+                  value={requiredBy}
+                  onChange={setRequiredBy}
+                  placeholder="Select required-by date..."
+                />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm text-[#666666] mb-1">Notes</label>

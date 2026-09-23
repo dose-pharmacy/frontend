@@ -8,6 +8,8 @@ import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppl
 import SearchableSelect, { type SearchableOption } from "../../components/ui/SearchableSelect";
 import { useSearchableResource } from "../../hooks/useSearchableResource";
 import { searchSuppliers } from "../../features/inventory/searchSelectors";
+import { IconWarningTriangle } from "../../components/ui/icons";
+import DatePicker from "../../components/ui/DatePicker";
 
 interface GRItemRow {
   purchaseOrderItemId: string;
@@ -239,7 +241,11 @@ export default function DeliveryRegistrationPage() {
               </div>
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Received Date</label>
-                <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+                <DatePicker
+                  value={deliveryDate}
+                  onChange={setDeliveryDate}
+                  placeholder="Select received date..."
+                />
               </div>
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Expected Delivery</label>
@@ -310,10 +316,18 @@ export default function DeliveryRegistrationPage() {
                           <input value={item.batchNumber} onChange={(e) => updateItem(item.purchaseOrderItemId, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:outline-none" />
                         </td>
                         <td className="px-3 py-2.5">
-                          <input type="date" value={item.manufacturingDate} onChange={(e) => updateItem(item.purchaseOrderItemId, "manufacturingDate", e.target.value)} className="w-32 rounded border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:outline-none" />
+                          <DatePicker
+                            value={item.manufacturingDate}
+                            onChange={(v) => updateItem(item.purchaseOrderItemId, "manufacturingDate", v)}
+                            placeholder="Mfg date"
+                          />
                         </td>
                         <td className="px-3 py-2.5">
-                          <input type="date" value={item.expiryDate} onChange={(e) => updateItem(item.purchaseOrderItemId, "expiryDate", e.target.value)} className="w-32 rounded border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:outline-none" />
+                          <DatePicker
+                            value={item.expiryDate}
+                            onChange={(v) => updateItem(item.purchaseOrderItemId, "expiryDate", v)}
+                            placeholder="Expiry date"
+                          />
                         </td>
                       </tr>
                     );
@@ -323,8 +337,9 @@ export default function DeliveryRegistrationPage() {
             </div>
 
             {hasDiscrepancy && (
-              <div className="mt-3 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-2.5 text-sm text-yellow-700">
-                ⚠ Some quantities differ from what was ordered — this receipt will be marked as <strong>DISCREPANCY</strong> and require resolution before confirmation.
+              <div className="mt-3 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-2.5 text-sm text-yellow-700 flex items-start gap-2">
+                <IconWarningTriangle className="h-4 w-4 mt-0.5 flex-shrink-0 text-yellow-600" />
+                <span>Some quantities differ from what was ordered — this receipt will be marked as <strong>DISCREPANCY</strong> and require resolution before confirmation.</span>
               </div>
             )}
           </div>

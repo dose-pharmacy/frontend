@@ -29,6 +29,7 @@ import Select from "../../components/ui/Select"
 import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
 import Input from "../../components/ui/Input"
+import DatePicker from "../../components/ui/DatePicker"
 import FormError from "../../components/ui/FormError"
 import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory"
 import Pagination from "../../components/ui/Pagination"
@@ -456,7 +457,7 @@ export default function BatchesExpiryPage() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {loadError}
@@ -506,7 +507,7 @@ export default function BatchesExpiryPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               {loading ? (
                 <LoadingSkeleton />
               ) : filteredBatches.length === 0 ? (
@@ -766,26 +767,34 @@ export default function BatchesExpiryPage() {
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Received Date"
-              type="date"
-              value={addForm.receivedDate}
-              onChange={(e) => {
-                setAddForm((f) => ({ ...f, receivedDate: e.target.value }))
-                setAddErrors((er) => ({ ...er, receivedDate: undefined }))
-              }}
-              error={addErrors.receivedDate}
-            />
-            <Input
-              label="Expiry Date"
-              type="date"
-              value={addForm.expiryDate}
-              onChange={(e) => {
-                setAddForm((f) => ({ ...f, expiryDate: e.target.value }))
-                setAddErrors((er) => ({ ...er, expiryDate: undefined }))
-              }}
-              error={addErrors.expiryDate}
-            />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[#333333]">Received Date</label>
+              <DatePicker
+                value={addForm.receivedDate}
+                onChange={(v) => {
+                  setAddForm((f) => ({ ...f, receivedDate: v }))
+                  setAddErrors((er) => ({ ...er, receivedDate: undefined }))
+                }}
+                placeholder="Select received date..."
+              />
+              {addErrors.receivedDate && (
+                <p className="text-xs text-red-500">{addErrors.receivedDate}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-[#333333]">Expiry Date</label>
+              <DatePicker
+                value={addForm.expiryDate}
+                onChange={(v) => {
+                  setAddForm((f) => ({ ...f, expiryDate: v }))
+                  setAddErrors((er) => ({ ...er, expiryDate: undefined }))
+                }}
+                placeholder="Select expiry date..."
+              />
+              {addErrors.expiryDate && (
+                <p className="text-xs text-red-500">{addErrors.expiryDate}</p>
+              )}
+            </div>
           </div>
 
           <Input

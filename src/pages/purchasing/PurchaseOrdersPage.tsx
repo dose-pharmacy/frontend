@@ -17,6 +17,7 @@ import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppl
 import { searchSuppliers } from "../../features/inventory/searchSelectors"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchableSelect from "../../components/ui/SearchableSelect"
+import Pagination from "../../components/ui/Pagination"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -293,10 +294,12 @@ export default function PurchaseOrdersPage() {
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex-1 min-w-[160px]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+          <div className="flex flex-col lg:flex-row gap-3 items-center">
+            <div className="flex-1">
+              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
+            </div>
+            <div className="lg:w-44">
               <SearchableSelect
                 value={suppFilter || null}
                 onChange={(v) => { setSuppFilter(v); setPage(1) }}
@@ -312,7 +315,7 @@ export default function PurchaseOrdersPage() {
                 noResultsMessage="No suppliers matching your search"
               />
             </div>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="REGISTERED">Registered</option>
               <option value="AWAITING_DELIVERY">Awaiting Delivery</option>
@@ -320,7 +323,7 @@ export default function PurchaseOrdersPage() {
               <option value="CLOSED">Closed</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
-            <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+            <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Payment Statuses</option>
               <option value="NOT_INVOICED">Not Invoiced</option>
               <option value="UNPAID">Unpaid</option>
@@ -336,7 +339,7 @@ export default function PurchaseOrdersPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
@@ -418,36 +421,17 @@ export default function PurchaseOrdersPage() {
             </>
           )}
           {!loading && !error && (
-            <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
-              <p className="text-xs text-[#666666]">
-                Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
-              </p>
-              <div className="flex gap-1">
-                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page" className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
-                {(() => {
-                  // Windowed page numbers: first/last always visible, current ±1, gaps collapsed to …
-                  const show = new Set([1, totalPages, page - 1, page, page + 1])
-                  const items: (number | "…")[] = []
-                  for (let i = 1; i <= totalPages; i++) {
-                    if (!show.has(i)) continue
-                    if (
-                      items.length > 0 &&
-                      typeof items[items.length - 1] === "number" &&
-                      (items[items.length - 1] as number) !== i - 1
-                    ) items.push("…")
-                    items.push(i)
-                  }
-                  return items.map((p, idx) =>
-                    p === "…" ? (
-                      <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[#666666]">…</span>
-                    ) : (
-                      <button key={p} onClick={() => setPage(p)} aria-current={p === page ? "page" : undefined} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
-                    ),
-                  )
-                })()}
-                <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} aria-label="Next page" className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
-              </div>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              label={
+                <>
+                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
+                  {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
+                </>
+              }
+            />
           )}
         </div>
       </div>

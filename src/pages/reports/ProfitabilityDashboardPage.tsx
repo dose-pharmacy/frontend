@@ -272,7 +272,7 @@ function ProfitabilitySection({
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
         {loading ? (
           <LoadingState label={`Loading ${groupBy.replace(/_/g, " ").toLowerCase()} profitability...`} />
         ) : error ? (
@@ -441,7 +441,7 @@ function ProfitMarginSection({
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
         {loading ? (
           <LoadingState label="Loading profit margins..." />
         ) : error ? (

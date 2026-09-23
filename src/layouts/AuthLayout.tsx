@@ -1,4 +1,10 @@
 import { Outlet } from "react-router";
+import {
+  IconBell,
+  IconBox,
+  IconChartBar,
+  IconReceipt,
+} from "../components/ui/icons";
 
 export default function AuthLayout() {
   return (
@@ -26,13 +32,13 @@ export default function AuthLayout() {
 
           <div className="mt-12 grid grid-cols-2 gap-4 text-left">
             {[
-              { icon: "📦", label: "Inventory Control" },
-              { icon: "🧾", label: "Point of Sale" },
-              { icon: "📊", label: "Reports & Analytics" },
-              { icon: "🔔", label: "Expiry Alerts" },
+              { icon: <IconBox className="h-5 w-5" />, label: "Inventory Control" },
+              { icon: <IconReceipt className="h-5 w-5" />, label: "Point of Sale" },
+              { icon: <IconChartBar className="h-5 w-5" />, label: "Reports & Analytics" },
+              { icon: <IconBell className="h-5 w-5" />, label: "Expiry Alerts" },
             ].map(({ icon, label }) => (
               <div key={label} className="flex items-center gap-3 rounded-xl bg-white/10 px-4 py-3">
-                <span className="text-lg">{icon}</span>
+                <span className="text-[#B6C8AF]">{icon}</span>
                 <span className="text-sm font-medium text-white/90">{label}</span>
               </div>
             ))}
