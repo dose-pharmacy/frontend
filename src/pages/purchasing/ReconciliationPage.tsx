@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
+import DatePicker from "../../components/ui/DatePicker";
+import { IconCheck } from "../../components/ui/icons";
 import {
   getGoodsReceipt,
   resolveGoodsReceipt,
@@ -57,7 +59,7 @@ export default function ReconciliationPage() {
       setReceipt(r);
       if (r.status === "DISCREPANCY") {
         setResolveItems(
-          (          (r.items ?? []) ?? []).map((item) => ({
+          r.items.map((item) => ({
             id: item.id,
             deliveredQty: item.deliveredQty,
             actualQty: item.actualQty,
@@ -184,7 +186,7 @@ export default function ReconciliationPage() {
                 disabled={confirming}
                 className="rounded-lg bg-green-500 border border-green-300 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {confirming ? "Confirming…" : "✓ Confirm Receipt"}
+                {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm Receipt</span>}
               </button>
             )}
           </div>
@@ -276,7 +278,7 @@ export default function ReconciliationPage() {
                       <td className="px-3 py-2.5 text-[#333333]">{item.deliveredQty}</td>
                       <td className="px-3 py-2.5 text-[#333333]">{item.actualQty}</td>
                       <td className={`px-3 py-2.5 font-semibold ${isMatch ? "text-green-600" : "text-red-500"}`}>
-                        {isMatch ? "✓ 0" : `${variance > 0 ? "+" : ""}${variance}`}
+                        {isMatch ? <span className="inline-flex items-center gap-1"><IconCheck className="h-3.5 w-3.5" />0</span> : `${variance > 0 ? "+" : ""}${variance}`}
                       </td>
                       <td className="px-3 py-2.5 text-[#333333]">{item.batchNumber ?? "—"}</td>
                       <td className="px-3 py-2.5 text-[#333333]">{fmtDate(item.expiryDate)}</td>
@@ -322,10 +324,18 @@ export default function ReconciliationPage() {
                             <input value={item.batchNumber} onChange={(e) => updateResolveItem(item.id, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-yellow-300 px-2 py-1 text-xs" />
                           </td>
                           <td className="px-3 py-2">
-                            <input type="date" value={item.manufacturingDate} onChange={(e) => updateResolveItem(item.id, "manufacturingDate", e.target.value)} className="w-32 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                            <DatePicker
+                              value={item.manufacturingDate}
+                              onChange={(v) => updateResolveItem(item.id, "manufacturingDate", v)}
+                              placeholder="Mfg date"
+                            />
                           </td>
                           <td className="px-3 py-2">
-                            <input type="date" value={item.expiryDate} onChange={(e) => updateResolveItem(item.id, "expiryDate", e.target.value)} className="w-32 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                            <DatePicker
+                              value={item.expiryDate}
+                              onChange={(v) => updateResolveItem(item.id, "expiryDate", v)}
+                              placeholder="Expiry date"
+                            />
                           </td>
                         </tr>
                       );
@@ -363,7 +373,7 @@ export default function ReconciliationPage() {
                 disabled={confirming}
                 className="rounded-lg bg-green-500 px-5 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40"
               >
-                {confirming ? "Confirming…" : "✓ Confirm & Update Stock"}
+                {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm &amp; Update Stock</span>}
               </button>
             </div>
           </div>
@@ -377,22 +387,22 @@ export default function ReconciliationPage() {
         </button>
         {canConfirm && (
           <button onClick={handleConfirm} disabled={confirming} className="rounded-lg bg-green-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-green-600 transition-colors disabled:opacity-40">
-            {confirming ? "Confirming…" : "✓ Confirm Receipt"}
+            {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm Receipt</span>}
           </button>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      <Modal open={deleteOpen} title="Delete Goods Receipt?" onClose={() => setDeleteOpen(false)} size="sm">
+        <p className="text-sm text-[#666666]">Are you sure you want to delete this goods receipt?</p>
+        <p className="mt-2 text-xs text-[#999]">This action cannot be undone. Only unconfirmed receipts can be deleted.</p>
+        <div className="flex gap-3 justify-end mt-6">
+          <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+          <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
+            {deleting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
-
-  {/* Delete confirmation modal */}
-  <Modal open={deleteOpen} title="Delete Goods Receipt?" onClose={() => setDeleteOpen(false)} size="sm">
-    <p className="text-sm text-[#666666]">Are you sure you want to delete this goods receipt?</p>
-    <p className="mt-2 text-xs text-[#999]">This action cannot be undone. Only unconfirmed receipts can be deleted.</p>
-    <div className="flex gap-3 justify-end mt-6">
-      <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-      <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
-        {deleting ? "Deleting..." : "Delete"}
-      </button>
-    </div>
-  </Modal>
 }

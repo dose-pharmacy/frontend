@@ -140,7 +140,7 @@ export default function InventoryDashboardPage() {
 
         {/* Attention Required */}
         {!loading && (kpis.outOfStock > 0 || kpis.lowStock > 0 || kpis.expiringSoon > 0) && (
-          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
             <div className="px-5 py-3 border-b border-[#E6ECE2]">
               <p className="font-semibold text-[#333333]">Attention Required</p>
             </div>
@@ -184,7 +184,7 @@ export default function InventoryDashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Expiring Soon */}
-          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6ECE2]">
               <div>
                 <p className="font-semibold text-[#333333]">Expiring Soon</p>
@@ -221,7 +221,7 @@ export default function InventoryDashboardPage() {
           </div>
 
           {/* Low Stock */}
-          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6ECE2]">
               <div>
                 <p className="font-semibold text-[#333333]">Low Stock Alert</p>
@@ -262,7 +262,7 @@ export default function InventoryDashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6ECE2]">
             <div>
               <p className="font-semibold text-[#333333]">Recent Stock Activity</p>

@@ -11,11 +11,11 @@ import {
 } from "../../features/inventory/productGroupsApi";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
+import { IconPencil, IconRefresh, IconTrash } from "../../components/ui/icons";
 import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import FormError from "../../components/ui/FormError";
-import MetricCard from "../../components/ui/MetricCard";
 
 const PAGE_LIMIT = 20;
 
@@ -262,13 +262,6 @@ export default function ProductGroupsPage() {
     }
   }
 
-  const avgMargin = groups.length
-    ? (
-        groups.reduce((s, g) => s + (g.defaultProfitMargin ?? 0), 0) /
-        groups.length
-      ).toFixed(1)
-    : "—";
-
   const totalGroups = meta?.total ?? groups.length;
   const totalPages = meta?.totalPages ?? 1;
 
@@ -281,21 +274,7 @@ export default function ProductGroupsPage() {
         actions={<Button onClick={openAdd}>+ Add New Group</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <MetricCard
-            title="Total Groups"
-            value={loading ? "—" : totalGroups}
-            icon={<GroupIcon />}
-          />
-          <MetricCard
-            title="Average Margin"
-            value={loading ? "—" : `${avgMargin}%`}
-            icon={<PercentIcon />}
-          />
-        </div>
-
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {/* Error banner */}
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between gap-3">
@@ -310,7 +289,7 @@ export default function ProductGroupsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {/* Toolbar: search + pagination info */}
           <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
@@ -440,7 +419,10 @@ export default function ProductGroupsPage() {
                               className="text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Edit"
                             >
-                              ✏️ Edit
+                              <span className="inline-flex items-center gap-1">
+                                <IconPencil className="h-3.5 w-3.5" />
+                                Edit
+                              </span>
                             </button>
                             <button
                               onClick={() => requestToggleActive(g)}
@@ -453,8 +435,8 @@ export default function ProductGroupsPage() {
                               {togglingId === g.id
                                 ? "Saving…"
                                 : g.isActive
-                                  ? "🗑️ Deactivate"
-                                  : "↻ Activate"}
+                                  ? <span className="inline-flex items-center gap-1"><IconTrash className="h-3.5 w-3.5" />Deactivate</span>
+                                  : <span className="inline-flex items-center gap-1"><IconRefresh className="h-3.5 w-3.5" />Activate</span>}
                             </button>
                           </div>
                         </td>
@@ -790,40 +772,3 @@ export default function ProductGroupsPage() {
   );
 }
 
-function GroupIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"
-      />
-    </svg>
-  );
-}
-
-function PercentIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"
-      />
-    </svg>
-  );
-}

@@ -1,4 +1,10 @@
 import { Outlet } from "react-router";
+import {
+  IconBell,
+  IconBox,
+  IconChartBar,
+  IconReceipt,
+} from "../components/ui/icons";
 
 export default function AuthLayout() {
   return (
@@ -18,7 +24,7 @@ export default function AuthLayout() {
               <rect x="4" y="20" width="40" height="8" rx="4" fill="currentColor"/>
             </svg>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight mb-3">PharmaCare</h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-3">DOSE PHARMACY</h1>
           <p className="text-lg font-semibold text-white/90 mb-2">Pharmacy Management System</p>
           <p className="text-sm text-white/70 max-w-xs leading-relaxed">
             Streamline your pharmacy operations — from inventory and expiry tracking to point-of-sale and purchasing.
@@ -26,13 +32,13 @@ export default function AuthLayout() {
 
           <div className="mt-12 grid grid-cols-2 gap-4 text-left">
             {[
-              { icon: "📦", label: "Inventory Control" },
-              { icon: "🧾", label: "Point of Sale" },
-              { icon: "📊", label: "Reports & Analytics" },
-              { icon: "🔔", label: "Expiry Alerts" },
+              { icon: <IconBox className="h-5 w-5" />, label: "Inventory Control" },
+              { icon: <IconReceipt className="h-5 w-5" />, label: "Point of Sale" },
+              { icon: <IconChartBar className="h-5 w-5" />, label: "Reports & Analytics" },
+              { icon: <IconBell className="h-5 w-5" />, label: "Expiry Alerts" },
             ].map(({ icon, label }) => (
               <div key={label} className="flex items-center gap-3 rounded-xl bg-white/10 px-4 py-3">
-                <span className="text-lg">{icon}</span>
+                <span className="text-[#B6C8AF]">{icon}</span>
                 <span className="text-sm font-medium text-white/90">{label}</span>
               </div>
             ))}
@@ -50,7 +56,7 @@ export default function AuthLayout() {
               <rect x="4" y="20" width="40" height="8" rx="4" fill="currentColor"/>
             </svg>
           </div>
-          <span className="text-lg font-bold text-[#333333]">PharmaCare</span>
+          <span className="text-lg font-bold text-[#333333]">DOSE PHARMACY</span>
           <span className="text-sm text-[#666666]">Pharmacy Management System</span>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import ReportsSubNav from "./ReportsSubNav";
+import DashboardSubNav from "../dashboard/DashboardSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import ReportFilterBar from "./ReportFilterBar";
@@ -81,6 +81,39 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
+// ─── Summary KPI card (medium) ────────────────────────────────────────────────
+
+function SummaryCard({
+  label,
+  value,
+  warn,
+  loading,
+}: {
+  label: string;
+  value: string;
+  warn?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-[#E6ECE2] shadow-sm px-6 pt-6 pb-5 overflow-hidden hover:shadow-md transition-shadow">
+      <span className="block h-1 w-14 rounded-full bg-gradient-to-r from-[#B6C8AF] to-[#4F6B4A]" />
+      {loading ? (
+        <>
+          <div className="h-3 w-24 rounded bg-[#E6ECE2]/70 animate-pulse mt-4" />
+          <div className="h-7 w-28 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
+        </>
+      ) : (
+        <>
+          <p className={`mt-4 text-sm font-semibold ${warn ? "text-orange-700" : "text-[#666666]"}`}>{label}</p>
+          <p className={`mt-2 text-2xl font-extrabold tracking-tight ${warn ? "text-orange-600" : "text-[#333333]"}`}>
+            {value}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Profitability tab ────────────────────────────────────────────────────────
 
 function ProfitabilitySection({
@@ -154,6 +187,9 @@ function ProfitabilitySection({
     loadRows();
   }, [loadSummary, loadRows]);
 
+  // Largest absolute KPI value — scales the thin horizontal bars below each stat.
+  const maxAbs = summary.reduce((m, s) => Math.max(m, Math.abs(s.value)), 0) || 1;
+
   return (
     <div className="flex flex-col gap-5">
       <ReportFilterBar
@@ -185,32 +221,58 @@ function ProfitabilitySection({
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {summaryLoading
-          ? Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                <div className="h-3 w-20 rounded bg-[#E6ECE2]/60 animate-pulse" />
-                <div className="h-6 w-24 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
-              </div>
-            ))
-          : summaryError && !summary.length
-            ? null
-            : summary.map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                  <p className="text-xs font-medium text-[#666666]">{s.label}</p>
-                  <p className="text-lg font-bold text-[#333333] mt-0.5 leading-tight">
-                    {s.kind === "money" ? fmtMoney(s.value) : s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
-                  </p>
+      {(summaryLoading || summary.length > 0) && (
+        <div className="bg-white rounded-2xl border border-[#E6ECE2] shadow-sm px-6 py-5 overflow-x-auto">
+          {summaryLoading ? (
+            <div className="flex items-start gap-8 min-w-max">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="w-44">
+                  <div className="h-3 w-20 rounded bg-[#E6ECE2]/70 animate-pulse" />
+                  <div className="h-6 w-28 rounded bg-[#E6ECE2]/40 animate-pulse mt-2" />
+                  <div className="h-1.5 w-full rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
                 </div>
               ))}
-      </div>
+            </div>
+          ) : (
+            <div className="flex items-stretch min-w-max">
+              {summary.map((s, i) => {
+                const val = s.value;
+                const formatted =
+                  s.kind === "money"
+                    ? fmtMoney(val)
+                    : s.kind === "percent"
+                      ? fmtPercent(val)
+                      : fmtNumber(val);
+                const pct = Math.min(100, (Math.abs(val) / maxAbs) * 100);
+                return (
+                  <div
+                    key={s.label}
+                    className={`w-44 py-1 ${i > 0 ? "border-l border-[#E6ECE2] pl-6" : ""} ${i < summary.length - 1 ? "pr-6" : ""}`}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#666666]">{s.label}</p>
+                    <p className={`mt-1.5 text-xl font-extrabold tracking-tight tabular-nums ${val < 0 ? "text-red-600" : "text-[#333333]"}`}>
+                      {formatted}
+                    </p>
+                    <div className="mt-3 h-1.5 w-full rounded-full bg-[#E6ECE2] overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${val < 0 ? "bg-red-400" : "bg-gradient-to-r from-[#B6C8AF] to-[#4F6B4A]"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
       {summaryError && !summary.length && (
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
           <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-center">{summaryError}</p>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
         {loading ? (
           <LoadingState label={`Loading ${groupBy.replace(/_/g, " ").toLowerCase()} profitability...`} />
         ) : error ? (
@@ -361,21 +423,16 @@ function ProfitMarginSection({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryLoading
-          ? Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                <div className="h-3 w-20 rounded bg-[#E6ECE2]/60 animate-pulse" />
-                <div className="h-6 w-24 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
-              </div>
-            ))
+          ? Array.from({ length: 4 }, (_, i) => <SummaryCard key={i} label="" value="" loading />)
           : summaryError && !summary.length
             ? null
             : summary.map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-                  <p className="text-xs font-medium text-[#666666]">{s.label}</p>
-                  <p className={`text-lg font-bold mt-0.5 leading-tight ${s.label === "Below Target" ? "text-orange-600" : "text-[#333333]"}`}>
-                    {s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
-                  </p>
-                </div>
+                <SummaryCard
+                  key={s.label}
+                  label={s.label}
+                  warn={s.label === "Below Target"}
+                  value={s.kind === "percent" ? fmtPercent(s.value) : fmtNumber(s.value)}
+                />
               ))}
       </div>
       {summaryError && !summary.length && (
@@ -384,7 +441,7 @@ function ProfitMarginSection({
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
         {loading ? (
           <LoadingState label="Loading profit margins..." />
         ) : error ? (
@@ -464,11 +521,11 @@ export default function ProfitabilityDashboardPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
-        breadcrumb="Reports / Profitability"
+        breadcrumb="Dashboard / Profitability"
         title="Profitability"
         subtitle="Profit, margins, and per-product group performance."
       />
-      <ReportsSubNav />
+      <DashboardSubNav />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         <div className="flex rounded-lg border border-[#C6D4BF] w-fit overflow-hidden">

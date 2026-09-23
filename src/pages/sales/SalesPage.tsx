@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import PageHeader from "../../components/ui/PageHeader"
+import DashboardSubNav from "../dashboard/DashboardSubNav"
 import SearchInput from "../../components/ui/SearchInput"
 import Select from "../../components/ui/Select"
 import Pagination from "../../components/ui/Pagination"
@@ -9,6 +10,7 @@ import Button from "../../components/ui/Button"
 import Input from "../../components/ui/Input"
 import FormError from "../../components/ui/FormError"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import DatePicker from "../../components/ui/DatePicker"
 import {
   listSales,
   getSale,
@@ -139,7 +141,6 @@ export default function SalesPage() {
   const [statusFilter, setStatusFilter] = useState("")
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
   const [selected, setSelected] = useState<Sale | null>(null)
   const [reloadTick, setReloadTick] = useState(0)
 
@@ -164,7 +165,6 @@ export default function SalesPage() {
         if (cancelled) return
         setSales(res.data.map((dto) => adaptSale(dto)))
         setTotalPages(res.meta?.totalPages ?? 1)
-        setTotalItems(res.meta?.total ?? 0)
         setLoadError(null)
       } catch (err) {
         if (cancelled) return
@@ -187,17 +187,10 @@ export default function SalesPage() {
     setPage(1)
   }, [search, dateFilter, statusFilter])
 
-  const summary = useMemo(() => ({
-    total: totalItems,
-    // Note: Since we use server-side pagination, revenue summary only reflects the current page
-    revenue: sales.filter((s) => s.status === "completed").reduce((acc, s) => acc + s.total, 0),
-    voided: sales.filter((s) => s.status === "voided").length,
-    refunded: sales.filter((s) => s.status === "refunded").length,
-  }), [sales, totalItems])
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
+        breadcrumb="Dashboard / Sales"
         title="Sales"
         subtitle="View and manage completed sales transactions, receipts, payments, and sale details."
         actions={
@@ -218,15 +211,9 @@ export default function SalesPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Summary strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <SummaryCard label="Transactions" value={loading ? "—" : summary.total} />
-          <SummaryCard label="Revenue" value={loading ? "—" : `${summary.revenue.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`} />
-          <SummaryCard label="Voided" value={loading ? "—" : summary.voided} accent="text-orange-600" />
-          <SummaryCard label="Refunded" value={loading ? "—" : summary.refunded} accent="text-red-600" />
-        </div>
+      <DashboardSubNav />
 
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {loadError}
@@ -234,30 +221,33 @@ export default function SalesPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
-          <SearchInput
-            value={search}
-            onChange={(v) => { setSearch(v); setPage(1) }}
-            placeholder="Search invoice, product, cashier..."
-          />
-          <div className="flex flex-wrap gap-3">
-            <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[130px]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <div className="flex-1">
+              <SearchInput
+                value={search}
+                onChange={(v) => { setSearch(v); setPage(1) }}
+                placeholder="Search invoice, product, cashier..."
+              />
+            </div>
+            <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="sm:w-44">
               <option value="">All Statuses</option>
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
               <option value="DRAFT">Draft</option>
             </Select>
-            <Input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => { setDateFilter(e.target.value); setPage(1) }}
-              className="flex-1 min-w-[130px]"
-            />
+            <div className="sm:w-44">
+              <DatePicker
+                value={dateFilter}
+                onChange={(v) => { setDateFilter(v); setPage(1) }}
+                placeholder="Filter by date"
+              />
+            </div>
           </div>
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <LoadingSkeleton />
           ) : sales.length === 0 ? (
@@ -573,15 +563,6 @@ function SaleDetailModal({
 }
 
 // ─── Small components ─────────────────────────────────────────────────────────
-
-function SummaryCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-      <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">{label}</p>
-      <p className={`text-xl font-bold mt-1 ${accent ?? "text-[#333333]"}`}>{value}</p>
-    </div>
-  )
-}
 
 function MetaCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (

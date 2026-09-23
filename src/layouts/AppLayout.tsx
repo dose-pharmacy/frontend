@@ -1,6 +1,11 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router"
 import { useAuth } from "../features/auth/AuthContext"
+import {
+  IconBox as SharedIconBox,
+  IconCheckCircle,
+  IconWarningTriangle,
+} from "../components/ui/icons"
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -35,13 +40,6 @@ function IconTruck() {
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
       <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
       <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1v-1h3.05a2.5 2.5 0 014.9 0H19a1 1 0 001-1v-3.414a1 1 0 00-.293-.707l-2.586-2.586A1 1 0 0016.414 7H15V5a1 1 0 00-1-1H3z" />
-    </svg>
-  )
-}
-function IconChart() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
     </svg>
   )
 }
@@ -84,33 +82,11 @@ function IconMenu() {
     </svg>
   )
 }
-function IconReceipt() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path
-        fillRule="evenodd"
-        d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-}
 function IconBell() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
       <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6z" />
       <path d="M10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-    </svg>
-  )
-}
-function IconSearch() {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-      <path
-        fillRule="evenodd"
-        d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-        clipRule="evenodd"
-      />
     </svg>
   )
 }
@@ -147,7 +123,6 @@ const NAV: NavItem[] = [
     label: "Inventory",
     icon: <IconBox />,
     children: [
-      { to: "/inventory", label: "Overview" },
       { to: "/inventory/products", label: "Products" },
       { to: "/inventory/stock", label: "Stock" },
       { to: "/inventory/batches-expiry", label: "Batches & Expiry" },
@@ -155,7 +130,6 @@ const NAV: NavItem[] = [
       { to: "/inventory/reorder", label: "Reorder" },
     ],
   },
-  { to: "/sales", label: "Sales", icon: <IconReceipt /> },
   {
     to: "/purchasing",
     label: "Purchasing",
@@ -167,18 +141,6 @@ const NAV: NavItem[] = [
       { to: "/purchasing/invoices", label: "Supplier Invoices" },
       { to: "/purchasing/payables", label: "Supplier Payables" },
       { to: "/purchasing/returns", label: "Returns" },
-    ],
-  },
-  {
-    to: "/reports",
-    label: "Reports",
-    icon: <IconChart />,
-    children: [
-      { to: "/reports", label: "Overview" },
-      { to: "/reports/sales", label: "Sales" },
-      { to: "/reports/profitability", label: "Profitability" },
-      { to: "/reports/slow-moving", label: "Slow Moving" },
-      { to: "/reports/narcotics", label: "Narcotics" },
     ],
   },
   {
@@ -212,9 +174,8 @@ function Sidebar({
   const navigate = useNavigate()
 
   function isPathActive(path: string) {
-    if (path === "/dashboard") return location.pathname === "/dashboard"
+    if (path === "/dashboard") return location.pathname.startsWith("/dashboard")
     if (path === "/inventory") return location.pathname === "/inventory"
-    if (path === "/sales") return location.pathname === "/sales"
     return location.pathname.startsWith(path)
   }
 
@@ -274,7 +235,7 @@ function Sidebar({
             </div>
             <div>
               <p className="text-sm font-bold text-[#333333] leading-none tracking-wide">
-                PharmaCare
+                DOSE PHARMACY
               </p>
               <p className="text-[10px] text-[#999999] mt-0.5">
                 Management System
@@ -447,7 +408,6 @@ function Sidebar({
                     const exactActive =
                       location.pathname === child.to ||
                       (child.to !== "/inventory" &&
-                        child.to !== "/reports/sales" &&
                         location.pathname.startsWith(child.to) &&
                         !item.children!.some(
                           (other) =>
@@ -494,17 +454,8 @@ function Sidebar({
         })}
       </nav>
 
-      {/* Bottom: version tag */}
-      {!collapsed && (
-        <div className="px-4 py-3 border-t border-[#E6ECE2] flex-shrink-0">
-          <p className="text-[10px] text-[#999999] font-medium">
-            PharmaCare v2.0
-          </p>
-          <p className="text-[10px] text-[#999999] mt-0.5">
-            © 2026 All rights reserved
-          </p>
-        </div>
-      )}
+      {/* Bottom: user actions (search / notifications / profile) */}
+      <SidebarFooter collapsed={collapsed} />
     </div>
   )
 
@@ -515,7 +466,7 @@ function Sidebar({
         className={`hidden md:flex flex-col bg-white flex-shrink-0 transition-all duration-300 border-r border-[#E6ECE2] shadow-sm ${
           collapsed ? "w-16" : "w-60"
         }`}
-        style={{ minHeight: "100vh" }}
+        style={{ minHeight: "100dvh" }}
       >
         {sidebarContent}
       </aside>
@@ -546,19 +497,28 @@ function Sidebar({
   )
 }
 
-// ── Top bar ───────────────────────────────────────────────────────────────────
+// ── Sidebar footer (search / notifications / profile) ─────────────────────────
 
-function TopBar({
-  onToggleMobile,
-  onToggleCollapse,
+function SidebarFooter({
+  collapsed,
 }: {
-  onToggleMobile: () => void
-  onToggleCollapse: () => void
+  collapsed: boolean
 }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [searchFocused, setSearchFocused] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!notifOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", onDown)
+    return () => document.removeEventListener("mousedown", onDown)
+  }, [notifOpen])
 
   async function handleLogout() {
     navigate("/login", { replace: true })
@@ -567,138 +527,117 @@ function TopBar({
   }
 
   return (
-    <header className="h-14 bg-white border-b border-[#E6ECE2] flex items-center gap-3 px-4 flex-shrink-0 sticky top-0 z-30 shadow-sm">
-      {/* Mobile menu toggle */}
-      <button
-        onClick={onToggleMobile}
-        className="md:hidden rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors"
-        aria-label="Open navigation"
-      >
-        <IconMenu />
-      </button>
-
-      {/* Desktop collapse toggle */}
-      <button
-        onClick={onToggleCollapse}
-        className="hidden md:flex rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors"
-        aria-label="Toggle sidebar"
-      >
-        <IconMenu />
-      </button>
-
-      {/* Search */}
-      <div
-        className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-all ${
-          searchFocused
-            ? "border-[#B6C8AF] bg-[#E6ECE2]/40 w-72"
-            : "border-[#E6ECE2] bg-[#F5F5F0] w-52"
-        } hidden sm:flex`}
-      >
-        <span className="text-[#666666]">
-          <IconSearch />
-        </span>
-        <input
-          type="text"
-          placeholder="Search anything…"
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setSearchFocused(false)}
-          className="bg-transparent text-sm text-[#333333] placeholder-[#999] outline-none w-full"
-        />
-      </div>
-
-      <div className="flex-1" />
-
+    <div className="border-t border-[#E6ECE2] px-3 py-3 flex flex-col gap-3 flex-shrink-0">
       {/* Notifications */}
-      <div className="relative">
+      <div className="relative" ref={notifRef}>
         <button
           onClick={() => setNotifOpen((v) => !v)}
-          className="relative rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors"
+          className={`relative flex items-center gap-2 rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors w-full ${
+            collapsed ? "justify-center" : "justify-start"
+          }`}
           aria-label="Notifications"
         >
-          <IconBell />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+          <span className="relative flex-shrink-0">
+            <IconBell />
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+          </span>
+          {!collapsed && (
+            <span className="text-sm font-medium text-[#333333]">
+              Notifications
+            </span>
+          )}
         </button>
 
         {notifOpen && (
-          <div className="absolute right-0 top-12 w-80 bg-white rounded-xl border border-[#E6ECE2] shadow-xl z-50 overflow-hidden">
-            <div className="bg-[#E6ECE2] px-4 py-3 flex items-center justify-between border-b border-[#C6D4BF]">
-              <p className="text-sm font-bold text-[#4F6B4A]">Notifications</p>
-              <button
-                onClick={() => setNotifOpen(false)}
-                className="text-[#666666] hover:text-[#333333]"
-              >
-                <IconX />
-              </button>
-            </div>
+          <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-lg border border-[#E6ECE2] shadow-lg z-50 overflow-hidden">
             <div className="divide-y divide-[#E6ECE2]">
               {[
                 {
-                  icon: "⚠️",
+                  icon: <IconWarningTriangle className="h-4 w-4" />,
+                  iconColor: "text-yellow-500",
                   text: "5 products near expiry date",
-                  time: "10 min ago",
-                  color: "bg-yellow-50",
+                  time: "10m",
                 },
                 {
-                  icon: "📦",
-                  text: "Stock reorder alert: Panadol 500mg",
-                  time: "1 hr ago",
-                  color: "bg-blue-50",
+                  icon: <SharedIconBox className="h-4 w-4" />,
+                  iconColor: "text-blue-500",
+                  text: "Reorder: Panadol 500mg",
+                  time: "1h",
                 },
                 {
-                  icon: "✅",
-                  text: "PO-2026-0018 delivery confirmed",
-                  time: "3 hr ago",
-                  color: "bg-green-50",
+                  icon: <IconCheckCircle className="h-4 w-4" />,
+                  iconColor: "text-green-600",
+                  text: "PO-2026-0018 delivered",
+                  time: "3h",
                 },
               ].map((n) => (
-                <div
+                <button
                   key={n.text}
-                  className={`flex items-start gap-3 px-4 py-3 hover:bg-[#F5F5F0] cursor-pointer ${n.color}`}
+                  className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#F5F5F0] text-left"
                 >
-                  <span className="text-base flex-shrink-0 mt-0.5">
+                  <span className={`flex-shrink-0 mt-0.5 ${n.iconColor}`}>
                     {n.icon}
                   </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#333333] leading-snug">
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm text-[#333333] leading-snug">
                       {n.text}
-                    </p>
-                    <p className="text-[11px] text-[#666666] mt-0.5">
+                    </span>
+                    <span className="block text-[10px] text-[#999999] mt-0.5">
                       {n.time}
-                    </p>
-                  </div>
-                </div>
+                    </span>
+                  </span>
+                </button>
               ))}
-            </div>
-            <div className="px-4 py-2.5 bg-[#F5F5F0] border-t border-[#E6ECE2]">
-              <button className="text-xs text-[#4F6B4A] hover:underline font-medium">
-                View all notifications →
-              </button>
             </div>
           </div>
         )}
       </div>
 
       {/* Profile */}
-      <div className="flex items-center gap-2.5 pl-2 border-l border-[#E6ECE2]">
+      <div
+        className={`flex items-center gap-2.5 pt-2 border-t border-[#E6ECE2] ${
+          collapsed ? "justify-center" : ""
+        }`}
+      >
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E6ECE2] text-[#4F6B4A] text-sm font-bold flex-shrink-0">
           {user?.name?.charAt(0).toUpperCase() ?? "U"}
         </div>
-        <div className="hidden sm:block text-right">
-          <p className="text-xs font-semibold text-[#333333] leading-none">
-            {user?.name}
-          </p>
-          <p className="text-[10px] text-[#666666] capitalize mt-0.5">
-            {user?.role?.replace("_", " ")}
-          </p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="ml-1 rounded-lg bg-[#E6ECE2] hover:bg-[#C6D4BF] transition-colors px-3 py-1.5 text-xs font-semibold text-[#333333]"
-        >
-          Logout
-        </button>
+        {!collapsed && (
+          <>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-semibold text-[#333333] leading-none truncate">
+                {user?.name}
+              </p>
+              <p className="text-[10px] text-[#666666] capitalize mt-0.5 truncate">
+                {user?.role?.replace("_", " ")}
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex-shrink-0 rounded-lg bg-[#E6ECE2] hover:bg-[#C6D4BF] transition-colors px-3 py-1.5 text-xs font-semibold text-[#333333]"
+            >
+              Logout
+            </button>
+          </>
+        )}
       </div>
-    </header>
+
+      {/* Version tag */}
+      <div className="pt-1">
+        <p
+          className={`text-[10px] text-[#999999] font-medium ${
+            collapsed ? "text-center" : ""
+          }`}
+        >
+          DOSE PHARMACY v2.0
+        </p>
+        {!collapsed && (
+          <p className="text-[10px] text-[#999999] mt-0.5">
+            © 2026 All rights reserved
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -723,7 +662,7 @@ export default function AppLayout() {
   }, [])
 
   return (
-    <div className="flex h-full bg-[#FAF9F4]">
+    <div className="flex h-dvh overflow-hidden bg-[#FAF9F4]">
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((v) => !v)}
@@ -731,16 +670,18 @@ export default function AppLayout() {
         onCloseMobile={() => setMobileOpen(false)}
       />
 
-      <div className="flex flex-col flex-1 min-w-0 min-h-0">
-        <TopBar
-          onToggleMobile={() => setMobileOpen(true)}
-          onToggleCollapse={() => setCollapsed((v) => !v)}
-        />
+      {/* Mobile nav trigger (header removed) */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open navigation"
+        className="md:hidden fixed top-3 left-3 z-40 rounded-lg p-2 bg-white border border-[#E6ECE2] text-[#666666] shadow-sm hover:bg-[#E6ECE2] transition-colors"
+      >
+        <IconMenu />
+      </button>
 
-        <main className="flex-1 flex flex-col min-h-0">
-          <Outlet />
-        </main>
-      </div>
+      <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+        <Outlet />
+      </main>
     </div>
   )
 }

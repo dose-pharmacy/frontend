@@ -3,6 +3,7 @@ import { useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
+import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import { listSupplierInvoices, deleteSupplierInvoice, recordInvoicePayment, invoiceOutstanding, type SupplierInvoiceDto, type SupplierInvoiceStatus, SupplierInvoicesApiError } from "../../features/purchasing/supplierInvoicesApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
@@ -124,13 +125,6 @@ export default function SupplierInvoicesPage() {
     }
   }
 
-  const summary = {
-    total: totalCount,
-    open: invoices.filter((i) => i.status === "OPEN").length,
-    partiallyPaid: invoices.filter((i) => i.status === "PARTIALLY_PAID").length,
-    paid: invoices.filter((i) => i.status === "PAID").length,
-  }
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
@@ -145,32 +139,19 @@ export default function SupplierInvoicesPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {([
-            ["Total Invoices", summary.total, "text-[#333333]"],
-            ["Open", summary.open, "text-yellow-600"],
-            ["Partially Paid", summary.partiallyPaid, "text-orange-600"],
-            ["Paid", summary.paid, "text-green-600"],
-          ] as [string, number, string][]).map(([label, value, accent]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-              <p className="text-xs text-[#666666]">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search invoices..." />
-          <div className="flex flex-wrap gap-3 items-center">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as SupplierInvoiceStatus | ""); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+          <div className="flex flex-col lg:flex-row gap-3 items-center">
+            <div className="flex-1">
+              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search invoices..." />
+            </div>
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as SupplierInvoiceStatus | ""); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="OPEN">Open</option>
               <option value="PARTIALLY_PAID">Partially Paid</option>
               <option value="PAID">Paid</option>
             </select>
-            <select value={supplierFilter} onChange={(e) => { setSupplierFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+            <select value={supplierFilter} onChange={(e) => { setSupplierFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Suppliers</option>
               {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -181,7 +162,7 @@ export default function SupplierInvoicesPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
@@ -257,18 +238,17 @@ export default function SupplierInvoicesPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
-                <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} invoices
-                </p>
-                <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
-                  ))}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
-                </div>
-              </div>
+              <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  label={
+                    <>
+                      Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
+                      {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} invoices
+                    </>
+                  }
+                />
             </>
           )}
         </div>

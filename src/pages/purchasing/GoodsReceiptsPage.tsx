@@ -3,13 +3,13 @@ import { useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
+import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import {
   listGoodsReceipts,
   deleteGoodsReceipt,
   type GoodsReceiptDto,
   type GoodsReceiptStatus,
-  type GoodsReceiptListSummary,
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
@@ -39,7 +39,6 @@ export default function GoodsReceiptsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptDto | null>(null)
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
-  const [grSummary, setGrSummary] = useState<GoodsReceiptListSummary | null>(null)
 
   const PAGE_SIZE = 20
 
@@ -69,7 +68,6 @@ export default function GoodsReceiptsPage() {
       setReceipts(res.data)
       setTotalPages(res.meta.totalPages)
       setTotalCount(res.meta.total)
-      if (res.summary) setGrSummary(res.summary)
     } catch (e) {
       setError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to load goods receipts.")
     } finally {
@@ -112,14 +110,6 @@ export default function GoodsReceiptsPage() {
     )
   }, [receipts, search, supplierName])
 
-  // Status counts come from the server (over the filtered dataset) when available.
-  const summary = {
-    total: totalCount,
-    matched: grSummary?.matched ?? visibleReceipts.filter((r) => r.status === "MATCHED").length,
-    discrepancy: grSummary?.discrepancy ?? visibleReceipts.filter((r) => r.status === "DISCREPANCY").length,
-    resolved: grSummary?.resolved ?? visibleReceipts.filter((r) => r.status === "RESOLVED").length,
-  }
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
@@ -134,26 +124,13 @@ export default function GoodsReceiptsPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {([
-            ["Total Receipts", summary.total, "text-[#333333]"],
-            ["Matched", summary.matched, "text-green-600"],
-            ["Discrepancy", summary.discrepancy, "text-yellow-600"],
-            ["Resolved", summary.resolved, "text-blue-600"],
-          ] as [string, number, string][]).map(([label, value, accent]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-              <p className="text-xs text-[#666666]">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search receipts..." />
-          <div className="flex flex-wrap gap-3 items-center">
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as GoodsReceiptStatus | ""); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <div className="flex-1">
+              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search receipts..." />
+            </div>
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as GoodsReceiptStatus | ""); setPage(1) }} className="sm:w-48 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="MATCHED">Matched</option>
               <option value="DISCREPANCY">Discrepancy</option>
@@ -166,7 +143,7 @@ export default function GoodsReceiptsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
@@ -259,18 +236,17 @@ export default function GoodsReceiptsPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between">
-                <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} receipts
-                </p>
-                <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
-                  ))}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
-                </div>
-              </div>
+              <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  label={
+                    <>
+                      Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
+                      {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} receipts
+                    </>
+                  }
+                />
             </>
           )}
         </div>
