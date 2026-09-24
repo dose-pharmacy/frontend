@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
+import DatePicker from "../../components/ui/DatePicker";
+import { IconCheck } from "../../components/ui/icons";
 import {
   getGoodsReceipt,
   resolveGoodsReceipt,
@@ -57,7 +59,7 @@ export default function ReconciliationPage() {
       setReceipt(r);
       if (r.status === "DISCREPANCY") {
         setResolveItems(
-          (          (r.items ?? []) ?? []).map((item) => ({
+          r.items.map((item) => ({
             id: item.id,
             deliveredQty: item.deliveredQty,
             actualQty: item.actualQty,
@@ -150,7 +152,7 @@ export default function ReconciliationPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-500 mb-3">{error || "Receipt not found."}</p>
-            <button onClick={fetchReceipt} className="text-[#49B0C1] hover:underline text-sm">Retry</button>
+            <button onClick={fetchReceipt} className="text-[#7A9076] hover:underline text-sm">Retry</button>
           </div>
         </div>
       </div>
@@ -162,6 +164,9 @@ export default function ReconciliationPage() {
   const totalOrdered = receipt.items.reduce((s, i) => s + i.expectedQty, 0);
   const totalDelivered = receipt.items.reduce((s, i) => s + i.deliveredQty, 0);
   const totalActual = receipt.items.reduce((s, i) => s + i.actualQty, 0);
+  const distinctUnits = [...new Set(receipt.items.map((i) => i.unit?.name).filter(Boolean))];
+  const summaryUnit = distinctUnits.length === 1 ? (distinctUnits[0] as string) : "";
+  const unitLabel = (item: GRItemDto): string => item.unit?.name ?? "";
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -184,7 +189,7 @@ export default function ReconciliationPage() {
                 disabled={confirming}
                 className="rounded-lg bg-green-500 border border-green-300 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {confirming ? "Confirming…" : "✓ Confirm Receipt"}
+                {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm Receipt</span>}
               </button>
             )}
           </div>
@@ -204,32 +209,32 @@ export default function ReconciliationPage() {
         )}
 
         {/* Summary cards */}
-        <div className="px-4 sm:px-6 py-4 bg-[#DBEFF3]">
+        <div className="px-4 sm:px-6 py-4 bg-[#E6ECE2]">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
               <p className="text-xs text-[#666666]">PO Number</p>
               <p className="text-lg font-bold text-[#333333] mt-1">{receipt.purchaseOrder?.poNumber ?? "—"}</p>
             </div>
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
-              <p className="text-xs text-[#666666]">Expected Qty</p>
-              <p className="text-lg font-bold text-[#333333] mt-1">{totalOrdered}</p>
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
+              <p className="text-xs text-[#666666]">Expected Qty {summaryUnit && `(${summaryUnit})`}</p>
+              <p className="text-lg font-bold text-[#333333] mt-1">{totalOrdered} {summaryUnit}</p>
             </div>
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
-              <p className="text-xs text-[#666666]">Delivered Qty</p>
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
+              <p className="text-xs text-[#666666]">Delivered Qty {summaryUnit && `(${summaryUnit})`}</p>
               <p className={`text-lg font-bold mt-1 ${totalDelivered < totalOrdered ? "text-yellow-500" : "text-[#333333]"}`}>
-                {totalDelivered}
+                {totalDelivered} {summaryUnit}
               </p>
             </div>
-            <div className="bg-white rounded-xl p-4 text-center border border-[#ABDBE3]/30">
-              <p className="text-xs text-[#666666]">Actual Qty</p>
-              <p className="text-lg font-bold text-green-600 mt-1">{totalActual}</p>
+            <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
+              <p className="text-xs text-[#666666]">Actual Qty {summaryUnit && `(${summaryUnit})`}</p>
+              <p className="text-lg font-bold text-green-600 mt-1">{totalActual} {summaryUnit}</p>
             </div>
           </div>
         </div>
 
         {/* Receipt info */}
         <div className="px-4 sm:px-6 py-4">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="text-xs text-[#666666]">Supplier</p>
               <p className="font-medium text-[#333333]">{receipt.purchaseOrder?.supplier?.name ?? "—"}</p>
@@ -253,10 +258,10 @@ export default function ReconciliationPage() {
 
         {/* Items table */}
         <div className="px-4 sm:px-6">
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden overflow-x-auto">
+          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden overflow-x-auto">
             <table className="w-full text-sm min-w-[700px]">
               <thead>
-                <tr className="bg-[#ABDBE3]">
+                <tr className="bg-[#C6D4BF]">
                   {["#", "Product", "Expected", "Delivered", "Actual", "Variance", "Batch", "Expiry", "Location"].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                   ))}
@@ -267,16 +272,16 @@ export default function ReconciliationPage() {
                   const variance = item.actualQty - item.expectedQty;
                   const isMatch = variance === 0;
                   return (
-                    <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                    <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                       <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                       <td className="px-3 py-2.5 font-medium text-[#333333]">
                         {item.purchaseOrderItem?.product?.name ?? `Product (${item.purchaseOrderItem?.productId?.slice(0, 8) ?? "?"})`}
                       </td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.expectedQty}</td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.deliveredQty}</td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.actualQty}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.expectedQty} {unitLabel(item)}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.deliveredQty} {unitLabel(item)}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.actualQty} {unitLabel(item)}</td>
                       <td className={`px-3 py-2.5 font-semibold ${isMatch ? "text-green-600" : "text-red-500"}`}>
-                        {isMatch ? "✓ 0" : `${variance > 0 ? "+" : ""}${variance}`}
+                        {isMatch ? <span className="inline-flex items-center gap-1"><IconCheck className="h-3.5 w-3.5" />0{unitLabel(item) && ` ${unitLabel(item)}`}</span> : `${variance > 0 ? "+" : ""}${variance} ${unitLabel(item)}`}
                       </td>
                       <td className="px-3 py-2.5 text-[#333333]">{item.batchNumber ?? "—"}</td>
                       <td className="px-3 py-2.5 text-[#333333]">{fmtDate(item.expiryDate)}</td>
@@ -317,15 +322,24 @@ export default function ReconciliationPage() {
                           </td>
                           <td className="px-3 py-2">
                             <input type="number" min={0} value={item.actualQty} onChange={(e) => updateResolveItem(item.id, "actualQty", Number(e.target.value))} className="w-16 rounded border border-yellow-300 px-2 py-1 text-sm" />
+                            {originalItem?.unit?.name && <span className="ml-1.5 text-xs text-yellow-700">{originalItem.unit.name}</span>}
                           </td>
                           <td className="px-3 py-2">
                             <input value={item.batchNumber} onChange={(e) => updateResolveItem(item.id, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-yellow-300 px-2 py-1 text-xs" />
                           </td>
                           <td className="px-3 py-2">
-                            <input type="date" value={item.manufacturingDate} onChange={(e) => updateResolveItem(item.id, "manufacturingDate", e.target.value)} className="w-32 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                            <DatePicker
+                              value={item.manufacturingDate}
+                              onChange={(v) => updateResolveItem(item.id, "manufacturingDate", v)}
+                              placeholder="Mfg date"
+                            />
                           </td>
                           <td className="px-3 py-2">
-                            <input type="date" value={item.expiryDate} onChange={(e) => updateResolveItem(item.id, "expiryDate", e.target.value)} className="w-32 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                            <DatePicker
+                              value={item.expiryDate}
+                              onChange={(v) => updateResolveItem(item.id, "expiryDate", v)}
+                              placeholder="Expiry date"
+                            />
                           </td>
                         </tr>
                       );
@@ -363,7 +377,7 @@ export default function ReconciliationPage() {
                 disabled={confirming}
                 className="rounded-lg bg-green-500 px-5 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40"
               >
-                {confirming ? "Confirming…" : "✓ Confirm & Update Stock"}
+                {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm &amp; Update Stock</span>}
               </button>
             </div>
           </div>
@@ -371,28 +385,28 @@ export default function ReconciliationPage() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#DBEFF3] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E6ECE2] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
         <button onClick={() => navigate("/purchasing/orders")} className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">
           Back to Orders
         </button>
         {canConfirm && (
           <button onClick={handleConfirm} disabled={confirming} className="rounded-lg bg-green-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-green-600 transition-colors disabled:opacity-40">
-            {confirming ? "Confirming…" : "✓ Confirm Receipt"}
+            {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm Receipt</span>}
           </button>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      <Modal open={deleteOpen} title="Delete Goods Receipt?" onClose={() => setDeleteOpen(false)} size="sm">
+        <p className="text-sm text-[#666666]">Are you sure you want to delete this goods receipt?</p>
+        <p className="mt-2 text-xs text-[#999]">This action cannot be undone. Only unconfirmed receipts can be deleted.</p>
+        <div className="flex gap-3 justify-end mt-6">
+          <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+          <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
+            {deleting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
-
-  {/* Delete confirmation modal */}
-  <Modal open={deleteOpen} title="Delete Goods Receipt?" onClose={() => setDeleteOpen(false)} size="sm">
-    <p className="text-sm text-[#666666]">Are you sure you want to delete this goods receipt?</p>
-    <p className="mt-2 text-xs text-[#999]">This action cannot be undone. Only unconfirmed receipts can be deleted.</p>
-    <div className="flex gap-3 justify-end mt-6">
-      <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-      <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
-        {deleting ? "Deleting..." : "Delete"}
-      </button>
-    </div>
-  </Modal>
 }

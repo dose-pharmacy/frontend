@@ -7,8 +7,8 @@ interface MetricCardProps {
 
 export default function MetricCard({ title, value, icon, subtitle }: MetricCardProps) {
   return (
-    <div className="rounded-xl bg-[#DBEFF3] p-5 flex items-start gap-4">
-      <div className="flex-shrink-0 flex h-11 w-11 items-center justify-center rounded-lg bg-white/60 text-[#49B0C1]">
+    <div className="rounded-xl bg-[#E6ECE2] p-5 flex items-start gap-4">
+      <div className="flex-shrink-0 flex h-11 w-11 items-center justify-center rounded-lg bg-white/60 text-[#7A9076]">
         {icon}
       </div>
       <div className="min-w-0">

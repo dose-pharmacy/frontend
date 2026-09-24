@@ -12,6 +12,8 @@ import PageHeader from "../../components/ui/PageHeader";
 import Select from "../../components/ui/Select";
 import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
+import DatePicker from "../../components/ui/DatePicker";
+import { pluralizeUnit } from "../../utils/format";
 
 function fmtDate(d: string) {
   if (!d) return "—";
@@ -34,7 +36,7 @@ function prettyType(t: string) {
 function TxTypeBadge({ type }: { type: string }) {
   // Keys match the backend StockTransactionType enum (lowercased).
   const map: Record<string, string> = {
-    opening:           "bg-[#DBEFF3] text-[#49B0C1]",
+    opening:           "bg-[#E6ECE2] text-[#7A9076]",
     purchase:          "bg-green-100 text-green-700",
     sale:              "bg-blue-100 text-blue-700",
     transfer_in:       "bg-purple-100 text-purple-700",
@@ -150,7 +152,7 @@ export default function BinCardPage() {
   const selectedLocation = locations.find((l) => l.id === locationId);
   const selectedBatch = batches.find((b) => b.id === batchId);
   const unit = card?.baseUnit?.name || unitsProd.product?.baseUnit?.name || "";
-  const unitLabel = unit ? `${unit}s` : "";
+  const unitLabel = unit ? pluralizeUnit(unit) : "";
 
   function handleExportCSV() {
     const header = "Date,Reference,Type,Notes,In,Out,Balance,Cost\n";
@@ -190,7 +192,7 @@ export default function BinCardPage() {
 
       <div className="p-6 flex flex-col gap-6 overflow-y-auto">
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-4">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-4">
           <p className="text-sm font-semibold text-[#333333]">Bin Card Selection</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="flex flex-col gap-1">
@@ -231,15 +233,23 @@ export default function BinCardPage() {
             </Select>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#666666]">From Date</label>
-              <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none" />
+              <DatePicker
+                value={fromDate}
+                onChange={(v) => { setFromDate(v); setPage(1); }}
+                placeholder="From date"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#666666]">To Date</label>
-              <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#ABDBE3] px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none" />
+              <DatePicker
+                value={toDate}
+                onChange={(v) => { setToDate(v); setPage(1); }}
+                placeholder="To date"
+              />
             </div>
           </div>
           {(fromDate || toDate) && (
-            <button onClick={() => { setFromDate(""); setToDate(""); setPage(1); }} className="text-xs font-semibold text-[#49B0C1] hover:underline self-end">Clear Date Range</button>
+            <button onClick={() => { setFromDate(""); setToDate(""); setPage(1); }} className="text-xs font-semibold text-[#7A9076] hover:underline self-end">Clear Date Range</button>
           )}
         </div>
 
@@ -251,11 +261,11 @@ export default function BinCardPage() {
             <button onClick={() => setReloadKey((k) => k + 1)} className="text-xs font-semibold text-red-700 hover:underline whitespace-nowrap">Retry</button>
           </div>
         ) : loading && !card ? (
-          <div className="p-6 space-y-3 animate-pulse">{[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-[#DBEFF3] rounded-lg" />)}</div>
+          <div className="p-6 space-y-3 animate-pulse">{[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-[#E6ECE2] rounded-lg" />)}</div>
         ) : card ? (
           <div className="flex flex-col gap-6">
             {/* Header */}
-            <div className="rounded-xl bg-[#DBEFF3]/40 p-4 border border-[#DBEFF3]">
+            <div className="rounded-xl bg-[#E6ECE2]/40 p-4 border border-[#E6ECE2]">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-[#666666] mb-1">Product</p>
@@ -284,7 +294,7 @@ export default function BinCardPage() {
                 ["Total OUT", `−${totals.out.toLocaleString()}`],
                 ["Closing Balance", card.closingBalance.toLocaleString()],
               ] as [string, string][]).map(([label, value]) => (
-                <div key={label} className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+                <div key={label} className="bg-white rounded-xl border border-[#E6ECE2] p-4">
                   <p className="text-xs text-[#666666]">{label}</p>
                   <p className="text-2xl font-bold text-[#333333] mt-1">{value}</p>
                 </div>
@@ -292,11 +302,11 @@ export default function BinCardPage() {
             </div>
 
             {/* Ledger */}
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       <th className="px-4 py-3 font-semibold text-[#333333]">Date</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Reference</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Type</th>
@@ -318,7 +328,7 @@ export default function BinCardPage() {
                         const batchRef = (t.batch as { batchNumber?: string } | undefined)?.batchNumber;
                         const userRef = (t.user as { name?: string } | undefined)?.name;
                         return (
-                          <tr key={t.transactionId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                          <tr key={t.transactionId} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                             <td className="px-4 py-3 text-[#666666] whitespace-nowrap text-xs">{fmtDateTime(t.date)}</td>
                             <td className="px-4 py-3 font-mono text-xs text-[#666666]">{t.reference || "—"}</td>
                             <td className="px-4 py-3"><TxTypeBadge type={t.transactionType} /></td>
@@ -336,13 +346,13 @@ export default function BinCardPage() {
                 </table>
               </div>
               {card.totalPages && card.totalPages > 1 && (
-                <div className="border-t border-[#DBEFF3] px-5 py-3 flex items-center justify-between">
+                <div className="border-t border-[#E6ECE2] px-5 py-3 flex items-center justify-between">
                   <p className="text-xs text-[#666666]">
                     Page {page} of {card.totalPages} · {card.total ?? tx.length} movements
                   </p>
                   <div className="flex gap-1">
-                    <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">← Prev</button>
-                    <button disabled={page >= (card.totalPages ?? 1)} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Next →</button>
+                    <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">← Prev</button>
+                    <button disabled={page >= (card.totalPages ?? 1)} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">Next →</button>
                   </div>
                 </div>
               )}

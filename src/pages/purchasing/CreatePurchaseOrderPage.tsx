@@ -47,6 +47,232 @@ function fmtMoney(n: number) { return `${n.toLocaleString("en-ET")} ETB` }
 function itemTotal(item: POItem) { return item.quantity * item.unitCost }
 function orderTotal(items: POItem[]) { return items.reduce((s, i) => s + itemTotal(i), 0) }
 
+// ─── Custom DatePicker (branded popup calendar) ───────────────────────────────
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+const WEEKDAYS = ["Mo","Tu","We","Th","Fr","Sa","Su"]
+
+function toISO(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function fromISO(s: string): Date | null {
+  if (!s) return null
+  const d = new Date(s + "T00:00:00")
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function fmtDisplay(s: string): string {
+  const d = fromISO(s)
+  if (!d) return ""
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+/** Build a 6x7 grid (Monday-first) for the given month. */
+function buildGrid(viewDate: Date): Date[] {
+  const year = viewDate.getFullYear()
+  const month = viewDate.getMonth()
+  const first = new Date(year, month, 1)
+  // Monday = 0 ... Sunday = 6
+  const startOffset = (first.getDay() + 6) % 7
+  const gridStart = new Date(year, month, 1 - startOffset)
+  const cells: Date[] = []
+  for (let i = 0; i < 42; i++) {
+    cells.push(new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i))
+  }
+  return cells
+}
+
+function DatePicker({
+  value,
+  onChange,
+  disabled,
+  placeholder = "Select a date...",
+}: {
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = fromISO(value)
+  const [viewDate, setViewDate] = useState<Date>(selected ?? new Date())
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Keep the popup month in sync when the value changes externally.
+  useEffect(() => {
+    const d = fromISO(value)
+    if (d) setViewDate(d)
+  }, [value])
+
+  // Close on outside click / Escape.
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDoc)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const today = new Date()
+  const todayISO = toISO(today)
+  const selectedISO = selected ? toISO(selected) : ""
+  const viewYear = viewDate.getFullYear()
+  const viewMonth = viewDate.getMonth()
+  const grid = buildGrid(viewDate)
+
+  function prevMonth() {
+    setViewDate(new Date(viewYear, viewMonth - 1, 1))
+  }
+  function nextMonth() {
+    setViewDate(new Date(viewYear, viewMonth + 1, 1))
+  }
+  function pick(d: Date) {
+    onChange(toISO(d))
+    setOpen(false)
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      {/* Trigger — matches the other inputs */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="w-full rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-left text-[#4A4A4A] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between gap-2 transition-colors hover:border-[#B6C8AF]"
+      >
+        <span className={value ? "text-[#4A4A4A]" : "text-[#9A9A9A]"}>
+          {value ? fmtDisplay(value) : placeholder}
+        </span>
+        <svg
+          className="h-4 w-4 text-[#7A9076] shrink-0"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {/* Popup calendar */}
+      {open && (
+        <div className="absolute z-50 mt-2 rounded-xl border border-[#E6ECE2] bg-white shadow-lg p-3 w-[19rem]">
+          {/* Header: prev / month-year / next */}
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={prevMonth}
+              aria-label="Previous month"
+              className="h-8 w-8 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            <div className="text-sm font-bold text-[#4A4A4A]">
+              {MONTHS[viewMonth]} {viewYear}
+            </div>
+
+            <button
+              type="button"
+              onClick={nextMonth}
+              aria-label="Next month"
+              className="h-8 w-8 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Weekday header */}
+          <div className="grid grid-cols-7 mb-1">
+            {WEEKDAYS.map((d) => (
+              <div
+                key={d}
+                className="h-8 flex items-center justify-center text-[0.7rem] uppercase tracking-wide text-[#8A8A8A] font-semibold"
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Day grid */}
+          <div className="grid grid-cols-7">
+            {grid.map((d, i) => {
+              const iso = toISO(d)
+              const inMonth = d.getMonth() === viewMonth
+              const isSelected = iso === selectedISO
+              const isToday = iso === todayISO
+
+              let cls =
+                "h-9 w-9 mx-auto rounded-lg text-sm inline-flex items-center justify-center transition-colors "
+
+              if (isSelected) {
+                cls += "bg-[#B6C8AF] text-[#333333] font-bold hover:bg-[#A5B89E]"
+              } else if (!inMonth) {
+                cls += "text-[#C8C8C8] hover:bg-[#F3F5F0]"
+              } else if (isToday) {
+                cls += "text-[#4A4A4A] ring-1 ring-inset ring-[#B6C8AF] hover:bg-[#E6ECE2]"
+              } else {
+                cls += "text-[#4A4A4A] hover:bg-[#E6ECE2]"
+              }
+
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => pick(d)}
+                  className={cls}
+                >
+                  {d.getDate()}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Quick actions */}
+          <div className="mt-3 pt-3 border-t border-[#E6ECE2] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                onChange("")
+                setOpen(false)
+              }}
+              className="text-xs font-semibold text-[#7A7A7A] hover:text-[#4A4A4A] transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => pick(today)}
+              className="text-xs font-semibold text-[#7A9076] hover:text-[#5F7359] transition-colors"
+            >
+              Today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Status timeline ──────────────────────────────────────────────────────────
 
 const STATUS_FLOW: POStatus[] = ["REGISTERED", "AWAITING_DELIVERY", "RECEIVED", "CLOSED"]
@@ -74,10 +300,10 @@ function StatusTimeline({ current, cancelled }: { current: POStatus; cancelled?:
                 step === "CANCELLED"
                   ? "border-red-300 bg-red-50 text-red-500"
                   : done
-                  ? "border-[#49B0C1] bg-[#49B0C1] text-white"
+                  ? "border-[#B6C8AF] bg-[#B6C8AF] text-[#333333]"
                   : active
-                  ? "border-[#49B0C1] bg-white text-[#49B0C1]"
-                  : "border-[#ABDBE3] bg-white text-[#ABDBE3]"
+                  ? "border-[#B6C8AF] bg-[#B6C8AF] text-[#333333]"
+                  : "border-[#C6D4BF] bg-white text-[#C6D4BF]"
               }`}>
                 {done ? (
                   <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -85,12 +311,12 @@ function StatusTimeline({ current, cancelled }: { current: POStatus; cancelled?:
                   </svg>
                 ) : idx + 1}
               </div>
-              <p className={`mt-1 text-[10px] font-medium text-center leading-tight ${active ? "text-[#49B0C1]" : done ? "text-[#49B0C1]" : "text-[#ABDBE3]"} ${step === "CANCELLED" ? "text-red-500" : ""}`}>
+              <p className={`mt-1 text-[10px] font-medium text-center leading-tight ${active ? "text-[#7A9076]" : done ? "text-[#7A9076]" : "text-[#C6D4BF]"} ${step === "CANCELLED" ? "text-red-500" : ""}`}>
                 {labels[step]}
               </p>
             </div>
             {idx < steps.length - 1 && (
-              <div className={`h-0.5 w-8 -mt-4 mx-1 flex-shrink-0 ${idx < currentIdx ? "bg-[#49B0C1]" : "bg-[#DBEFF3]"}`} />
+              <div className={`h-0.5 w-8 -mt-4 mx-1 flex-shrink-0 ${idx < currentIdx ? "bg-[#B6C8AF]" : "bg-[#E6ECE2]"}`} />
             )}
           </div>
         )
@@ -164,8 +390,6 @@ function AddProductModal({ open, reqLines, existingProductIds, onClose, onAdd }:
     setProduct(""); setUnitId(""); setQuantity(""); setUnitCost(""); setReqLineId("")
   }
 
-  const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
-
   return (
     <Modal open={open} title="Add Product to Purchase Order" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -212,9 +436,9 @@ function AddProductModal({ open, reqLines, existingProductIds, onClose, onAdd }:
           <input type="number" min={0} step={0.01} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className={SC} placeholder="0.00" />
         </div>
         {showPreview && (
-          <div className="rounded-lg bg-[#DBEFF3]/50 px-4 py-2.5 text-sm">
+          <div className="rounded-lg bg-[#E6ECE2]/50 px-4 py-2.5 text-sm">
             {qty} {productUnit?.unit?.name ?? ""} ={" "}
-            <span className="font-semibold text-[#49B0C1]">{baseQty} {baseUnit?.name ?? ""}</span>
+            <span className="font-semibold text-[#7A9076]">{baseQty} {baseUnit?.name ?? ""}</span>
             <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
           </div>
         )}
@@ -226,12 +450,12 @@ function AddProductModal({ open, reqLines, existingProductIds, onClose, onAdd }:
           </select>
         </div>
         {product && quantity && unitCost && (
-          <div className="rounded-lg bg-[#DBEFF3]/50 px-4 py-2.5 flex items-center justify-between text-sm">
+          <div className="rounded-lg bg-[#E6ECE2]/50 px-4 py-2.5 flex items-center justify-between text-sm">
             <span className="text-[#666666]">Line Total</span>
             <span className="font-bold text-[#333333]">{fmtMoney(qty * (parseFloat(unitCost) || 0))}</span>
           </div>
         )}
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleAdd}>Add Product</Button>
         </div>
@@ -272,8 +496,6 @@ function EditItemModal({ item, error, onClose, onSave }: {
     )
   }
 
-  const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
-
   return (
     <Modal open={!!item} title="Edit Order Item" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -287,12 +509,12 @@ function EditItemModal({ item, error, onClose, onSave }: {
           <input type="number" min={0} step={0.01} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className={SC} />
         </div>
         {quantity && unitCost && (
-          <div className="rounded-lg bg-[#DBEFF3]/50 px-4 py-2.5 flex items-center justify-between text-sm">
+          <div className="rounded-lg bg-[#E6ECE2]/50 px-4 py-2.5 flex items-center justify-between text-sm">
             <span className="text-[#666666]">Line Total</span>
             <span className="font-bold text-[#333333]">{fmtMoney(parseFloat(quantity || "0") * parseFloat(unitCost || "0"))}</span>
           </div>
         )}
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave}>Save Item</Button>
         </div>
@@ -313,7 +535,6 @@ function AcceptShortageModal({ target, quantity, reason, error, setQuantity, set
   onClose: () => void
   onConfirm: () => void
 }) {
-  const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
   return (
     <Modal open={!!target} title="Accept Shortage" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -328,9 +549,9 @@ function AcceptShortageModal({ target, quantity, reason, error, setQuantity, set
         </div>
         <div>
           <label className="text-sm font-medium text-[#333333] block mb-1.5">Reason <span className="text-[#999] text-xs font-normal">(optional)</span></label>
-          <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" placeholder="e.g. Supplier short-shipped this line" />
+          <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none" placeholder="e.g. Supplier short-shipped this line" />
         </div>
-        <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={onConfirm}>Accept Shortage</Button>
         </div>
@@ -362,6 +583,11 @@ function ConfirmModal({ open, title, message, detail, error, confirmLabel, confi
     </Modal>
   )
 }
+
+// ─── Shared input class ───────────────────────────────────────────────────────
+
+const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 bg-white"
+const ROC = "w-full rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-3.5 py-2.5 text-sm text-[#666666]"
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -708,9 +934,6 @@ export default function CreatePurchaseOrderPage() {
     }
   }
 
-  const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
-  const ROC = "w-full rounded-xl border border-[#DBEFF3] bg-[#DBEFF3]/40 px-3.5 py-2.5 text-sm text-[#666666]"
-
   const reference = poState?.poNumber ?? (isNew ? "New Purchase Order" : "")
 
   if (loadingPO) {
@@ -718,7 +941,7 @@ export default function CreatePurchaseOrderPage() {
       <div className="flex-1 flex flex-col min-h-0">
         <PageHeader breadcrumb="Purchasing / Orders" title="Purchase Order" subtitle="Loading..." />
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+          <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
           <p className="text-sm text-[#666666]">Loading purchase order...</p>
         </div>
       </div>
@@ -747,12 +970,12 @@ export default function CreatePurchaseOrderPage() {
           <div className="flex items-center gap-2">
             {!isNew && poState && <StatusBadge status={status} />}
             {!isNew && editMode && (
-              <button onClick={() => setEditMode(false)} className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3.5 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors">
+              <button onClick={() => setEditMode(false)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors">
                 Cancel Edit
               </button>
             )}
             {!isNew && !editMode && status === "REGISTERED" && (
-              <button onClick={() => setEditMode(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3.5 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors">
+              <button onClick={() => setEditMode(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors">
                 Edit Order
               </button>
             )}
@@ -763,7 +986,7 @@ export default function CreatePurchaseOrderPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {/* Detail view — back nav */}
         {!isNew && (
-          <button onClick={() => navigate("/purchasing/orders")} className="flex items-center gap-1.5 text-sm text-[#666666] hover:text-[#49B0C1] transition-colors mb-5">
+          <button onClick={() => navigate("/purchasing/orders")} className="flex items-center gap-1.5 text-sm text-[#666666] hover:text-[#7A9076] transition-colors mb-5">
             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
               <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
             </svg>
@@ -783,14 +1006,14 @@ export default function CreatePurchaseOrderPage() {
 
             {/* Status timeline (detail only) */}
             {!isNew && poState && (
-              <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">Order Status</p>
                 <StatusTimeline current={status} cancelled={status === "CANCELLED"} />
               </div>
             )}
 
             {/* Order information */}
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">Order Information</p>
               <div className="grid sm:grid-cols-2 gap-4">
                 {!isNew && (
@@ -814,7 +1037,11 @@ export default function CreatePurchaseOrderPage() {
                   {isReadOnly ? (
                     <div className={ROC}>{fmtDate(poState?.orderDate ?? orderDate)}</div>
                   ) : (
-                    <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className={SC} />
+                    <DatePicker
+                      value={orderDate}
+                      onChange={setOrderDate}
+                      placeholder="Select order date..."
+                    />
                   )}
                 </div>
                 <div>
@@ -822,14 +1049,18 @@ export default function CreatePurchaseOrderPage() {
                   {isReadOnly ? (
                     <div className={ROC}>{fmtDate(delivDate) || "—"}</div>
                   ) : (
-                    <input type="date" value={delivDate} onChange={(e) => setDelivDate(e.target.value)} className={SC} />
+                    <DatePicker
+                      value={delivDate}
+                      onChange={setDelivDate}
+                      placeholder="Select delivery date..."
+                    />
                   )}
                 </div>
               </div>
             </div>
 
             {/* Supplier selection */}
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">
                 Supplier <span className="text-red-400">*</span>
               </p>
@@ -851,7 +1082,7 @@ export default function CreatePurchaseOrderPage() {
                 />
               )}
               {supplierView && (
-                <div className="mt-4 rounded-xl bg-[#DBEFF3]/50 p-4 grid sm:grid-cols-2 gap-3">
+                <div className="mt-4 rounded-xl bg-[#E6ECE2]/50 p-4 grid sm:grid-cols-2 gap-3">
                   {[
                     ["Contact Person", supplierView.contactPerson],
                     ["Phone",          supplierView.phone],
@@ -868,28 +1099,28 @@ export default function CreatePurchaseOrderPage() {
             </div>
 
             {/* Order items */}
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-              <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+              <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Order Items</p>
                   <p className="text-xs text-[#999] mt-0.5">Products included in this purchase order.</p>
                 </div>
                 {isNew && (
-                  <button onClick={() => setAddProductOpen(true)} className="text-xs font-semibold text-[#49B0C1] hover:underline">+ Add Product</button>
+                  <button onClick={() => setAddProductOpen(true)} className="text-xs font-semibold text-[#7A9076] hover:underline">+ Add Product</button>
                 )}
               </div>
               {items.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-sm text-[#999]">No products added yet.</p>
                   {isNew && (
-                    <button onClick={() => setAddProductOpen(true)} className="mt-3 text-xs font-semibold text-[#49B0C1] hover:underline">+ Add Product</button>
+                    <button onClick={() => setAddProductOpen(true)} className="mt-3 text-xs font-semibold text-[#7A9076] hover:underline">+ Add Product</button>
                   )}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-[#DBEFF3]/50 text-left">
+                      <tr className="bg-[#E6ECE2]/50 text-left">
                         <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
                         <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Requirement</th>
                         <th className="px-4 py-3 font-semibold text-[#333333] text-right">Quantity</th>
@@ -903,7 +1134,7 @@ export default function CreatePurchaseOrderPage() {
                         const product = products.find((p) => p.id === item.productId)
                         const reqLine = reqLines.find((r) => r.lineId === item.requirementLineId)
                         return (
-                          <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
+                          <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}>
                             <td className="px-4 py-3 font-medium text-[#333333]">{product?.name ?? item.product ?? "—"}</td>
                             <td className="px-4 py-3 text-[#666666] font-mono text-xs hidden sm:table-cell">
                               {reqLine?.label ?? (item.requirementLineId ? item.requirementLineId.slice(0, 8) : <span className="text-[#999]">—</span>)}
@@ -927,7 +1158,7 @@ export default function CreatePurchaseOrderPage() {
                                   <button onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} className="text-xs text-red-400 hover:text-red-600 font-medium">Remove</button>
                                 ) : (
                                   <div className="flex items-center gap-3 justify-end">
-                                    <button onClick={() => { setActionError(""); setEditingItem(item) }} className="text-xs text-[#49B0C1] hover:underline font-medium">Edit</button>
+                                    <button onClick={() => { setActionError(""); setEditingItem(item) }} className="text-xs text-[#7A9076] hover:underline font-medium">Edit</button>
                                     <button onClick={() => handleRemoveItem(item)} className="text-xs text-red-400 hover:text-red-600 font-medium">Remove</button>
                                   </div>
                                 )}
@@ -943,12 +1174,12 @@ export default function CreatePurchaseOrderPage() {
             </div>
 
             {/* Notes */}
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <label className="text-xs font-bold text-[#666666] uppercase tracking-wide block mb-3">Notes / Special Instructions</label>
               {isReadOnly ? (
                 <p className="text-sm text-[#666666]">{notes || "—"}</p>
               ) : (
-                <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" placeholder="Add delivery instructions, purchasing notes, or other relevant information..." />
+                <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none" placeholder="Add delivery instructions, purchasing notes, or other relevant information..." />
               )}
             </div>
 
@@ -972,18 +1203,18 @@ export default function CreatePurchaseOrderPage() {
 
             {/* Source relationship (detail only) */}
             {!isNew && (
-              <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Source</p>
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-lg bg-[#DBEFF3] flex items-center justify-center shrink-0">
-                    <svg className="h-4 w-4 text-[#49B0C1]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <div className="h-8 w-8 rounded-lg bg-[#E6ECE2] flex items-center justify-center shrink-0">
+                    <svg className="h-4 w-4 text-[#7A9076]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
                       <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <div>
                     <p className="text-xs text-[#999]">Purchase Requirement</p>
                     {items.some((it) => it.requirementLineId)
-                      ? <p className="text-sm font-semibold text-[#49B0C1]">Linked requirement items</p>
+                      ? <p className="text-sm font-semibold text-[#7A9076]">Linked requirement items</p>
                       : <p className="text-sm text-[#666666]">Manual Purchase Order</p>
                     }
                   </div>
@@ -993,14 +1224,14 @@ export default function CreatePurchaseOrderPage() {
 
             {/* Requirement Allocation Display (detail only) */}
             {!isNew && items.some((it) => it.requirementLineId) && (
-              <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Requirement Allocations</p>
                 <div className="space-y-3">
                   {items.filter((it) => it.requirementLineId).map((item) => {
                     const reqLine = reqLines.find((r) => r.lineId === item.requirementLineId)
                     const product = products.find((p) => p.id === item.productId)
                     return (
-                      <div key={item.id} className="rounded-lg border border-[#DBEFF3] p-4">
+                      <div key={item.id} className="rounded-lg border border-[#E6ECE2] p-4">
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-semibold text-[#333333]">{product?.name ?? item.product ?? "—"}</span>
                           <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
@@ -1035,7 +1266,7 @@ export default function CreatePurchaseOrderPage() {
           {/* ── RIGHT COLUMN ── */}
           <div className="flex flex-col gap-5">
             {/* Order summary */}
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5 sticky top-0">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5 sticky top-0">
               <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">Order Summary</p>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
@@ -1046,15 +1277,15 @@ export default function CreatePurchaseOrderPage() {
                   <span className="text-[#666666]">Subtotal</span>
                   <span className="text-[#333333]">{fmtMoney(total)}</span>
                 </div>
-                <div className="flex justify-between border-t border-[#DBEFF3] pt-3">
+                <div className="flex justify-between border-t border-[#E6ECE2] pt-3">
                   <span className="font-semibold text-[#333333]">Total Amount</span>
-                  <span className="text-xl font-bold text-[#49B0C1]">{fmtMoney(total)}</span>
+                  <span className="text-xl font-bold text-[#7A9076]">{fmtMoney(total)}</span>
                 </div>
               </div>
 
               {/* Supplier payment terms */}
               {supplierView && (
-                <div className="mt-4 rounded-lg bg-[#DBEFF3]/50 px-4 py-3">
+                <div className="mt-4 rounded-lg bg-[#E6ECE2]/50 px-4 py-3">
                   <p className="text-xs text-[#999]">Supplier Payment Terms</p>
                   <p className="text-sm font-semibold text-[#333333] mt-0.5">{supplierView.paymentTerms || "—"}</p>
                   <p className="text-xs text-[#999] mt-1">Payment is managed through Supplier Payables.</p>
@@ -1063,29 +1294,38 @@ export default function CreatePurchaseOrderPage() {
 
               {/* Receiving summary (detail only) */}
               {!isNew && poState?.receivingSummary && (
-                <div className="mt-4">
-                  <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">Receiving</p>
-                  <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
-                    {([
-                      ["Ordered", poState.receivingSummary.orderedQuantity],
-                      ["Received", poState.receivingSummary.receivedQuantity],
-                      ["Shortage", poState.receivingSummary.shortQuantity],
-                      ["Remaining", poState.receivingSummary.remainingQuantity],
-                    ] as [string, number][]).map(([label, val]) => (
-                      <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
-                        <span className="text-[#666666]">{label}</span>
-                        <span className="font-semibold text-[#333333]">{val}</span>
+                (() => {
+                  const poUnits = [...new Set((poState.items ?? []).map((i) => i.unit?.name).filter(Boolean))]
+                  const poUnitLabel = poUnits.length === 1 ? (poUnits[0] as string) : ""
+                  const showUnitPlaceholder = poUnits.length !== 1 && poState.items?.length ? " (mixed units)" : ""
+                  return (
+                    <div className="mt-4">
+                      <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">
+                        Receiving <span className="normal-case font-medium text-[#999]">{poUnitLabel || showUnitPlaceholder}</span>
+                      </p>
+                      <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
+                        {([
+                          ["Ordered", poState.receivingSummary.orderedQuantity],
+                          ["Received", poState.receivingSummary.receivedQuantity],
+                          ["Shortage", poState.receivingSummary.shortQuantity],
+                          ["Remaining", poState.receivingSummary.remainingQuantity],
+                        ] as [string, number][]).map(([label, val]) => (
+                          <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
+                            <span className="text-[#666666]">{label}</span>
+                            <span className="font-semibold text-[#333333]">{val} {poUnitLabel}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  )
+                })()
               )}
 
               {/* Goods value summary (detail only) */}
               {!isNew && poState?.goodsSummary && (
                 <div className="mt-4">
                   <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">Goods Value</p>
-                  <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+                  <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
                     {([
                       ["Ordered Goods", poState.goodsSummary.orderedGoodsValue],
                       ["Received Goods", poState.goodsSummary.receivedGoodsValue],
@@ -1105,7 +1345,7 @@ export default function CreatePurchaseOrderPage() {
               {!isNew && poState?.paymentSummary && (
                 <div className="mt-4">
                   <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">Payment</p>
-                  <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+                  <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
                     {([
                       ["Status", poState.paymentSummary.status === "NOT_INVOICED" ? "Not Invoiced" : poState.paymentSummary.status === "PARTIALLY_PAID" ? "Partially Paid" : poState.paymentSummary.status === "UNPAID" ? "Unpaid" : poState.paymentSummary.status === "PAID" ? "Paid" : poState.paymentSummary.status],
                       ["Invoices", String(poState.paymentSummary.invoiceCount)],
@@ -1144,10 +1384,10 @@ export default function CreatePurchaseOrderPage() {
                   <>
                     {status === "REGISTERED" && (
                       <>
-                        <button onClick={() => { setActionError(""); setMarkDeliveryOpen(true) }} className="w-full rounded-xl bg-[#49B0C1] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3a9aaa] transition-colors">
+                        <button onClick={() => { setActionError(""); setMarkDeliveryOpen(true) }} className="w-full rounded-xl bg-[#B6C8AF] px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors">
                           Mark as Awaiting Delivery
                         </button>
-                        <button onClick={() => setEditMode(true)} className="w-full rounded-xl border border-[#ABDBE3] bg-white px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#DBEFF3] transition-colors">
+                        <button onClick={() => setEditMode(true)} className="w-full rounded-xl border border-[#C6D4BF] bg-white px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#E6ECE2] transition-colors">
                           Edit Order
                         </button>
                         <button onClick={() => { setActionError(""); setCancelOpen(true) }} className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
@@ -1165,7 +1405,7 @@ export default function CreatePurchaseOrderPage() {
                         Close Purchase Order
                       </button>
                     )}
-                    <button onClick={() => navigate("/purchasing/orders")} className="w-full rounded-xl border border-[#ABDBE3] bg-white px-4 py-2.5 text-sm text-[#666666] hover:bg-[#DBEFF3] transition-colors">
+                    <button onClick={() => navigate("/purchasing/orders")} className="w-full rounded-xl border border-[#C6D4BF] bg-white px-4 py-2.5 text-sm text-[#666666] hover:bg-[#E6ECE2] transition-colors">
                       ← Back to Orders
                     </button>
                   </>
@@ -1175,10 +1415,10 @@ export default function CreatePurchaseOrderPage() {
 
             {/* Supplier payables link (detail) */}
             {!isNew && (status === "CLOSED" || status === "RECEIVED") && (
-              <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">Supplier Payables</p>
                 <p className="text-xs text-[#999] mb-3">Invoice and payment details are managed in Supplier Payables.</p>
-                <button onClick={() => navigate("/purchasing/payables")} className="w-full rounded-xl border border-[#ABDBE3] px-4 py-2.5 text-sm font-semibold text-[#49B0C1] hover:bg-[#DBEFF3] transition-colors">
+                <button onClick={() => navigate("/purchasing/payables")} className="w-full rounded-xl border border-[#C6D4BF] px-4 py-2.5 text-sm font-semibold text-[#7A9076] hover:bg-[#E6ECE2] transition-colors">
                   View Supplier Payables →
                 </button>
               </div>

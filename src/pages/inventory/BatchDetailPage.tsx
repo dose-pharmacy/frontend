@@ -14,6 +14,7 @@ import Button from "../../components/ui/Button";
 import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
+import DatePicker from "../../components/ui/DatePicker";
 import FormError from "../../components/ui/FormError";
 
 interface EditBatchForm {
@@ -31,6 +32,7 @@ interface TxRow {
   balanceAfter: number;
   date: string;
   reference: string;
+  unitName: string;
 }
 
 function adaptTx(tx: StockTransactionDto): TxRow {
@@ -42,6 +44,8 @@ function adaptTx(tx: StockTransactionDto): TxRow {
     balanceAfter: tx.balanceAfter,
     date: tx.createdAt,
     reference: [tx.referenceType, tx.referenceId].filter(Boolean).join(" · ") || "—",
+    unitName:
+      (tx.baseUnit as { name?: string } | undefined)?.name ?? "",
   };
 }
 
@@ -190,7 +194,7 @@ export default function BatchDetailPage() {
       <div className="flex flex-col">
         <div className="p-6 animate-pulse space-y-4">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-24 rounded-xl bg-[#DBEFF3]" />
+            <div key={i} className="h-24 rounded-xl bg-[#E6ECE2]" />
           ))}
         </div>
       </div>
@@ -231,7 +235,7 @@ export default function BatchDetailPage() {
 
       <div className="p-6 flex flex-col gap-6">
         {/* Batch info */}
-        <div className="bg-[#DBEFF3] rounded-xl p-6">
+        <div className="bg-[#E6ECE2] rounded-xl p-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <InfoItem label="Batch Number" value={batch.batchNumber} mono />
             <InfoItem label="Product" value={batch.productName} />
@@ -256,14 +260,14 @@ export default function BatchDetailPage() {
         {/* Transaction history */}
         <section>
           <h3 className="text-base font-bold text-[#333333] mb-3">Transaction History</h3>
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
             {transactions.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-[#666666]">No transactions recorded for this batch.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3]">
+                    <tr className="bg-[#E6ECE2]">
                       {["Date", "Type", "Movement", "Balance After", "Reference"].map((h) => (
                         <th key={h} className="px-4 py-3 text-left font-semibold text-[#333333]">{h}</th>
                       ))}
@@ -271,15 +275,15 @@ export default function BatchDetailPage() {
                   </thead>
                   <tbody>
                     {transactions.map((t, i) => (
-                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"}>
+                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"}>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
                           {new Date(t.date).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </td>
                         <td className="px-4 py-3 capitalize text-[#333333]">{prettyTxType(t.type)}</td>
                         <td className={`px-4 py-3 font-semibold ${t.direction === "IN" ? "text-green-700" : "text-red-700"}`}>
-                          {t.direction === "IN" ? "+" : "−"}{t.quantity.toLocaleString()}
+                          {t.direction === "IN" ? "+" : "−"}{t.quantity.toLocaleString()} {t.unitName}
                         </td>
-                        <td className="px-4 py-3 text-[#666666]">{t.balanceAfter.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-[#666666]">{t.balanceAfter.toLocaleString()} {t.unitName}</td>
                         <td className="px-4 py-3 font-mono text-xs text-[#666666]">{t.reference}</td>
                       </tr>
                     ))}
@@ -338,7 +342,7 @@ export default function BatchDetailPage() {
           {/* Product — locked */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[#333333]">Product</label>
-            <div className="flex items-center justify-between rounded-lg border border-[#DBEFF3] bg-[#F5FAFB] px-3.5 py-2.5 text-sm text-[#666666]">
+            <div className="flex items-center justify-between rounded-lg border border-[#E6ECE2] bg-[#FAF9F4] px-3.5 py-2.5 text-sm text-[#666666]">
               <span>{batch.productName}</span>
               <svg
                 className="h-4 w-4 text-[#666666]"
@@ -368,7 +372,7 @@ export default function BatchDetailPage() {
           {/* Received Date — locked */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[#333333]">Received Date</label>
-            <div className="flex items-center justify-between rounded-lg border border-[#DBEFF3] bg-[#F5FAFB] px-3.5 py-2.5 text-sm text-[#666666]">
+            <div className="flex items-center justify-between rounded-lg border border-[#E6ECE2] bg-[#FAF9F4] px-3.5 py-2.5 text-sm text-[#666666]">
               <span>{batch.receivedDate || "—"}</span>
               <svg
                 className="h-4 w-4 text-[#666666]"
@@ -385,16 +389,20 @@ export default function BatchDetailPage() {
             </div>
           </div>
 
-          <Input
-            label="Expiry Date *"
-            type="date"
-            value={editForm.expiryDate}
-            onChange={(e) => {
-              setEditForm((f) => ({ ...f, expiryDate: e.target.value }));
-              setEditErrors((er) => ({ ...er, expiryDate: undefined }));
-            }}
-            error={editErrors.expiryDate}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">Expiry Date *</label>
+            <DatePicker
+              value={editForm.expiryDate}
+              onChange={(v) => {
+                setEditForm((f) => ({ ...f, expiryDate: v }));
+                setEditErrors((er) => ({ ...er, expiryDate: undefined }));
+              }}
+              placeholder="Select expiry date..."
+            />
+            {editErrors.expiryDate && (
+              <p className="text-xs text-red-600">{editErrors.expiryDate}</p>
+            )}
+          </div>
 
           <Input
             label="Purchase Cost"

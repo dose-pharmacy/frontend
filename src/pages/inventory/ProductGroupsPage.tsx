@@ -11,11 +11,11 @@ import {
 } from "../../features/inventory/productGroupsApi";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
+import { IconPencil, IconRefresh, IconTrash } from "../../components/ui/icons";
 import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import FormError from "../../components/ui/FormError";
-import MetricCard from "../../components/ui/MetricCard";
 
 const PAGE_LIMIT = 20;
 
@@ -66,8 +66,8 @@ function ToggleSwitch({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#49B0C1] focus:ring-offset-2 ${
-          checked ? "bg-[#49B0C1]" : "bg-gray-300"
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
+          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
         }`}
       >
         <span
@@ -262,13 +262,6 @@ export default function ProductGroupsPage() {
     }
   }
 
-  const avgMargin = groups.length
-    ? (
-        groups.reduce((s, g) => s + (g.defaultProfitMargin ?? 0), 0) /
-        groups.length
-      ).toFixed(1)
-    : "—";
-
   const totalGroups = meta?.total ?? groups.length;
   const totalPages = meta?.totalPages ?? 1;
 
@@ -281,21 +274,7 @@ export default function ProductGroupsPage() {
         actions={<Button onClick={openAdd}>+ Add New Group</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <MetricCard
-            title="Total Groups"
-            value={loading ? "—" : totalGroups}
-            icon={<GroupIcon />}
-          />
-          <MetricCard
-            title="Average Margin"
-            value={loading ? "—" : `${avgMargin}%`}
-            icon={<PercentIcon />}
-          />
-        </div>
-
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {/* Error banner */}
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between gap-3">
@@ -310,9 +289,9 @@ export default function ProductGroupsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {/* Toolbar: search + pagination info */}
-          <div className="px-4 py-3 border-b border-[#DBEFF3] flex flex-wrap items-center justify-between gap-3">
+          <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#666666]"
@@ -330,7 +309,7 @@ export default function ProductGroupsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by group name…"
-                className="w-full rounded-lg border border-[#DBEFF3] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#49B0C1]"
+                className="w-full rounded-lg border border-[#E6ECE2] pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
               />
               {search && (
                 <button
@@ -355,7 +334,7 @@ export default function ProductGroupsPage() {
           {loading ? (
             <div className="p-6 space-y-3 animate-pulse">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-12 rounded-lg bg-[#DBEFF3]" />
+                <div key={i} className="h-12 rounded-lg bg-[#E6ECE2]" />
               ))}
             </div>
           ) : groups.length === 0 ? (
@@ -379,7 +358,7 @@ export default function ProductGroupsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3]">
+                    <tr className="bg-[#E6ECE2]">
                       {[
                         "Group Name",
                         "Description",
@@ -403,8 +382,8 @@ export default function ProductGroupsPage() {
                         key={g.id}
                         onClick={() => openDetail(g)}
                         className={`cursor-pointer transition-colors ${
-                          i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"
-                        } hover:bg-[#ABDBE3]/30`}
+                          i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"
+                        } hover:bg-[#C6D4BF]/30`}
                       >
                         <td className="px-4 py-3 font-semibold text-[#333333]">
                           {g.name}
@@ -437,10 +416,13 @@ export default function ProductGroupsPage() {
                             <button
                               onClick={() => openEdit(g)}
                               disabled={togglingId === g.id}
-                              className="text-xs font-semibold text-[#49B0C1] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Edit"
                             >
-                              ✏️ Edit
+                              <span className="inline-flex items-center gap-1">
+                                <IconPencil className="h-3.5 w-3.5" />
+                                Edit
+                              </span>
                             </button>
                             <button
                               onClick={() => requestToggleActive(g)}
@@ -453,8 +435,8 @@ export default function ProductGroupsPage() {
                               {togglingId === g.id
                                 ? "Saving…"
                                 : g.isActive
-                                  ? "🗑️ Deactivate"
-                                  : "↻ Activate"}
+                                  ? <span className="inline-flex items-center gap-1"><IconTrash className="h-3.5 w-3.5" />Deactivate</span>
+                                  : <span className="inline-flex items-center gap-1"><IconRefresh className="h-3.5 w-3.5" />Activate</span>}
                             </button>
                           </div>
                         </td>
@@ -466,7 +448,7 @@ export default function ProductGroupsPage() {
 
               {/* Pagination footer */}
               {totalPages > 1 && (
-                <div className="px-4 py-3 border-t border-[#DBEFF3] bg-[#DBEFF3]/20 flex items-center justify-between">
+                <div className="px-4 py-3 border-t border-[#E6ECE2] bg-[#E6ECE2]/20 flex items-center justify-between">
                   <Button
                     variant="secondary"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -521,7 +503,7 @@ export default function ProductGroupsPage() {
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
               rows={3}
-              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#49B0C1] focus:outline-none focus:ring-2 focus:ring-[#49B0C1]/20 resize-none"
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 resize-none"
             />
           </div>
 
@@ -635,8 +617,8 @@ export default function ProductGroupsPage() {
             </div>
 
             {/* Products under this group (from GET /{id}) */}
-            <div className="rounded-xl bg-[#DBEFF3] p-4">
-              <p className="text-xs font-semibold text-[#49B0C1] uppercase tracking-wide mb-2">
+            <div className="rounded-xl bg-[#E6ECE2] p-4">
+              <p className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide mb-2">
                 Products in Group (
                 {detailTarget.products?.length ??
                   detailTarget._count?.products ??
@@ -790,40 +772,3 @@ export default function ProductGroupsPage() {
   );
 }
 
-function GroupIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"
-      />
-    </svg>
-  );
-}
-
-function PercentIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"
-      />
-    </svg>
-  );
-}

@@ -20,9 +20,9 @@ export default function Button({
 
   const variants = {
     primary:
-      "bg-[#49B0C1] text-white hover:bg-[#3a9baf] focus-visible:ring-[#49B0C1] active:scale-[0.98]",
+      "bg-[#B6C8AF] text-[#333333] hover:bg-[#A5B89E] focus-visible:ring-[#B6C8AF] active:scale-[0.98]",
     secondary:
-      "bg-[#ABDBE3] text-[#333333] hover:bg-[#95cdd8] focus-visible:ring-[#ABDBE3] active:scale-[0.98]",
+      "bg-[#C6D4BF] text-[#333333] hover:bg-[#B5C6AE] focus-visible:ring-[#C6D4BF] active:scale-[0.98]",
   };
 
   return (

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
+import DatePicker from "../../components/ui/DatePicker";
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
 import { createRequirement, type CreateRequirementInput, type RequirementReasonCode } from "../../features/purchasing/requirementsApi";
 import { useProductUnits } from "../../features/inventory/useProductUnits";
@@ -53,7 +54,7 @@ function ProductUnitRowEditor({ row, onUpdate }: {
         </select>
       </div>
       {qty > 0 && row.unitId && baseQty !== null && baseUnit && productUnit && !productUnit.isBaseUnit && (
-        <p className="text-[10px] text-[#49B0C1]">
+        <p className="text-[10px] text-[#7A9076]">
           = {baseQty} {baseUnit.name} ({formatFactor(productUnit.conversionFactor)}×)
         </p>
       )}
@@ -194,16 +195,20 @@ export default function CreateRequirementPage() {
 
         {/* Requirement details form */}
         <div className="px-4 sm:px-6 py-4">
-          <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
             <h2 className="text-base font-bold text-[#333333] mb-4">Requirement Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Required By Date</label>
-                <input type="date" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none" />
+                <DatePicker
+                  value={requiredBy}
+                  onChange={setRequiredBy}
+                  placeholder="Select required-by date..."
+                />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm text-[#666666] mb-1">Notes</label>
-                <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none resize-none" />
+                <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none resize-none" />
               </div>
             </div>
           </div>
@@ -211,13 +216,13 @@ export default function CreateRequirementPage() {
 
         {/* Products section */}
         <div className="px-4 sm:px-6">
-          <div className="bg-[#DBEFF3] rounded-xl p-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#ABDBE3] mb-3">
+          <div className="bg-[#E6ECE2] rounded-xl p-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#C6D4BF] mb-3">
               <div>
                 <p className="font-bold text-[#333333]">Products</p>
                 <p className="text-xs text-[#666666]">Add products to this requirement</p>
               </div>
-              <span className="text-sm font-medium text-[#49B0C1]">{products.length} products added</span>
+              <span className="text-sm font-medium text-[#7A9076]">{products.length} products added</span>
             </div>
 
             {/* Add product row */}
@@ -226,12 +231,12 @@ export default function CreateRequirementPage() {
                 <label className="block text-xs text-[#666666] mb-1">Product Search</label>
                 <div className="relative">
                   <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#666666]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd"/></svg>
-                  <input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search for a product..." className="w-full rounded-lg border border-[#ABDBE3] bg-white pl-8 pr-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none" />
+                  <input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search for a product..." className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-8 pr-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
                 </div>
                 {suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-20 bg-white border border-[#ABDBE3] rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 z-20 bg-white border border-[#C6D4BF] rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
                     {suggestions.map((s) => (
-                      <button key={s.id} onClick={() => addProduct(s)} className="w-full text-left px-3 py-2 text-sm text-[#333333] hover:bg-[#DBEFF3] transition-colors">
+                      <button key={s.id} onClick={() => addProduct(s)} className="w-full text-left px-3 py-2 text-sm text-[#333333] hover:bg-[#E6ECE2] transition-colors">
                         <span className="font-medium">{s.name}</span>
                       </button>
                     ))}
@@ -240,11 +245,11 @@ export default function CreateRequirementPage() {
               </div>
               <div>
                 <label className="block text-xs text-[#666666] mb-1">Qty Needed</label>
-                <input type="number" value={addQty} min={1} onChange={(e) => setAddQty(Number(e.target.value))} className="w-24 rounded-lg border border-[#ABDBE3] bg-white px-2 py-2 text-sm focus:border-[#49B0C1] focus:outline-none" />
+                <input type="number" value={addQty} min={1} onChange={(e) => setAddQty(Number(e.target.value))} className="w-24 rounded-lg border border-[#C6D4BF] bg-white px-2 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
               </div>
               <div>
                 <label className="block text-xs text-[#666666] mb-1">Reason</label>
-                <select value={addReason} onChange={(e) => setAddReason(e.target.value as RequirementReasonCode)} className="w-36 rounded-lg border border-[#ABDBE3] bg-white px-2 py-2 text-sm focus:border-[#49B0C1] focus:outline-none">
+                <select value={addReason} onChange={(e) => setAddReason(e.target.value as RequirementReasonCode)} className="w-36 rounded-lg border border-[#C6D4BF] bg-white px-2 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none">
                   <option value="LOW_STOCK">Low Stock</option>
                   <option value="REORDER_ALERT">Reorder Alert</option>
                   <option value="MANUAL">Manual</option>
@@ -257,7 +262,7 @@ export default function CreateRequirementPage() {
               <div className="rounded-xl overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm min-w-[600px]">
                   <thead>
-                    <tr className="bg-[#ABDBE3]">
+                    <tr className="bg-[#C6D4BF]">
                       {["#", "Product", "Qty & Unit", "Reason", "Notes", ""].map((h) => (
                         <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                       ))}
@@ -265,7 +270,7 @@ export default function CreateRequirementPage() {
                   </thead>
                   <tbody>
                     {products.map((p, i) => (
-                      <tr key={p.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/40"}>
+                      <tr key={p.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}>
                         <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                         <td className="px-3 py-2.5 font-medium text-[#333333]">{p.productName}</td>
                         <td className="px-3 py-2.5">
@@ -292,7 +297,7 @@ export default function CreateRequirementPage() {
                 </table>
               </div>
             ) : (
-              <div className="rounded-xl bg-white border-2 border-dashed border-[#ABDBE3] py-8 text-center text-[#666666] text-sm">
+              <div className="rounded-xl bg-white border-2 border-dashed border-[#C6D4BF] py-8 text-center text-[#666666] text-sm">
                 Search for products above to add them to this requirement.
               </div>
             )}
@@ -302,7 +307,7 @@ export default function CreateRequirementPage() {
         {/* Summary */}
         {products.length > 0 && (
           <div className="px-4 sm:px-6 py-4">
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex items-center justify-between flex-wrap gap-4">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex items-center justify-between flex-wrap gap-4">
               <div className="flex gap-8">
                 <div><p className="text-xs text-[#666666]">Total Items</p><p className="text-sm font-bold text-[#333333]">{products.length} products</p></div>
                 <div><p className="text-xs text-[#666666]">Total Quantity Needed</p><p className="text-sm font-bold text-[#333333]">{totalQty} units</p></div>
@@ -313,12 +318,12 @@ export default function CreateRequirementPage() {
       </div>
 
       {/* Footer actions */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#DBEFF3] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E6ECE2] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
         <button onClick={() => navigate("/purchasing")} className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
         <button
           onClick={handleSave}
           disabled={products.length === 0 || saving}
-          className="rounded-lg bg-[#49B0C1] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+          className="rounded-lg bg-[#B6C8AF] px-6 py-2.5 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {saving ? "Saving…" : "Create Requirement →"}
         </button>

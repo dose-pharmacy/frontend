@@ -91,30 +91,30 @@ export default function LocationStockPage() {
           </div>
         ) : (
           <>
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
               <SearchInput value={search} onChange={setSearch} placeholder="Search products..." />
             </div>
 
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               {loading ? (
-                <div className="p-6 space-y-3 animate-pulse">{[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-[#DBEFF3] rounded-lg" />)}</div>
+                <div className="p-6 space-y-3 animate-pulse">{[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-[#E6ECE2] rounded-lg" />)}</div>
               ) : filtered.length === 0 ? (
                 <EmptyState title="No products found" />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-[#DBEFF3]">
+                      <tr className="bg-[#E6ECE2]">
                         <th className="px-4 py-3 text-left font-semibold text-[#333333]">Product</th>
                         {locations.map((loc) => (
                           <th key={loc} className="px-4 py-3 text-right font-semibold text-[#333333] whitespace-nowrap">{loc}</th>
                         ))}
-                        <th className="px-4 py-3 text-right font-semibold text-[#333333]">Total</th>
+                        <th className="px-4 py-3 text-right font-semibold text-[#333333]">Total (base units)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.map((r, i) => (
-                        <tr key={r.productId} className={`transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/30"} hover:bg-[#ABDBE3]/20`}>
+                        <tr key={r.productId} className={`transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"} hover:bg-[#C6D4BF]/20`}>
                           <td className="px-4 py-3 font-medium text-[#333333] whitespace-nowrap">
                             {r.productName}
                             {r.productSku && <span className="ml-2 text-xs text-[#999] font-mono">{r.productSku}</span>}
@@ -127,7 +127,7 @@ export default function LocationStockPage() {
                               </td>
                             );
                           })}
-                          <td className="px-4 py-3 text-right font-bold text-[#49B0C1]">{r.total.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right font-bold text-[#7A9076]">{r.total.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>

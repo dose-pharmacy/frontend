@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import ReportsSubNav from "./ReportsSubNav";
+import DashboardSubNav from "../dashboard/DashboardSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -26,8 +26,8 @@ const SORT_COLUMNS: { key: SalesReportSortBy; label: string; align?: "right" }[]
 ];
 
 function SortIndicator({ active, order }: { active: boolean; order: SortOrder }) {
-  if (!active) return <span className="text-[#ABDBE3]">↕</span>;
-  return <span className="text-[#49B0C1]">{order === "asc" ? "↑" : "↓"}</span>;
+  if (!active) return <span className="text-[#C6D4BF]">↕</span>;
+  return <span className="text-[#7A9076]">{order === "asc" ? "↑" : "↓"}</span>;
 }
 
 export default function SalesReportPage() {
@@ -121,17 +121,17 @@ export default function SalesReportPage() {
   }
 
   const detailSale = detailLines[0]?.sale ?? null;
-  const detailLocation = detailLines[0]?.location ?? null;
-  const detailCashier = detailLines[0]?.cashier ?? null;
+  const detailLocation = detailSale?.location ?? null;
+  const detailCashier = detailSale?.cashier ?? null;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
-        breadcrumb="Reports / Sales"
-        title="Sales Report"
+        breadcrumb="Dashboard / Sales"
+        title="Sales"
         subtitle="Completed sales transactions for the selected period."
       />
-      <ReportsSubNav />
+      <DashboardSubNav />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         <ReportFilterBar
@@ -145,10 +145,10 @@ export default function SalesReportPage() {
           onLocationChange={(v) => { setLocationId(v); setPage(1); }}
         />
 
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               <p className="text-sm text-[#666666]">Loading sales report...</p>
             </div>
           ) : error ? (
@@ -166,11 +166,11 @@ export default function SalesReportPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {[
                         ...SORT_COLUMNS.map((col) => (
                           <th key={col.key} className={`px-4 py-3 font-semibold text-[#333333] ${col.align === "right" ? "text-right" : ""}`}>
-                            <button onClick={() => toggleSort(col.key)} className={`inline-flex items-center gap-1.5 hover:text-[#49B0C1] ${col.align === "right" ? "flex-row-reverse" : ""}`}>
+                            <button onClick={() => toggleSort(col.key)} className={`inline-flex items-center gap-1.5 hover:text-[#7A9076] ${col.align === "right" ? "flex-row-reverse" : ""}`}>
                               {col.label} <SortIndicator active={sortBy === col.key} order={sortOrder} />
                             </button>
                           </th>
@@ -185,8 +185,8 @@ export default function SalesReportPage() {
                   </thead>
                   <tbody>
                     {sales.map((sale, i) => (
-                      <tr key={sale.id} className={`hover:bg-[#DBEFF3]/30 transition-colors cursor-pointer ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`} onClick={() => openDetail(sale)}>
-                        <td className="px-4 py-3 font-semibold text-[#49B0C1] whitespace-nowrap">{sale.saleNumber}</td>
+                      <tr key={sale.id} className={`hover:bg-[#E6ECE2]/30 transition-colors cursor-pointer ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`} onClick={() => openDetail(sale)}>
+                        <td className="px-4 py-3 font-semibold text-[#7A9076] whitespace-nowrap">{sale.saleNumber}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDateTime(sale.completedAt ?? sale.createdAt)}</td>
                         <td className="px-4 py-3 text-right font-semibold text-[#333333]">{fmtMoney(sale.totalAmount)}</td>
                         <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(sale.paidAmount)}</td>
@@ -195,7 +195,7 @@ export default function SalesReportPage() {
                         <td className="px-4 py-3 text-right text-[#666666]">{sale.items ? fmtNumber(sale.items.length) : "—"}</td>
                         <td className="px-4 py-3 text-right text-[#666666]">{fmtMoney(sale.totalDiscount)}</td>
                         <td className="px-4 py-3 text-right">
-                          <button onClick={(e) => { e.stopPropagation(); openDetail(sale); }} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">Detail →</button>
+                          <button onClick={(e) => { e.stopPropagation(); openDetail(sale); }} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">Detail →</button>
                         </td>
                       </tr>
                     ))}
@@ -203,16 +203,16 @@ export default function SalesReportPage() {
                 </table>
               </div>
 
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
                 <p className="text-xs text-[#666666]">
                   Showing {totalCount === 0 ? 0 : Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {fmtNumber(totalCount)} sales
                 </p>
                 <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
+                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+                    <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#B6C8AF] text-[#333333]" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
                   ))}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
                 </div>
               </div>
             </>
@@ -224,7 +224,7 @@ export default function SalesReportPage() {
       <Modal open={detailOpen} title={detailSale ? `Sale ${detailSale.saleNumber}` : "Sale Detail"} onClose={closeDetail} size="lg">
         {detailLoading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+            <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
             <p className="text-sm text-[#666666]">Loading sale detail...</p>
           </div>
         ) : detailError ? (
@@ -244,7 +244,7 @@ export default function SalesReportPage() {
                 ["Subtotal", detailSale.subtotal != null ? fmtMoney(detailSale.subtotal) : "—"],
                 ["Status", detailSale.status ?? "—"],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-[#DBEFF3]/40 border border-[#DBEFF3] px-4 py-3">
+                <div key={label} className="rounded-xl bg-[#E6ECE2]/40 border border-[#E6ECE2] px-4 py-3">
                   <p className="text-xs text-[#666666]">{label}</p>
                   <p className="text-sm font-semibold text-[#333333] mt-0.5">{value}</p>
                 </div>
@@ -256,19 +256,25 @@ export default function SalesReportPage() {
               {detailLines.length === 0 ? (
                 <p className="text-sm text-[#666666]">No line items recorded for this sale.</p>
               ) : (
-                <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+                <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-[#DBEFF3] text-left">
+                      <tr className="bg-[#E6ECE2] text-left">
                         <th className="px-4 py-2.5 font-semibold text-[#333333]">Product</th>
                         <th className="px-4 py-2.5 font-semibold text-[#333333]">SKU</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#333333]">Unit</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#333333] text-right">Qty</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#333333] text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detailLines.map((line, i) => (
-                        <tr key={`${line.product?.id ?? i}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
+                        <tr key={`${line.product?.id ?? i}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}>
                           <td className="px-4 py-2.5 text-[#333333]">{line.product?.name ?? "—"}</td>
                           <td className="px-4 py-2.5 text-[#666666]">{line.product?.sku ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-[#666666]">{line.unit?.name ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-right text-[#333333]">{fmtNumber(line.quantity)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-[#333333]">{fmtMoney(line.lineTotal)}</td>
                         </tr>
                       ))}
                     </tbody>

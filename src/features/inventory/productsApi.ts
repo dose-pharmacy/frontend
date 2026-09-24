@@ -51,6 +51,7 @@ export interface ProductDto {
   brand: string | null;
   sku: string;
   isActive: boolean;
+  isNarcotic: boolean;
   productGroup: ProductGroupRefDto | null;
 }
 
@@ -63,6 +64,7 @@ export interface InventoryProductDto {
   sku: string;
   productGroup: ProductGroupRefDto | null;
   isActive: boolean;
+  isNarcotic: boolean;
   minimumStock: number;
   reorderPoint: number | null;
   baseUnit: UnitRefDto | null;
@@ -95,6 +97,7 @@ export interface ProductDetailDto {
   minimumStock: number;
   reorderPoint: number | null;
   isActive: boolean;
+  isNarcotic: boolean;
   productGroupId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -147,6 +150,7 @@ export interface CreateProductInput {
   minimumStock: number;
   reorderPoint?: number | null;
   isActive?: boolean;
+  isNarcotic?: boolean;
   units: ProductUnitInput[];
 }
 
@@ -161,6 +165,7 @@ export interface UpdateProductInput {
   minimumStock?: number;
   reorderPoint?: number | null;
   isActive?: boolean;
+  isNarcotic?: boolean;
   units?: ProductUnitInput[];
 }
 
@@ -385,6 +390,7 @@ export async function createProduct(input: CreateProductInput): Promise<ProductD
       minimumStock: input.minimumStock,
       ...(input.reorderPoint != null ? { reorderPoint: input.reorderPoint } : {}),
       isActive: input.isActive ?? true,
+      isNarcotic: input.isNarcotic ?? false,
       units: input.units,
     }),
   });
@@ -428,6 +434,7 @@ export async function updateProduct(
   if (input.minimumStock !== undefined) body.minimumStock = input.minimumStock;
   if (input.reorderPoint !== undefined) body.reorderPoint = input.reorderPoint;
   if (input.isActive !== undefined) body.isActive = input.isActive;
+  if (input.isNarcotic !== undefined) body.isNarcotic = input.isNarcotic;
   if (input.units !== undefined) body.units = input.units;
 
   const result = await productsRequest<{ data: ProductDetailDto }>(

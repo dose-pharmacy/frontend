@@ -7,7 +7,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const BADGE_STYLES: Record<string, string> = {
-  RETURN_TO_SUPPLIER: "bg-[#DBEFF3] text-[#49B0C1]",
+  RETURN_TO_SUPPLIER: "bg-[#E6ECE2] text-[#7A9076]",
   DISPOSE: "bg-red-50 text-red-600",
 };
 
@@ -55,7 +55,7 @@ export default function ExpiryActionHistory({ batchId, refreshKey = 0 }: { batch
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="self-start text-xs font-semibold text-[#49B0C1] hover:underline"
+        className="self-start text-xs font-semibold text-[#7A9076] hover:underline"
       >
         Show past actions
       </button>
@@ -63,31 +63,31 @@ export default function ExpiryActionHistory({ batchId, refreshKey = 0 }: { batch
   }
 
   return (
-    <div className="rounded-lg border border-[#ABDBE3] flex flex-col">
+    <div className="rounded-lg border border-[#C6D4BF] flex flex-col">
       <button
         type="button"
         onClick={() => setOpen(false)}
-        className="flex items-center justify-between px-4 py-2.5 text-xs font-bold text-[#333333] uppercase tracking-wide hover:bg-[#DBEFF3]/40 transition-colors"
+        className="flex items-center justify-between px-4 py-2.5 text-xs font-bold text-[#333333] uppercase tracking-wide hover:bg-[#E6ECE2]/40 transition-colors"
       >
         Past Actions
         <span className="text-[#666666] normal-case font-medium">Hide</span>
       </button>
       {loading ? (
         <div className="px-4 py-3 space-y-2 animate-pulse">
-          <div className="h-8 rounded bg-[#DBEFF3]" />
-          <div className="h-8 rounded bg-[#DBEFF3]" />
+          <div className="h-8 rounded bg-[#E6ECE2]" />
+          <div className="h-8 rounded bg-[#E6ECE2]" />
         </div>
       ) : error ? (
         <p className="px-4 py-3 text-xs text-red-600">{error}</p>
       ) : actions.length === 0 ? (
         <p className="px-4 py-3 text-xs text-[#666666]">No past actions for this batch.</p>
       ) : (
-        <ul className="divide-y divide-[#DBEFF3]">
+        <ul className="divide-y divide-[#E6ECE2]">
           {actions.map((a) => (
             <li key={a.id} className="px-4 py-2.5 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_STYLES[a.actionType] ?? "bg-[#DBEFF3] text-[#49B0C1]"}`}>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_STYLES[a.actionType] ?? "bg-[#E6ECE2] text-[#7A9076]"}`}>
                     {ACTION_LABELS[a.actionType] ?? a.actionType}
                   </span>
                 </div>

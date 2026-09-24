@@ -21,6 +21,7 @@ import {
 import MetricCard from "../../components/ui/MetricCard"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
+import { pluralizeUnit } from "../../utils/format"
 
 export default function InventoryDashboardPage() {
   const navigate = useNavigate()
@@ -140,11 +141,11 @@ export default function InventoryDashboardPage() {
 
         {/* Attention Required */}
         {!loading && (kpis.outOfStock > 0 || kpis.lowStock > 0 || kpis.expiringSoon > 0) && (
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="px-5 py-3 border-b border-[#DBEFF3]">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+            <div className="px-5 py-3 border-b border-[#E6ECE2]">
               <p className="font-semibold text-[#333333]">Attention Required</p>
             </div>
-            <div className="divide-y divide-[#DBEFF3]">
+            <div className="divide-y divide-[#E6ECE2]">
               {kpis.outOfStock > 0 && (
                 <div className="flex items-center justify-between px-5 py-3">
                   <div className="flex items-center gap-3">
@@ -153,7 +154,7 @@ export default function InventoryDashboardPage() {
                       <span className="font-semibold">{kpis.outOfStock}</span> product{kpis.outOfStock !== 1 ? "s" : ""} out of stock
                     </span>
                   </div>
-                  <button onClick={() => navigate("/inventory/products")} className="text-xs font-semibold text-[#49B0C1] hover:underline">View →</button>
+                  <button onClick={() => navigate("/inventory/products")} className="text-xs font-semibold text-[#7A9076] hover:underline">View →</button>
                 </div>
               )}
               {kpis.lowStock > 0 && (
@@ -164,7 +165,7 @@ export default function InventoryDashboardPage() {
                       <span className="font-semibold">{kpis.lowStock}</span> product{kpis.lowStock !== 1 ? "s" : ""} low in stock
                     </span>
                   </div>
-                  <button onClick={() => navigate("/inventory/reorder")} className="text-xs font-semibold text-[#49B0C1] hover:underline">View →</button>
+                  <button onClick={() => navigate("/inventory/reorder")} className="text-xs font-semibold text-[#7A9076] hover:underline">View →</button>
                 </div>
               )}
               {kpis.expiringSoon > 0 && (
@@ -175,7 +176,7 @@ export default function InventoryDashboardPage() {
                       <span className="font-semibold">{kpis.expiringSoon}</span> batch{kpis.expiringSoon !== 1 ? "es" : ""} expiring within 30 days
                     </span>
                   </div>
-                  <button onClick={() => navigate("/inventory/batches-expiry")} className="text-xs font-semibold text-[#49B0C1] hover:underline">View →</button>
+                  <button onClick={() => navigate("/inventory/batches-expiry")} className="text-xs font-semibold text-[#7A9076] hover:underline">View →</button>
                 </div>
               )}
             </div>
@@ -184,13 +185,13 @@ export default function InventoryDashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Expiring Soon */}
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#DBEFF3]">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6ECE2]">
               <div>
                 <p className="font-semibold text-[#333333]">Expiring Soon</p>
                 <p className="text-xs text-[#666666] mt-0.5">Batches expiring within 60 days</p>
               </div>
-              <button onClick={() => navigate("/inventory/expiry")} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+              <button onClick={() => navigate("/inventory/expiry")} className="text-xs font-semibold text-[#7A9076] hover:underline">
                 View All
               </button>
             </div>
@@ -199,7 +200,7 @@ export default function InventoryDashboardPage() {
             ) : expiringSoonBatches.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-[#666666]">No batches expiring soon.</p>
             ) : (
-              <div className="divide-y divide-[#DBEFF3]">
+              <div className="divide-y divide-[#E6ECE2]">
                 {expiringSoonBatches.map((b) => {
                   const days = b.daysRemaining
                   const urgent = days <= 30
@@ -221,13 +222,13 @@ export default function InventoryDashboardPage() {
           </div>
 
           {/* Low Stock */}
-          <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#DBEFF3]">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6ECE2]">
               <div>
                 <p className="font-semibold text-[#333333]">Low Stock Alert</p>
                 <p className="text-xs text-[#666666] mt-0.5">Products at or below reorder point</p>
               </div>
-              <button onClick={() => navigate("/inventory/reorder")} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+              <button onClick={() => navigate("/inventory/reorder")} className="text-xs font-semibold text-[#7A9076] hover:underline">
                 View Reorder
               </button>
             </div>
@@ -236,19 +237,19 @@ export default function InventoryDashboardPage() {
             ) : lowStock.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-[#666666]">All products are adequately stocked.</p>
             ) : (
-              <div className="divide-y divide-[#DBEFF3]">
+              <div className="divide-y divide-[#E6ECE2]">
                 {lowStock.map((i) => (
                   <div key={i.product.id} className="flex items-center justify-between px-5 py-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[#333333] truncate">{i.product.name}</p>
                       <p className="text-xs text-[#666666]">
                         Reorder at {i.reorderPoint.toLocaleString()}{" "}
-                        {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
+                        {pluralizeUnit(i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit")}
                       </p>
                     </div>
                     <div className="text-right ml-4 flex-shrink-0">
                       <p className={`text-sm font-bold ${i.currentStock <= 0 ? "text-red-600" : "text-yellow-600"}`}>
-                        {i.currentStock.toLocaleString()} {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
+                        {i.currentStock.toLocaleString()} {pluralizeUnit(i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit")}
                       </p>
                       <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${i.currentStock <= 0 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
                         {i.currentStock <= 0 ? "Out of Stock" : "Low Stock"}
@@ -262,13 +263,13 @@ export default function InventoryDashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#DBEFF3]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6ECE2]">
             <div>
               <p className="font-semibold text-[#333333]">Recent Stock Activity</p>
               <p className="text-xs text-[#666666] mt-0.5">Latest inventory movements</p>
             </div>
-            <button onClick={() => navigate("/inventory/stock")} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+            <button onClick={() => navigate("/inventory/stock")} className="text-xs font-semibold text-[#7A9076] hover:underline">
               View All Movements
             </button>
           </div>
@@ -280,7 +281,7 @@ export default function InventoryDashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-[#DBEFF3] text-left">
+                  <tr className="bg-[#E6ECE2] text-left">
                     {["Date", "Product", "Type", "Location", "Qty In", "Qty Out", "Ref"].map((h) => (
                       <th key={h} className="px-4 py-3 font-semibold text-[#333333] whitespace-nowrap">
                         {h}
@@ -297,9 +298,11 @@ export default function InventoryDashboardPage() {
                     const batchNumber =
                       (t.batch as { batchNumber?: string } | undefined)?.batchNumber
                     const isIn = t.direction === "IN"
-                    const qtyLabel = `${t.quantity.toLocaleString()}${batchNumber ? ` · ${batchNumber}` : ""}`
+                    const unitName =
+                      (t.baseUnit as { name?: string } | undefined)?.name ?? "unit"
+                    const qtyLabel = `${t.quantity.toLocaleString()} ${pluralizeUnit(unitName)}${batchNumber ? ` · ${batchNumber}` : ""}`
                     return (
-                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                      <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{formatTime(t.createdAt)}</td>
                         <td className="px-4 py-3 text-[#333333] font-medium">{productName}</td>
                         <td className="px-4 py-3"><TxTypeBadge type={t.transactionType} /></td>
@@ -324,7 +327,7 @@ function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div className="p-4 space-y-3 animate-pulse">
       {[...Array(rows)].map((_, i) => (
-        <div key={i} className="h-8 rounded-lg bg-[#DBEFF3]" />
+        <div key={i} className="h-8 rounded-lg bg-[#E6ECE2]" />
       ))}
     </div>
   )
@@ -332,7 +335,7 @@ function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
 
 function TxTypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    OPENING: { label: "Opening", cls: "bg-[#DBEFF3] text-[#49B0C1]" },
+    OPENING: { label: "Opening", cls: "bg-[#E6ECE2] text-[#7A9076]" },
     PURCHASE: { label: "Purchase", cls: "bg-green-100 text-green-700" },
     SALE: { label: "Sale", cls: "bg-blue-100 text-blue-700" },
     TRANSFER_IN: { label: "Transfer In", cls: "bg-purple-100 text-purple-700" },
@@ -372,7 +375,7 @@ export function InventorySubNav({ active }: { active: string }) {
   const navigate = useNavigate()
 
   return (
-    <div className="bg-white border-b border-[#DBEFF3] overflow-x-auto">
+    <div className="bg-white border-b border-[#E6ECE2] overflow-x-auto">
       <div className="flex gap-0 px-6 min-w-max items-stretch">
         {SUB_LINKS.map(({ to, label, key, separator }: { to: string; label: string; key: string; separator?: boolean }) => {
           const isActive = active === key
@@ -380,15 +383,15 @@ export function InventorySubNav({ active }: { active: string }) {
             <div key={to} className="flex items-stretch">
               {separator && (
                 <div className="flex items-center mx-1">
-                  <div className="h-5 w-px bg-[#DBEFF3]" />
+                  <div className="h-5 w-px bg-[#E6ECE2]" />
                 </div>
               )}
               <button
                 onClick={() => navigate(to)}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   isActive
-                    ? "border-[#49B0C1] text-[#49B0C1]"
-                    : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#ABDBE3]"
+                    ? "border-[#B6C8AF] text-[#7A9076]"
+                    : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#C6D4BF]"
                 }`}
               >
                 {label}

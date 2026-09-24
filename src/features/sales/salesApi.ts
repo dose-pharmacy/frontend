@@ -9,6 +9,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { invalidateCachePrefix } from "../inventory/apiCache";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
@@ -56,6 +57,8 @@ export interface SaleItemDto {
     sku: string;
     /** Some responses embed the brand. */
     brand?: string;
+    /** Narcotic/controlled flag — present on sale-detail item products. */
+    isNarcotic?: boolean;
   };
   unitId: string;
   unit: { id: string; name: string; symbol: string };
@@ -271,6 +274,9 @@ export async function completeSale(input: CompleteSaleInput): Promise<SaleDto> {
     method: "POST",
     body: JSON.stringify(input),
   });
+  // A completed sale deducts stock — drop cached product/stock reads.
+  invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
   if (!result?.data) throw new SalesApiError("Unexpected response from the server.");
   return result.data;
 }
@@ -284,6 +290,8 @@ export async function cancelSale(id: string, reason: string): Promise<SaleDto> {
     `/${encodeURIComponent(id)}/cancel`,
     { method: "POST", body: JSON.stringify({ reason }) },
   );
+  invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
   if (!result?.data) throw new SalesApiError("Unexpected response from the server.");
   return result.data;
 }

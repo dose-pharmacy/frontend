@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../auth/authApi"
+import { invalidateCachePrefix } from "../inventory/apiCache"
 
 export interface PaginatedResponse<T> {
   data: T[]
@@ -216,6 +217,9 @@ export async function confirmGoodsReceipt(id: string): Promise<GoodsReceiptDto> 
     method: "POST",
     body: JSON.stringify({}),
   })
+  // Confirming brings stock in — drop cached product/stock reads.
+  invalidateCachePrefix("product:")
+  invalidateCachePrefix("inventory-products:")
   return result.data
 }
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
+import DatePicker from "../../components/ui/DatePicker"
 import { getSupplierById } from "../../features/purchasing/suppliersApi"
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto } from "../../features/purchasing/purchaseOrdersApi"
 import { searchSuppliers } from "../../features/inventory/searchSelectors"
@@ -214,7 +215,7 @@ export default function CreateSupplierInvoicePage() {
     }
   }
 
-  const SC = "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none bg-white"
+  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -239,7 +240,7 @@ export default function CreateSupplierInvoicePage() {
         <div className="max-w-4xl mx-auto grid lg:grid-cols-5 gap-5 items-start">
           {/* Invoice form */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Supplier *</label>
@@ -270,11 +271,19 @@ export default function CreateSupplierInvoicePage() {
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Invoice Date</label>
-                  <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={SC} />
+                  <DatePicker
+                    value={invoiceDate}
+                    onChange={setInvoiceDate}
+                    placeholder="Select invoice date..."
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Due Date</label>
-                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={SC} />
+                  <DatePicker
+                    value={dueDate}
+                    onChange={setDueDate}
+                    placeholder="Select due date..."
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Payment Terms</label>
@@ -293,7 +302,7 @@ export default function CreateSupplierInvoicePage() {
                     <div className="overflow-x-auto -mx-5 px-5">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="text-left text-xs text-[#666666] border-b border-[#DBEFF3]">
+                          <tr className="text-left text-xs text-[#666666] border-b border-[#E6ECE2]">
                             <th className="py-2 pr-2">Product</th>
                             <th className="py-2 px-2 text-right">Ordered</th>
                             <th className="py-2 px-2 text-right">Received</th>
@@ -303,7 +312,7 @@ export default function CreateSupplierInvoicePage() {
                         </thead>
                         <tbody>
                           {lines.map((l) => (
-                            <tr key={l.purchaseOrderItemId} className="border-b border-[#DBEFF3]/60">
+                            <tr key={l.purchaseOrderItemId} className="border-b border-[#E6ECE2]/60">
                               <td className="py-2 pr-2 font-medium text-[#333333]">{l.productName}</td>
                               <td className="py-2 px-2 text-right text-[#666666]">{l.quantityOrdered} {l.unitName}</td>
                               <td className="py-2 px-2 text-right text-[#666666]">{l.quantityReceived} {l.unitName}</td>
@@ -317,7 +326,7 @@ export default function CreateSupplierInvoicePage() {
                                     step={0.01}
                                     value={l.quantity}
                                     onChange={(e) => setLineQty(l.purchaseOrderItemId, e.target.value)}
-                                    className="w-20 rounded-lg border border-[#ABDBE3] px-2 py-1 text-right text-sm focus:border-[#49B0C1] focus:outline-none"
+                                    className="w-20 rounded-lg border border-[#C6D4BF] px-2 py-1 text-right text-sm focus:border-[#B6C8AF] focus:outline-none"
                                   />
                                   {l.unitName && <span className="text-xs text-[#999] pb-1 whitespace-nowrap">{l.unitName}</span>}
                                 </div>
@@ -334,11 +343,11 @@ export default function CreateSupplierInvoicePage() {
               )}
 
               {/* Financial split */}
-              <div className="mt-5 grid sm:grid-cols-2 gap-4 border-t border-[#DBEFF3] pt-4">
+              <div className="mt-5 grid sm:grid-cols-2 gap-4 border-t border-[#E6ECE2] pt-4">
                 {purchaseOrderId ? (
                   <div>
                     <label className="block text-sm text-[#666666] mb-1">Goods Amount</label>
-                    <input value={derivedGoods ? derivedGoods.toFixed(2) : ""} readOnly className={`${SC} bg-[#DBEFF3]/30 text-[#333333]`} />
+                    <input value={derivedGoods ? derivedGoods.toFixed(2) : ""} readOnly className={`${SC} bg-[#E6ECE2]/30 text-[#333333]`} />
                     <p className="text-[11px] text-[#999] mt-1">Derived from the item quantities above.</p>
                   </div>
                 ) : (
@@ -360,14 +369,14 @@ export default function CreateSupplierInvoicePage() {
                   <input type="number" min={0} step="0.01" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0.00" className={SC} />
                 </div>
                 <div className="sm:col-span-2">
-                  <div className="rounded-lg bg-[#DBEFF3]/50 px-4 py-3 flex items-center justify-between">
+                  <div className="rounded-lg bg-[#E6ECE2]/50 px-4 py-3 flex items-center justify-between">
                     <span className="text-sm text-[#666666]">Total Amount</span>
                     <span className="text-lg font-bold text-[#333333]">{fmtMoney(totalAmount)}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 mt-6 pt-4 border-t border-[#DBEFF3]">
+              <div className="flex items-center gap-3 mt-6 pt-4 border-t border-[#E6ECE2]">
                 <Button variant="secondary" onClick={() => navigate("/purchasing/invoices")}>Cancel</Button>
                 <Button onClick={handleSubmit} loading={saving} disabled={!supplierId || !invoiceNumber}>
                   {saving ? "Creating…" : "Create Invoice"}
@@ -378,8 +387,8 @@ export default function CreateSupplierInvoicePage() {
 
           {/* PO context panel */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-              <div className="px-4 py-3 bg-[#DBEFF3]/50 border-b border-[#DBEFF3]">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+              <div className="px-4 py-3 bg-[#E6ECE2]/50 border-b border-[#E6ECE2]">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Linked Purchase Order</p>
               </div>
               {purchaseOrderId && selectedPO ? (
@@ -391,7 +400,7 @@ export default function CreateSupplierInvoicePage() {
                     </span>
                   </div>
                   {selectedPO.receivingSummary && (
-                    <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+                    <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
                       {([
                         ["Ordered", selectedPO.receivingSummary.orderedQuantity],
                         ["Received", selectedPO.receivingSummary.receivedQuantity],
@@ -406,7 +415,7 @@ export default function CreateSupplierInvoicePage() {
                     </div>
                   )}
                   {selectedPO.goodsSummary && (
-                    <div className="rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+                    <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
                       {([
                         ["Received Goods", selectedPO.goodsSummary.receivedGoodsValue],
                         ["Goods Invoiced", selectedPO.goodsSummary.goodsInvoicedAmount],
@@ -419,7 +428,7 @@ export default function CreateSupplierInvoicePage() {
                       ))}
                     </div>
                   )}
-                  <div className="border-t border-[#DBEFF3] pt-3">
+                  <div className="border-t border-[#E6ECE2] pt-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-[#666666]">Ordered</span>
                       <span className="font-semibold text-[#333333]">{fmtDate(selectedPO.orderDate)}</span>

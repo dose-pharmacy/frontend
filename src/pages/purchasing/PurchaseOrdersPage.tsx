@@ -11,13 +11,13 @@ import {
   closePurchaseOrder,
   PurchaseOrdersApiError,
   type PurchaseOrderDto,
-  type POListSummaryDto,
   type POPaymentStatus,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { searchSuppliers } from "../../features/inventory/searchSelectors"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchableSelect from "../../components/ui/SearchableSelect"
+import Pagination from "../../components/ui/Pagination"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ export function toUiPO(dto: PurchaseOrderDto): PurchaseOrder {
 const STATUS_CFG: Record<POStatus, { label: string; cls: string }> = {
   REGISTERED:       { label: "Registered",       cls: "bg-blue-100 text-blue-700" },
   AWAITING_DELIVERY:{ label: "Awaiting Delivery", cls: "bg-yellow-100 text-yellow-700" },
-  RECEIVED:         { label: "Received",          cls: "bg-[#DBEFF3] text-[#49B0C1] border border-[#ABDBE3]" },
+  RECEIVED:         { label: "Received",          cls: "bg-[#E6ECE2] text-[#7A9076] border border-[#C6D4BF]" },
   CLOSED:           { label: "Closed",            cls: "bg-green-100 text-green-700" },
   CANCELLED:        { label: "Cancelled",         cls: "bg-gray-100 text-gray-500" },
 }
@@ -120,7 +120,7 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
   useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t) }, [onDone])
   return (
     <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl bg-[#333333] px-5 py-3.5 text-sm text-white shadow-xl">
-      <svg className="h-4 w-4 shrink-0 text-[#49B0C1]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <svg className="h-4 w-4 shrink-0 text-[#7A9076]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
       </svg>
       {message}
@@ -140,15 +140,15 @@ function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onC
   }, [])
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg text-[#666666] hover:bg-[#DBEFF3] transition-colors">
+      <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] transition-colors">
         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
           <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 w-52 rounded-xl border border-[#DBEFF3] bg-white shadow-xl py-1">
+        <div className="absolute right-0 top-full mt-1 z-30 w-52 rounded-xl border border-[#E6ECE2] bg-white shadow-xl py-1">
           {items.map((item) => (
-            <button key={item.label} onClick={() => { setOpen(false); item.onClick() }} className={`w-full text-left px-4 py-2 text-sm hover:bg-[#DBEFF3]/60 transition-colors ${item.danger ? "text-red-600" : "text-[#333333]"}`}>
+            <button key={item.label} onClick={() => { setOpen(false); item.onClick() }} className={`w-full text-left px-4 py-2 text-sm hover:bg-[#E6ECE2]/60 transition-colors ${item.danger ? "text-red-600" : "text-[#333333]"}`}>
               {item.label}
             </button>
           ))}
@@ -198,7 +198,6 @@ export default function PurchaseOrdersPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [poSummary, setPoSummary] = useState<POListSummaryDto | null>(null)
   const [toast, setToast] = useState("")
   const [actionError, setActionError] = useState("")
   const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "markDelivery" | "close" | "cancel" } | null>(null)
@@ -236,7 +235,6 @@ export default function PurchaseOrdersPage() {
         setOrders(res.data.map(toUiPO))
         setTotalPages(res.meta.totalPages)
         setTotalCount(res.meta.total)
-        if (res.summary) setPoSummary(res.summary)
       })
       .catch((err) => {
         if (!active) return
@@ -247,16 +245,6 @@ export default function PurchaseOrdersPage() {
   }, [reloadTick, page, search, suppFilter, statusFilter, paymentFilter])
 
   function refresh() { setReloadTick((t) => t + 1) }
-
-  // Summary counts come from the server (computed over the filtered dataset).
-  // Fall back to the current page's rows if the server didn't send them.
-  const summary = {
-    total:    totalCount,
-    registered: poSummary?.registered ?? orders.filter((o) => o.status === "REGISTERED").length,
-    awaiting: poSummary?.awaitingDelivery ?? orders.filter((o) => o.status === "AWAITING_DELIVERY").length,
-    received: poSummary?.received ?? orders.filter((o) => o.status === "RECEIVED").length,
-    closed:   poSummary?.closed ?? orders.filter((o) => o.status === "CLOSED").length,
-  }
 
   // For backward compatibility with table rendering
   const filtered = orders
@@ -287,7 +275,7 @@ export default function PurchaseOrdersPage() {
 
   const confirmCfg = actionTarget ? {
     markDelivery: { title: "Mark as Awaiting Delivery?", message: `Send ${actionTarget.po.reference} to the supplier and mark it as awaiting delivery?`, confirmLabel: "Mark Awaiting Delivery", confirmClass: "bg-yellow-600 hover:bg-yellow-700 text-white", cancelLabel: "Cancel" },
-    close:        { title: "Close Purchase Order?", message: `This purchase order has been received. Closing it will mark the purchasing cycle as complete.`, confirmLabel: "Close Purchase Order", confirmClass: "bg-[#49B0C1] hover:bg-[#3a9aaa] text-white", cancelLabel: "Cancel" },
+    close:        { title: "Close Purchase Order?", message: `This purchase order has been received. Closing it will mark the purchasing cycle as complete.`, confirmLabel: "Close Purchase Order", confirmClass: "bg-[#B6C8AF] hover:bg-[#A5B89E] text-[#333333]", cancelLabel: "Cancel" },
     cancel:       { title: "Cancel Purchase Order?", message: `Are you sure you want to cancel ${actionTarget.po.reference}? This action will mark the order as cancelled.`, confirmLabel: "Cancel Purchase Order", confirmClass: "bg-red-600 hover:bg-red-700 text-white", cancelLabel: "Keep Order" },
   }[actionTarget.action] : null
 
@@ -298,34 +286,20 @@ export default function PurchaseOrdersPage() {
         title="Purchase Orders"
         subtitle="Create and manage supplier purchase orders."
         actions={
-          <button onClick={() => navigate("/purchasing/orders/new")} className="inline-flex items-center gap-1.5 rounded-xl bg-white text-[#49B0C1] px-3.5 py-2 text-sm font-semibold hover:bg-[#DBEFF3] transition-colors">
+          <button onClick={() => navigate("/purchasing/orders/new")} className="inline-flex items-center gap-1.5 rounded-xl bg-[#B6C8AF] text-[#333333] px-3.5 py-2 text-sm font-semibold hover:bg-[#E6ECE2] transition-colors">
             + Create Purchase Order
           </button>
         }
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {([
-            ["Total Orders",     summary.total,      "text-[#333333]"],
-            ["Registered",       summary.registered, "text-blue-600"],
-            ["Awaiting Delivery",summary.awaiting,   "text-yellow-600"],
-            ["Received",         summary.received,   "text-[#49B0C1]"],
-            ["Closed",           summary.closed,     "text-green-600"],
-          ] as [string, number, string][]).map(([label, val, accent]) => (
-            <div key={label} className="bg-white rounded-xl border border-[#DBEFF3] p-4">
-              <p className="text-xs text-[#666666]">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{val}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4 flex flex-col gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex-1 min-w-[160px]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+          <div className="flex flex-col lg:flex-row gap-3 items-center">
+            <div className="flex-1">
+              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
+            </div>
+            <div className="lg:w-44">
               <SearchableSelect
                 value={suppFilter || null}
                 onChange={(v) => { setSuppFilter(v); setPage(1) }}
@@ -341,7 +315,7 @@ export default function PurchaseOrdersPage() {
                 noResultsMessage="No suppliers matching your search"
               />
             </div>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="REGISTERED">Registered</option>
               <option value="AWAITING_DELIVERY">Awaiting Delivery</option>
@@ -349,7 +323,7 @@ export default function PurchaseOrdersPage() {
               <option value="CLOSED">Closed</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
-            <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[160px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none">
+            <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Payment Statuses</option>
               <option value="NOT_INVOICED">Not Invoiced</option>
               <option value="UNPAID">Unpaid</option>
@@ -357,7 +331,7 @@ export default function PurchaseOrdersPage() {
               <option value="PAID">Paid</option>
             </select>
             {(search || suppFilter || statusFilter || paymentFilter) && (
-              <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-xs font-semibold text-[#49B0C1] hover:underline">
+              <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-xs font-semibold text-[#7A9076] hover:underline">
                 Clear Filters
               </button>
             )}
@@ -365,10 +339,10 @@ export default function PurchaseOrdersPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
               <p className="text-sm text-[#666666]">Loading purchase orders...</p>
             </div>
           ) : error ? (
@@ -378,8 +352,8 @@ export default function PurchaseOrdersPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="h-14 w-14 rounded-2xl bg-[#DBEFF3] flex items-center justify-center">
-                <svg className="h-7 w-7 text-[#49B0C1]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+              <div className="h-14 w-14 rounded-2xl bg-[#E6ECE2] flex items-center justify-center">
+                <svg className="h-7 w-7 text-[#7A9076]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" />
                 </svg>
               </div>
@@ -392,7 +366,7 @@ export default function PurchaseOrdersPage() {
                 </p>
               </div>
               {(search || suppFilter || statusFilter || paymentFilter) ? (
-                <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-sm font-semibold text-[#49B0C1] hover:underline">Clear Filters</button>
+                <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
               ) : (
                 <Button onClick={() => navigate("/purchasing/orders/new")}>+ Create Purchase Order</Button>
               )}
@@ -402,7 +376,7 @@ export default function PurchaseOrdersPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Items", "Status", "Payment", "Actions"].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
@@ -410,9 +384,9 @@ export default function PurchaseOrdersPage() {
                   </thead>
                   <tbody>
                     {paginated.map((po, i) => (
-                      <tr key={po.id} className={`hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}>
+                      <tr key={po.id} className={`hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`}>
                         <td className="px-4 py-3">
-                          <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="font-semibold text-[#49B0C1] hover:underline">{po.reference}</button>
+                          <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="font-semibold text-[#7A9076] hover:underline">{po.reference}</button>
                         </td>
                         <td className="px-4 py-3 text-[#333333]">{po.supplierName}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.orderDate)}</td>
@@ -422,7 +396,7 @@ export default function PurchaseOrdersPage() {
                         <td className="px-4 py-3"><PaymentBadge status={po.paymentStatus} /></td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap">View →</button>
+                            <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">View →</button>
                             <OverflowMenu items={[
                               { label: "View", onClick: () => navigate(`/purchasing/orders/${po.id}`) },
                               ...(po.status === "REGISTERED" ? [
@@ -444,23 +418,20 @@ export default function PurchaseOrdersPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between">
-                <p className="text-xs text-[#666666]">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
-                </p>
-                <div className="flex gap-1">
-                  <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Prev</button>
-                  {(() => {
-                    const pages: number[] = []
-                    for (let i = 1; i <= totalPages; i++) pages.push(i)
-                    return pages.map((p: number) => (
-                      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
-                    ))
-                  })()}
-                  <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">Next</button>
-                </div>
-              </div>
             </>
+          )}
+          {!loading && !error && (
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              label={
+                <>
+                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
+                  {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
+                </>
+              }
+            />
           )}
         </div>
       </div>

@@ -3,6 +3,7 @@ import { searchLocations } from "../../features/inventory/searchSelectors";
 import { useSearchableResource } from "../../hooks/useSearchableResource";
 import SearchableSelect from "../../components/ui/SearchableSelect";
 import type { SearchableOption } from "../../components/ui/SearchableSelect";
+import DatePicker from "../../components/ui/DatePicker";
 
 interface ReportFilterBarProps {
   dateFrom: string;
@@ -18,9 +19,6 @@ interface ReportFilterBarProps {
   /** Extra filter controls rendered alongside the date range and location. */
   extra?: React.ReactNode;
 }
-
-const inputClass =
-  "flex-1 min-w-[150px] rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all";
 
 export default function ReportFilterBar({
   dateFrom,
@@ -43,15 +41,15 @@ export default function ReportFilterBar({
   ].filter((o, i, arr) => arr.findIndex((x) => x.value === o.value) === i);
 
   return (
-    <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+    <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
           <label className="text-sm font-medium text-[#333333]">From</label>
-          <input type="date" value={dateFrom} onChange={(e) => onDateFromChange(e.target.value)} className={inputClass} />
+          <DatePicker value={dateFrom} onChange={onDateFromChange} placeholder="From date" />
         </div>
         <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
           <label className="text-sm font-medium text-[#333333]">To</label>
-          <input type="date" value={dateTo} onChange={(e) => onDateToChange(e.target.value)} className={inputClass} />
+          <DatePicker value={dateTo} onChange={onDateToChange} placeholder="To date" />
         </div>
         {showLocation && (
           <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">

@@ -369,6 +369,7 @@ function toCreateItems(items: CreatePurchaseOrderItemInput[]) {
     quantityOrdered: it.quantityOrdered,
     unitCost: it.unitCost,
     ...(it.requirementLineId ? { requirementLineId: it.requirementLineId } : {}),
+    ...(it.unitId ? { unitId: it.unitId } : {}),
   }));
 }
 

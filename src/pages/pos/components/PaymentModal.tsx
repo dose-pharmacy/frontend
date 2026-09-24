@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { fmt } from "../../../features/pos/posService";
 import { CURRENCY } from "../../../features/pos/posMock";
+import { NARCOTIC_SALE_REMINDER } from "../../../components/ui/NarcoticBadge";
 import type { CartItem } from "../../../features/pos/useCart";
 import type { BillDiscount } from "../../../features/pos/useCart";
 
@@ -53,6 +54,7 @@ export default function PaymentModal({
   const remaining = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
   const isFullyPaid = totalPaid >= total && total > 0;
+  const hasNarcotic = items.some((item) => item.product.isNarcotic);
 
   function addRow() {
     setPaymentRows((prev) => [
@@ -104,12 +106,12 @@ export default function PaymentModal({
     >
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95vh]">
         {/* Header */}
-        <div className="bg-[#49B0C1] px-6 py-4 flex items-center justify-between gap-4">
-          <h2 id="pay-title" className="text-base font-bold text-white">
+        <div className="bg-[#E6ECE2] px-6 py-4 flex items-center justify-between gap-4 border-b border-[#C6D4BF]">
+          <h2 id="pay-title" className="text-base font-bold text-[#333333]">
             Payment
           </h2>
-          <div className="text-xl font-bold text-white">{fmt(total)}</div>
-          <button onClick={onBack} className="text-white/80 hover:text-white" aria-label="Back">
+          <div className="text-xl font-bold text-[#4F6B4A]">{fmt(total)}</div>
+          <button onClick={onBack} className="text-[#666666] hover:text-[#333333]" aria-label="Back">
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
@@ -118,8 +120,8 @@ export default function PaymentModal({
 
         <div className="overflow-y-auto flex-1 p-4 flex flex-col gap-4">
           {/* Sale summary */}
-          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
-            <div className="bg-[#DBEFF3] px-4 py-2">
+          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-[#E6ECE2] px-4 py-2">
               <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide">Summary</p>
             </div>
             <div className="px-4 py-3 flex flex-col gap-1 text-sm">
@@ -129,7 +131,7 @@ export default function PaymentModal({
                   <span>{fmt(lineTotal(item))}</span>
                 </div>
               ))}
-              <div className="border-t border-[#DBEFF3] mt-2 pt-2 flex flex-col gap-1">
+              <div className="border-t border-[#E6ECE2] mt-2 pt-2 flex flex-col gap-1">
                 <div className="flex justify-between text-[#666666]">
                   <span>Subtotal</span>
                   <span>{fmt(subtotal)}</span>
@@ -146,13 +148,22 @@ export default function PaymentModal({
                     <span>− {fmt(discountAmount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-[#333333] text-base border-t border-[#DBEFF3] pt-1 mt-1">
+                <div className="flex justify-between font-bold text-[#333333] text-base border-t border-[#E6ECE2] pt-1 mt-1">
                   <span>Total</span>
-                  <span className="text-[#49B0C1]">{fmt(total)}</span>
+                  <span className="text-[#7A9076]">{fmt(total)}</span>
                 </div>
               </div>
             </div>
           </div>
+
+          {hasNarcotic && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-2">
+              <svg className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <p className="text-xs font-medium text-red-700">{NARCOTIC_SALE_REMINDER}</p>
+            </div>
+          )}
 
           {/* Payment rows */}
           <div className="flex flex-col gap-2">
@@ -160,19 +171,19 @@ export default function PaymentModal({
               <p className="text-sm font-semibold text-[#333333]">Payments</p>
               <button
                 onClick={addRow}
-                className="text-xs font-semibold text-[#49B0C1] hover:underline"
+                className="text-xs font-semibold text-[#7A9076] hover:underline"
               >
                 + Add payment
               </button>
             </div>
 
             {paymentRows.map((row, idx) => (
-              <div key={row.id} className="flex items-center gap-2 bg-[#DBEFF3]/50 rounded-lg p-2.5">
+              <div key={row.id} className="flex items-center gap-2 bg-[#E6ECE2]/50 rounded-lg p-2.5">
                 <span className="text-xs text-[#999] w-4 flex-shrink-0">{idx + 1}.</span>
                 <select
                   value={row.method}
                   onChange={(e) => updateRow(row.id, { method: e.target.value as BackendMethod })}
-                  className="flex-1 rounded-lg border border-[#ABDBE3] bg-white px-2.5 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                  className="flex-1 rounded-lg border border-[#C6D4BF] bg-white px-2.5 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
                 >
                   {(Object.keys(METHOD_LABELS) as BackendMethod[]).map((m) => (
                     <option key={m} value={m}>{METHOD_LABELS[m]}</option>
@@ -187,13 +198,13 @@ export default function PaymentModal({
                     value={row.amount}
                     onChange={(e) => updateRow(row.id, { amount: e.target.value })}
                     placeholder="0.00"
-                    className="w-full rounded-lg border border-[#ABDBE3] bg-white pl-9 pr-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+                    className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-9 pr-2 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
                   />
                 </div>
                 {paymentRows.length > 1 && (
                   <button
                     onClick={() => removeRow(row.id)}
-                    className="text-[#ABDBE3] hover:text-red-500 flex-shrink-0 transition-colors"
+                    className="text-[#C6D4BF] hover:text-red-500 flex-shrink-0 transition-colors"
                     aria-label="Remove payment"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -206,7 +217,7 @@ export default function PaymentModal({
           </div>
 
           {/* Paid / Remaining / Change */}
-          <div className="rounded-xl border border-[#DBEFF3] px-4 py-3 flex flex-col gap-1.5 text-sm">
+          <div className="rounded-xl border border-[#E6ECE2] px-4 py-3 flex flex-col gap-1.5 text-sm">
             <div className="flex justify-between">
               <span className="text-[#666666]">Total</span>
               <span className="font-semibold text-[#333333]">{fmt(total)}</span>
@@ -215,7 +226,7 @@ export default function PaymentModal({
               <span className="text-[#666666]">Paid</span>
               <span className="font-semibold text-[#333333]">{fmt(totalPaid)}</span>
             </div>
-            <div className="flex justify-between border-t border-[#DBEFF3] pt-1.5 mt-0.5">
+            <div className="flex justify-between border-t border-[#E6ECE2] pt-1.5 mt-0.5">
               {remaining > 0 ? (
                 <>
                   <span className="font-semibold text-orange-600">Remaining</span>
@@ -239,10 +250,10 @@ export default function PaymentModal({
         </div>
 
         {/* Footer */}
-        <div className="bg-white border-t border-[#DBEFF3] px-4 py-3 flex gap-3 justify-end">
+        <div className="bg-white border-t border-[#E6ECE2] px-4 py-3 flex gap-3 justify-end">
           <button
             onClick={onBack}
-            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] bg-[#ABDBE3] hover:bg-[#9acbd5] transition-colors"
+            className="rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] bg-[#C6D4BF] hover:bg-[#B5C6AE] transition-colors"
           >
             Back
           </button>

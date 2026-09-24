@@ -419,6 +419,7 @@ export async function createOpeningStock(input: OpeningStockInput): Promise<Open
   // Product-detail responses embed stock — drop cached copies so the next
   // read shows the new balance.
   invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
   if (!result?.data) throw new StockApiError("Unexpected response from the server.");
   return result.data;
 }
@@ -436,6 +437,7 @@ export async function createStockAdjustment(
     { method: "POST", body: JSON.stringify(input) },
   );
   invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
   if (!result?.data) throw new StockApiError("Unexpected response from the server.");
   return result.data;
 }

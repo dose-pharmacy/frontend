@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
+import DatePicker from "../../components/ui/DatePicker"
 import {
   getSupplierInvoice,
   recordInvoicePayment,
@@ -184,7 +185,7 @@ export default function SupplierInvoiceDetailPage() {
       <div className="flex-1 flex flex-col min-h-0">
         <PageHeader title="Supplier Invoice" subtitle="Loading..." />
         <div className="flex-1 flex items-center justify-center">
-          <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+          <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
         </div>
       </div>
     )
@@ -248,7 +249,7 @@ export default function SupplierInvoiceDetailPage() {
         <div className="grid lg:grid-cols-5 gap-5 items-start">
           {/* Financial summary */}
           <div className="lg:col-span-3 flex flex-col gap-5">
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-5">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-[#666666]">Supplier</p>
@@ -267,7 +268,7 @@ export default function SupplierInvoiceDetailPage() {
                   <p className="font-semibold text-[#333333]">{fmtDate(invoice.dueDate)}</p>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-[#DBEFF3] grid sm:grid-cols-3 gap-4">
+              <div className="mt-4 pt-4 border-t border-[#E6ECE2] grid sm:grid-cols-3 gap-4">
                 <div className="bg-green-50 rounded-xl p-3">
                   <p className="text-[11px] text-green-700 font-semibold uppercase tracking-wide">Paid</p>
                   <p className="text-lg font-bold text-green-700 mt-0.5">{fmtMoney(invoicePaid(invoice))}</p>
@@ -279,7 +280,7 @@ export default function SupplierInvoiceDetailPage() {
               </div>
 
               {/* Financial breakdown */}
-              <div className="mt-4 rounded-lg border border-[#DBEFF3] divide-y divide-[#DBEFF3]/70">
+              <div className="mt-4 rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
                 {([
                   ["Goods Amount", invoice.goodsAmount],
                   ["VAT / Tax", invoice.taxAmount],
@@ -287,7 +288,7 @@ export default function SupplierInvoiceDetailPage() {
                   ["Discount", -invoice.discountAmount],
                   ["Total Amount", invoice.totalAmount ?? invoice.invoiceAmount],
                 ] as [string, number][]).map(([label, val]) => (
-                  <div key={label} className={`flex justify-between px-3 py-1.5 text-sm ${label === "Total Amount" ? "bg-[#DBEFF3]/40 font-bold" : ""}`}>
+                  <div key={label} className={`flex justify-between px-3 py-1.5 text-sm ${label === "Total Amount" ? "bg-[#E6ECE2]/40 font-bold" : ""}`}>
                     <span className={label === "Total Amount" ? "text-[#333333]" : "text-[#666666]"}>{label}</span>
                     <span className="font-semibold text-[#333333]">{val < 0 ? `−${fmtMoney(Math.abs(val))}` : fmtMoney(val)}</span>
                   </div>
@@ -301,7 +302,7 @@ export default function SupplierInvoiceDetailPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-[#DBEFF3] text-left">
+                        <tr className="bg-[#E6ECE2] text-left">
                           {["Product", "Qty", "Unit Cost", "Amount"].map((h) => (
                             <th key={h} className="px-4 py-2.5 font-semibold text-[#333333]">{h}</th>
                           ))}
@@ -309,9 +310,9 @@ export default function SupplierInvoiceDetailPage() {
                       </thead>
                       <tbody>
                         {invoice.items.map((it, i) => (
-                          <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                          <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                             <td className="px-4 py-2.5 text-[#333333]">{it.purchaseOrderItem?.product?.name ?? "Product"}</td>
-                            <td className="px-4 py-2.5 text-[#333333]">{it.quantity}</td>
+                            <td className="px-4 py-2.5 text-[#333333]">{it.quantity} <span className="text-xs text-[#999]">{it.unit?.name ?? it.purchaseOrderItem?.unit?.name ?? ""}</span></td>
                             <td className="px-4 py-2.5 text-[#666666]">{fmtMoney(it.unitCost)}</td>
                             <td className="px-4 py-2.5 font-semibold text-[#333333]">{fmtMoney(it.goodsAmount)}</td>
                           </tr>
@@ -332,8 +333,8 @@ export default function SupplierInvoiceDetailPage() {
             </div>
 
             {/* Payments history */}
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-              <div className="px-5 py-3 border-b border-[#DBEFF3] flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+              <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Payment History</p>
                 {canPay && (
                   <Button onClick={openPayModal}>
@@ -346,7 +347,7 @@ export default function SupplierInvoiceDetailPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-[#DBEFF3] text-left">
+                        <tr className="bg-[#E6ECE2] text-left">
                           {["Date", "Amount", "Recorded By", "Notes"].map((h) => (
                             <th key={h} className="px-4 py-2.5 font-semibold text-[#333333]">{h}</th>
                           ))}
@@ -354,7 +355,7 @@ export default function SupplierInvoiceDetailPage() {
                       </thead>
                       <tbody>
                         {invoice.payments.map((payment: InvoicePaymentDto, i: number) => (
-                          <tr key={payment.id} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/20"}>
+                          <tr key={payment.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                             <td className="px-4 py-2.5 text-[#333333]">{fmtDate(payment.paymentDate)}</td>
                             <td className="px-4 py-2.5 font-semibold text-[#333333]">{fmtMoney(payment.amount)}</td>
                             <td className="px-4 py-2.5 text-[#666666]">{payment.recordedBy?.name ?? payment.createdBy?.name ?? "—"}</td>
@@ -373,8 +374,8 @@ export default function SupplierInvoiceDetailPage() {
 
           {/* PO context panel */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
-              <div className="px-4 py-3 bg-[#DBEFF3]/50 border-b border-[#DBEFF3]">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+              <div className="px-4 py-3 bg-[#E6ECE2]/50 border-b border-[#E6ECE2]">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Linked Purchase Order</p>
               </div>
               {purchaseOrder ? (
@@ -392,7 +393,7 @@ export default function SupplierInvoiceDetailPage() {
                         {purchaseOrder.items.map((it) => (
                           <div key={it.id} className="flex items-center justify-between text-sm">
                             <span className="text-[#333333]">{it.product?.name ?? "Product"}</span>
-                            <span className="text-[#666666] whitespace-nowrap">{it.quantityOrdered} × {fmtMoney(it.unitCost)}</span>
+                            <span className="text-[#666666] whitespace-nowrap">{it.quantityOrdered} {it.unit?.name ?? ""} × {fmtMoney(it.unitCost)}</span>
                           </div>
                         ))}
                       </div>
@@ -405,7 +406,7 @@ export default function SupplierInvoiceDetailPage() {
                     {goodsReceipts.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
                         {goodsReceipts.map((gr) => (
-                          <span key={gr.id} className="inline-flex items-center rounded-full border border-[#ABDBE3] bg-[#DBEFF3]/40 px-2.5 py-0.5 text-xs font-semibold text-[#333333]">
+                          <span key={gr.id} className="inline-flex items-center rounded-full border border-[#C6D4BF] bg-[#E6ECE2]/40 px-2.5 py-0.5 text-xs font-semibold text-[#333333]">
                             {gr.receiptNumber}
                           </span>
                         ))}
@@ -414,7 +415,7 @@ export default function SupplierInvoiceDetailPage() {
                       <p className="text-sm text-[#999]">No goods receipts.</p>
                     )}
                   </div>
-                  <div className="border-t border-[#DBEFF3] pt-3">
+                  <div className="border-t border-[#E6ECE2] pt-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-[#666666]">PO Total</span>
                       <span className="font-semibold text-[#333333]">
@@ -448,17 +449,21 @@ export default function SupplierInvoiceDetailPage() {
           </div>
           <div>
             <label className="block text-sm text-[#666666] mb-1">Payment Amount *</label>
-            <input type="number" min={0.01} step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" placeholder="0.00" />
+            <input type="number" min={0.01} step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none" placeholder="0.00" />
           </div>
           <div>
             <label className="block text-sm text-[#666666] mb-1">Payment Date</label>
-            <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" />
+            <DatePicker
+              value={payDate}
+              onChange={setPayDate}
+              placeholder="Select payment date..."
+            />
           </div>
           <div>
             <label className="block text-sm text-[#666666] mb-1">Notes (optional)</label>
-            <textarea rows={2} value={payNotes} onChange={(e) => setPayNotes(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm resize-none focus:border-[#49B0C1] focus:outline-none" placeholder="Optional notes..." />
+            <textarea rows={2} value={payNotes} onChange={(e) => setPayNotes(e.target.value)} className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm resize-none focus:border-[#B6C8AF] focus:outline-none" placeholder="Optional notes..." />
           </div>
-          <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+          <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
             <Button variant="secondary" onClick={() => { setPayModalOpen(false); setPayAmount(""); setPayError("") }}>Cancel</Button>
             <Button onClick={handleRecordPayment} loading={paying}>Record Payment</Button>
           </div>
@@ -471,13 +476,17 @@ export default function SupplierInvoiceDetailPage() {
           {editError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{editError}</p>}
           <div>
             <label className="block text-sm text-[#666666] mb-1">Due Date</label>
-            <input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" />
+            <DatePicker
+              value={editDueDate}
+              onChange={setEditDueDate}
+              placeholder="Select due date..."
+            />
           </div>
           <div>
             <label className="block text-sm text-[#666666] mb-1">Payment Terms</label>
-            <input value={editTerms} onChange={(e) => setEditTerms(e.target.value)} placeholder="e.g., Net 30" className="w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm focus:border-[#49B0C1] focus:outline-none" />
+            <input value={editTerms} onChange={(e) => setEditTerms(e.target.value)} placeholder="e.g., Net 30" className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none" />
           </div>
-          <div className="flex gap-3 justify-end border-t border-[#DBEFF3] pt-4">
+          <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
             <Button variant="secondary" onClick={() => { setEditOpen(false); setEditError("") }}>Cancel</Button>
             <Button onClick={handleEdit} loading={editing}>Save Changes</Button>
           </div>
