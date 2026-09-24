@@ -1294,22 +1294,31 @@ export default function CreatePurchaseOrderPage() {
 
               {/* Receiving summary (detail only) */}
               {!isNew && poState?.receivingSummary && (
-                <div className="mt-4">
-                  <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">Receiving</p>
-                  <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
-                    {([
-                      ["Ordered", poState.receivingSummary.orderedQuantity],
-                      ["Received", poState.receivingSummary.receivedQuantity],
-                      ["Shortage", poState.receivingSummary.shortQuantity],
-                      ["Remaining", poState.receivingSummary.remainingQuantity],
-                    ] as [string, number][]).map(([label, val]) => (
-                      <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
-                        <span className="text-[#666666]">{label}</span>
-                        <span className="font-semibold text-[#333333]">{val}</span>
+                (() => {
+                  const poUnits = [...new Set((poState.items ?? []).map((i) => i.unit?.name).filter(Boolean))]
+                  const poUnitLabel = poUnits.length === 1 ? (poUnits[0] as string) : ""
+                  const showUnitPlaceholder = poUnits.length !== 1 && poState.items?.length ? " (mixed units)" : ""
+                  return (
+                    <div className="mt-4">
+                      <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-2">
+                        Receiving <span className="normal-case font-medium text-[#999]">{poUnitLabel || showUnitPlaceholder}</span>
+                      </p>
+                      <div className="rounded-lg border border-[#E6ECE2] divide-y divide-[#E6ECE2]/70">
+                        {([
+                          ["Ordered", poState.receivingSummary.orderedQuantity],
+                          ["Received", poState.receivingSummary.receivedQuantity],
+                          ["Shortage", poState.receivingSummary.shortQuantity],
+                          ["Remaining", poState.receivingSummary.remainingQuantity],
+                        ] as [string, number][]).map(([label, val]) => (
+                          <div key={label} className="flex justify-between px-3 py-1.5 text-sm">
+                            <span className="text-[#666666]">{label}</span>
+                            <span className="font-semibold text-[#333333]">{val} {poUnitLabel}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  )
+                })()
               )}
 
               {/* Goods value summary (detail only) */}

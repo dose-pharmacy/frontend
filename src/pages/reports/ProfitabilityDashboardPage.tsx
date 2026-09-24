@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Component, type ReactNode } from "react";
 import DashboardSubNav from "../dashboard/DashboardSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
@@ -79,6 +79,28 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       <Button onClick={onRetry}>Retry</Button>
     </div>
   );
+}
+
+class SectionErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state: { error: string | null } = { error: null };
+
+  static getDerivedStateFromError(err: unknown): { error: string } {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 gap-4 px-6">
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">
+            Something went wrong rendering this report: {this.state.error}
+          </p>
+          <Button onClick={() => this.setState({ error: null })}>Try again</Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ─── Summary KPI card (medium) ────────────────────────────────────────────────
@@ -469,7 +491,7 @@ function ProfitMarginSection({
                     <th className="px-4 py-3 font-semibold text-[#333333]">SKU</th>
                     <th className="px-4 py-3 font-semibold text-[#333333]">Group</th>
                     <SortHeader<ProfitMarginSortBy> active={sortBy === "sellingPrice"} order={sortOrder} align="right" onClick={() => { setSortBy("sellingPrice"); if (sortBy === "sellingPrice") setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>Sell Price</SortHeader>
-                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Cost</th>
+                    <th className="px-4 py-3 font-semibold text-[#333333] text-right">Unit Cost</th>
                     {(["revenue", "cost", "quantitySold"] as ProfitMarginSortBy[]).filter((c) => c !== "sellingPrice").map((col) => (
                       <SortHeader<ProfitMarginSortBy> key={col} active={sortBy === col} order={sortOrder} align="right" onClick={() => { setSortBy(col); if (sortBy === col) setSortOrder((o) => (o === "asc" ? "desc" : "asc")); else { setSortOrder("asc"); } setPage(1); }}>
                         {col === "revenue" ? "Revenue" : col === "cost" ? "Cost" : "Qty Sold"}
@@ -527,7 +549,7 @@ export default function ProfitabilityDashboardPage() {
       />
       <DashboardSubNav />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+      <div className="px-6 pb-4 flex-shrink-0">
         <div className="flex rounded-lg border border-[#C6D4BF] w-fit overflow-hidden">
           <button onClick={() => setTab("profitability")} className={`px-4 py-2 text-sm font-semibold transition-colors ${tab === "profitability" ? "bg-[#B6C8AF] text-[#333333]" : "bg-white text-[#666666] hover:bg-[#E6ECE2]"}`}>
             Profitability
@@ -536,12 +558,15 @@ export default function ProfitabilityDashboardPage() {
             Profit Margin
           </button>
         </div>
-
-        {tab === "profitability" ? (
-          <ProfitabilitySection productGroups={productGroups} />
-        ) : (
-          <ProfitMarginSection productGroups={productGroups} />
-        )}
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-5">
+        <SectionErrorBoundary key={tab}>
+          {tab === "profitability" ? (
+            <ProfitabilitySection productGroups={productGroups} />
+          ) : (
+            <ProfitMarginSection productGroups={productGroups} />
+          )}
+        </SectionErrorBoundary>
       </div>
     </div>
   );

@@ -312,7 +312,7 @@ export default function SupplierInvoiceDetailPage() {
                         {invoice.items.map((it, i) => (
                           <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                             <td className="px-4 py-2.5 text-[#333333]">{it.purchaseOrderItem?.product?.name ?? "Product"}</td>
-                            <td className="px-4 py-2.5 text-[#333333]">{it.quantity}</td>
+                            <td className="px-4 py-2.5 text-[#333333]">{it.quantity} <span className="text-xs text-[#999]">{it.unit?.name ?? it.purchaseOrderItem?.unit?.name ?? ""}</span></td>
                             <td className="px-4 py-2.5 text-[#666666]">{fmtMoney(it.unitCost)}</td>
                             <td className="px-4 py-2.5 font-semibold text-[#333333]">{fmtMoney(it.goodsAmount)}</td>
                           </tr>
@@ -393,7 +393,7 @@ export default function SupplierInvoiceDetailPage() {
                         {purchaseOrder.items.map((it) => (
                           <div key={it.id} className="flex items-center justify-between text-sm">
                             <span className="text-[#333333]">{it.product?.name ?? "Product"}</span>
-                            <span className="text-[#666666] whitespace-nowrap">{it.quantityOrdered} × {fmtMoney(it.unitCost)}</span>
+                            <span className="text-[#666666] whitespace-nowrap">{it.quantityOrdered} {it.unit?.name ?? ""} × {fmtMoney(it.unitCost)}</span>
                           </div>
                         ))}
                       </div>

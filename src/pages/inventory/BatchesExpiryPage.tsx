@@ -31,6 +31,7 @@ import Modal from "../../components/ui/Modal"
 import Input from "../../components/ui/Input"
 import DatePicker from "../../components/ui/DatePicker"
 import FormError from "../../components/ui/FormError"
+import { pluralizeUnit } from "../../utils/format"
 import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory"
 import Pagination from "../../components/ui/Pagination"
 import StatusBadge from "../../components/ui/StatusBadge"
@@ -546,7 +547,7 @@ export default function BatchesExpiryPage() {
                                 )}
                               </td>
                               <td className="px-4 py-3 font-semibold text-[#333333]">
-                                {b.quantity.toLocaleString()} {productUnit(b.productId)}s
+                                {b.quantity.toLocaleString()} {pluralizeUnit(productUnit(b.productId))}
                               </td>
                               <td className="px-4 py-3 text-[#666666] hidden md:table-cell">{b.location}</td>
                               <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
@@ -690,7 +691,7 @@ export default function BatchesExpiryPage() {
                               <td className="px-4 py-3 font-mono text-xs text-[#666666]">{row.batchNumber}</td>
                               <td className="px-4 py-3 text-red-600 font-semibold">{formatDate(row.expiryDate)}</td>
                               <td className="px-4 py-3 font-semibold text-[#333333]">
-                                {row.quantity.toLocaleString()} {productUnit(p.productId)}s
+                                {row.quantity.toLocaleString()} {pluralizeUnit(productUnit(p.productId))}
                               </td>
                               <td className="px-4 py-3 text-[#666666]">
                                 {row.purchaseCost != null ? `${Number(row.purchaseCost).toFixed(2)} ETB` : "—"}
@@ -842,7 +843,7 @@ export default function BatchesExpiryPage() {
             <div className="rounded-xl bg-[#E6ECE2] p-4 grid grid-cols-2 gap-3 text-sm">
               <div><span className="text-[#666666]">Product: </span><span className="font-semibold text-[#333333]">{actionBatch.product.name}</span></div>
               <div><span className="text-[#666666]">Batch: </span><span className="font-mono font-semibold text-[#333333]">{actionBatch.batchNumber}</span></div>
-              <div><span className="text-[#666666]">Qty: </span><span className="font-semibold text-[#333333]">{actionBatch.stock.quantity.toLocaleString()} {productUnit(actionBatch.product.id)}s</span></div>
+              <div><span className="text-[#666666]">Qty: </span><span className="font-semibold text-[#333333]">{actionBatch.stock.quantity.toLocaleString()} {pluralizeUnit(productUnit(actionBatch.product.id))}</span></div>
               <div><span className="text-[#666666]">Expiry: </span><span className="font-semibold text-red-600">{formatDate(actionBatch.expiryDate)}</span></div>
               <div className="col-span-2"><span className="text-[#666666]">Days remaining: </span>
                 <span className="font-bold text-orange-600">{actionBatch.daysRemaining}</span>
@@ -916,7 +917,7 @@ function ExpiryGroup({
               </div>
               <div className="text-right flex-shrink-0">
                 <p className={`text-sm font-bold ${dotCls}`}>{days} days</p>
-                <p className="text-xs text-[#666666]">{b.stock.quantity.toLocaleString()} {productUnit(b.product.id)}s</p>
+                <p className="text-xs text-[#666666]">{b.stock.quantity.toLocaleString()} {pluralizeUnit(productUnit(b.product.id))}</p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 <button onClick={() => onAction(b, "return")} className="text-xs font-semibold text-[#7A9076] hover:underline">Return</button>

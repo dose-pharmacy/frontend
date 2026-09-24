@@ -633,7 +633,7 @@ export default function DashboardPage() {
                                   {fmtNumber(item.remainingQuantity)}
                                 </p>
                                 <p className="text-[10px] text-[#999999] uppercase tracking-wide">
-                                  units
+                                  {item.baseUnitName?.toLowerCase() ?? "units"}
                                 </p>
                               </div>
                               <div className="min-w-0 flex-1">
@@ -708,7 +708,9 @@ export default function DashboardPage() {
                       </div>
                       <p className="text-[11px] text-[#666666] mt-1">
                         {fmtNumber(item.availableStock)} / {fmtNumber(item.reorderPoint)}{" "}
-                        <span className="hidden sm:inline">of reorder point</span>
+                        <span className="hidden sm:inline">
+                          of reorder point ({item.baseUnitName?.toLowerCase() ?? "unit"})
+                        </span>
                       </p>
                     </div>
                     <div className="md:justify-self-end">
@@ -879,6 +881,9 @@ export default function DashboardPage() {
 }
 
 // ── Sales analytics (the report overview merged into the dashboard) ──────────
+// Shared with /reports (ReportsDashboardPage) so both screens render the SAME
+// section — filters, financial overview card, trend chart, payment methods and
+// top products — without a second copy drifting apart.
 
 const ANALYTICS_PERIODS: { value: SalesTrendPeriod; label: string }[] = [
   { value: "DAILY", label: "Daily" },
@@ -886,7 +891,7 @@ const ANALYTICS_PERIODS: { value: SalesTrendPeriod; label: string }[] = [
   { value: "ANNUAL", label: "Annual" },
 ];
 
-function SalesAnalyticsSection() {
+export function SalesAnalyticsSection() {
   const range = defaultDateRange();
   const [dateFrom, setDateFrom] = useState(range.from);
   const [dateTo, setDateTo] = useState(range.to);

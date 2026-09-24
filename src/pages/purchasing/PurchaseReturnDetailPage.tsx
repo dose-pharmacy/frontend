@@ -6,6 +6,7 @@ import ConfirmationDialog from "../../components/ui/ConfirmationDialog"
 import {
   deletePurchaseReturn,
   getPurchaseReturn,
+  purchaseReturnDisplayQty,
   type PurchaseReturnDto,
   type PurchaseReturnReason,
 } from "../../features/purchasing/purchaseReturnsApi"
@@ -118,7 +119,14 @@ export default function PurchaseReturnDetailPage() {
             </div>
             <div>
               <p className="text-xs text-[#666666]">Quantity</p>
-              <p className="text-lg font-bold text-[#333333]">{returnRecord.quantity}</p>
+              <p className="text-lg font-bold text-[#333333]">
+                {purchaseReturnDisplayQty(returnRecord)}{" "}
+                {returnRecord.unit?.name && (
+                  <span className="text-sm font-medium text-[#999]">
+                    {returnRecord.unit.name}
+                  </span>
+                )}
+              </p>
             </div>
             <div>
               <p className="text-xs text-[#666666]">Unit Cost</p>

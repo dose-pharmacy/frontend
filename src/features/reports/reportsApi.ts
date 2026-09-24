@@ -125,16 +125,8 @@ export interface SalesDetailSaleDto {
   paidAmount?: number;
   completedAt?: string | null;
   createdAt: string;
-}
-
-export interface SalesDetailLocationDto {
-  id: string;
-  name: string;
-}
-
-export interface SalesDetailUserDto {
-  id: string;
-  name: string;
+  location?: { id: string; name: string } | null;
+  cashier?: { id: string; name: string } | null;
 }
 
 export interface SalesDetailProductDto {
@@ -143,11 +135,19 @@ export interface SalesDetailProductDto {
   sku?: string;
 }
 
+export interface SalesDetailLineUnitDto {
+  id: string;
+  name: string;
+  symbol?: string;
+}
+
 export interface SalesDetailLineDto {
   sale: SalesDetailSaleDto;
   product: SalesDetailProductDto;
-  location: SalesDetailLocationDto;
-  cashier: SalesDetailUserDto;
+  quantity: number;
+  baseQuantity: number;
+  lineTotal: number;
+  unit?: SalesDetailLineUnitDto | null;
 }
 
 export interface SalesDetailQuery {

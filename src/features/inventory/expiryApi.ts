@@ -10,6 +10,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { invalidateCachePrefix } from "./apiCache";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
@@ -470,6 +471,8 @@ export async function createExpiryAction(
     method: "POST",
     body: JSON.stringify({ ...input, batchId }),
   });
+  invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
   if (!result?.data) throw new ExpiryApiError("Unexpected response from the server.");
   return result.data;
 }

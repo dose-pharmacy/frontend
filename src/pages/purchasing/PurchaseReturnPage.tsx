@@ -8,6 +8,7 @@ import { IconX } from "../../components/ui/icons"
 import {
   createPurchaseReturn,
   listPurchaseReturns,
+  purchaseReturnDisplayQty,
   type PurchaseReturnDto,
   type PurchaseReturnReason,
   PurchaseReturnsApiError,
@@ -24,6 +25,8 @@ import {
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchableSelect from "../../components/ui/SearchableSelect"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
+import { useProductUnits } from "../../features/inventory/useProductUnits"
+import { toBaseQuantity } from "../../features/inventory/unitOptions"
 
 const REASON_LABELS: Record<PurchaseReturnReason, string> = {
   EXPIRED: "Expired",
@@ -60,6 +63,7 @@ export default function PurchaseReturnPage() {
   const [locationId, setLocationId] = useState("")
   const [reason, setReason] = useState<PurchaseReturnReason>("EXPIRED")
   const [quantity, setQuantity] = useState(1)
+  const [unitId, setUnitId] = useState("")
   const [unitCost, setUnitCost] = useState("")
   const [debitNoteAmount, setDebitNoteAmount] = useState("")
   const [notes, setNotes] = useState("")
@@ -226,6 +230,7 @@ export default function PurchaseReturnPage() {
     setProductId(newProductId)
     setBatchId("")
     setBatches([])
+    setUnitId("")
   }
 
   function handleLocationChange(newLocationId: string) {
@@ -287,13 +292,27 @@ export default function PurchaseReturnPage() {
   const parsedDebit = parseFloat(debitNoteAmount) || 0
   const estimatedValue = Number(quantity) * parsedUnitCost
 
+  // Unit selection — the entered quantity is expressed in this unit and the
+  // backend converts it to base units for stock. The select defaults to the
+  // product's base unit while the configuration loads.
+  const unitProducts = useProductUnits(productId || null)
+  const effectiveUnitId = unitId || unitProducts.baseUnit?.id || ""
+  const productUnit = unitProducts.units.find((u) => u.unitId === effectiveUnitId)
+  const unitName = productUnit?.unit?.name ?? ""
+  const baseQty =
+    productUnit != null
+      ? (toBaseQuantity(quantity, productUnit) ?? Number(quantity))
+      : Number(quantity)
+
   const canSubmit =
     !!supplierId &&
     !!productId &&
     !!locationId &&
     quantity > 0 &&
     parsedUnitCost > 0 &&
-    (!batchId || getAvailableStock(batchId) >= quantity)
+    !!productUnit &&
+    !unitProducts.loading &&
+    (!batchId || getAvailableStock(batchId) >= baseQty)
 
   function confirmAndSubmit() {
     if (!supplierId || !productId || !locationId) {
@@ -304,11 +323,15 @@ export default function PurchaseReturnPage() {
       setError("Quantity and Unit Cost must be greater than zero.")
       return
     }
+    if (!productUnit || unitProducts.loading) {
+      setError("Product units are still loading — please try again.")
+      return
+    }
     if (batchId) {
       const available = getAvailableStock(batchId)
-      if (quantity > available) {
+      if (baseQty > available) {
         setError(
-          `Insufficient stock for the selected batch. Available: ${available}, Requested: ${quantity}`,
+          `Insufficient stock for the selected batch. Available: ${available} base units, Requested: ${baseQty} base units (${quantity} ${unitName || "base"}).`,
         )
         return
       }
@@ -327,11 +350,15 @@ export default function PurchaseReturnPage() {
       setError("Quantity and Unit Cost must be greater than zero.")
       return
     }
+    if (!productUnit || unitProducts.loading) {
+      setError("Product units are still loading — please try again.")
+      return
+    }
     if (batchId) {
       const available = getAvailableStock(batchId)
-      if (quantity > available) {
+      if (baseQty > available) {
         setError(
-          `Insufficient stock for the selected batch. Available: ${available}, Requested: ${quantity}`,
+          `Insufficient stock for the selected batch. Available: ${available} base units, Requested: ${baseQty} base units (${quantity} ${unitName || "base"}).`,
         )
         return
       }
@@ -341,15 +368,16 @@ export default function PurchaseReturnPage() {
     setSaving(true)
     try {
       // POST /purchase-returns — the backend re-validates supplier/product/batch
-      // ownership and live stock under lock; batchId/unitCost optional fields as
-      // documented.
+      // ownership and live stock under lock; the quantity is converted from
+      // the selected unit to base units on the server.
       await createPurchaseReturn({
         supplierId,
         productId,
         batchId: batchId || null,
         locationId,
         reason,
-        quantity: Number(quantity),
+        quantity: Number(baseQty),
+        unitId: effectiveUnitId || null,
         unitCost: parsedUnitCost,
         debitNoteAmount: debitNoteAmount ? parsedDebit : undefined,
         notes: notes || null,
@@ -362,6 +390,7 @@ export default function PurchaseReturnPage() {
       setBatchId("")
       setLocationId("")
       setBatches([])
+      setUnitId("")
       setReason("EXPIRED")
       setQuantity(1)
       setUnitCost("")
@@ -576,15 +605,50 @@ export default function PurchaseReturnPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">
-                    Quantity (base units) *
+                    Quantity *
                   </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={quantity}
-                    onChange={(e) => setQuantity(Number(e.target.value))}
-                    className={inputClass}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      step="any"
+                      value={quantity}
+                      onChange={(e) => setQuantity(Number(e.target.value))}
+                      className={inputClass}
+                    />
+                    <select
+                      value={effectiveUnitId}
+                      onChange={(e) => setUnitId(e.target.value)}
+                      disabled={!productId || unitProducts.loading}
+                      className={`${inputClass} max-w-[130px] shrink-0`}
+                    >
+                      {unitProducts.loading && (
+                        <option value="">Loading…</option>
+                      )}
+                      {unitProducts.error && (
+                        <option value="">Error loading units</option>
+                      )}
+                      {unitProducts.options.length === 0 && !unitProducts.loading && (
+                        <option value="">Base unit</option>
+                      )}
+                      {unitProducts.options.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {productUnit && productUnit.conversionFactor > 1 && baseQty > 0 && (
+                    <p className="mt-1 text-xs text-[#7A9076]">
+                      = {baseQty} base unit{baseQty !== 1 ? "s" : ""} (
+                      {productUnit.conversionFactor}× conversion)
+                    </p>
+                  )}
+                  {unitProducts.error && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {unitProducts.error}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">
@@ -630,9 +694,15 @@ export default function PurchaseReturnPage() {
 
               {productId && quantity > 0 && parsedUnitCost > 0 && (
                 <div className="mt-4 p-3 rounded-lg bg-[#E6ECE2] text-sm text-[#333333]">
-                  <strong>Summary:</strong> Return {quantity} ×{" "}
-                  {selectedProductName || "?"} — Total Value:{" "}
-                  <strong>{fmtMoney(estimatedValue)}</strong>
+                  <strong>Summary:</strong> Return {quantity}{" "}
+                  {unitName || "base"} × {selectedProductName || "?"} — Total
+                  Value: <strong>{fmtMoney(estimatedValue)}</strong>
+                  {productUnit && productUnit.conversionFactor > 1 && (
+                    <span className="text-[#7A9076]">
+                      {" "}
+                      (= {baseQty} base units)
+                    </span>
+                  )}
                   {selectedBatch && ` · Batch: ${selectedBatch.batchNumber}`}
                 </div>
               )}
@@ -649,7 +719,9 @@ export default function PurchaseReturnPage() {
                 </Button>
                 {canSubmit && !saving && (
                   <span className="text-xs text-[#666666]">
-                    Recording a return deducts {quantity} from the selected{" "}
+                    Recording a return deducts {baseQty} base unit
+                    {baseQty !== 1 ? "s" : ""} ({quantity}{" "}
+                    {unitName || "base"}) from the selected{" "}
                     {locationId ? "location" : "batch"} and cannot be undone.
                   </span>
                 )}
@@ -739,7 +811,12 @@ export default function PurchaseReturnPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right text-[#333333]">
-                          {ret.quantity}
+                          {purchaseReturnDisplayQty(ret)}{" "}
+                          {ret.unit?.name && (
+                            <span className="text-xs text-[#999]">
+                              {ret.unit.name}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right text-[#333333]">
                           {fmtMoney(ret.unitCost)}
@@ -772,9 +849,9 @@ export default function PurchaseReturnPage() {
       <ConfirmationDialog
         open={confirmOpen}
         title="Confirm Purchase Return?"
-        message={`Return ${quantity} × ${selectedProductName || "product"} to ${
+        message={`Return ${quantity} ${unitName || "base"} (${baseQty} base unit${baseQty !== 1 ? "s" : ""}) × ${selectedProductName || "product"} to ${
           selectedBatch ? `batch ${selectedBatch.batchNumber} · ` : ""
-        }${selectedSupplierName || "supplier"}. This will permanently reduce stock at ${selectedLocationName || "the selected location"} by ${quantity} base units — the movement is recorded in the stock ledger and cannot be reversed.`}
+        }${selectedSupplierName || "supplier"}. This will permanently reduce stock at ${selectedLocationName || "the selected location"} by ${baseQty} base unit${baseQty !== 1 ? "s" : ""} — the movement is recorded in the stock ledger and cannot be reversed.`}
         confirmLabel="Record Return"
         danger
         loading={saving}

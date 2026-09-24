@@ -21,6 +21,7 @@ import {
 import MetricCard from "../../components/ui/MetricCard"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
+import { pluralizeUnit } from "../../utils/format"
 
 export default function InventoryDashboardPage() {
   const navigate = useNavigate()
@@ -243,12 +244,12 @@ export default function InventoryDashboardPage() {
                       <p className="text-sm font-medium text-[#333333] truncate">{i.product.name}</p>
                       <p className="text-xs text-[#666666]">
                         Reorder at {i.reorderPoint.toLocaleString()}{" "}
-                        {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
+                        {pluralizeUnit(i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit")}
                       </p>
                     </div>
                     <div className="text-right ml-4 flex-shrink-0">
                       <p className={`text-sm font-bold ${i.currentStock <= 0 ? "text-red-600" : "text-yellow-600"}`}>
-                        {i.currentStock.toLocaleString()} {i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit"}s
+                        {i.currentStock.toLocaleString()} {pluralizeUnit(i.product.baseUnit?.name ?? i.product.baseUnit?.symbol ?? "unit")}
                       </p>
                       <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${i.currentStock <= 0 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
                         {i.currentStock <= 0 ? "Out of Stock" : "Low Stock"}
@@ -297,7 +298,9 @@ export default function InventoryDashboardPage() {
                     const batchNumber =
                       (t.batch as { batchNumber?: string } | undefined)?.batchNumber
                     const isIn = t.direction === "IN"
-                    const qtyLabel = `${t.quantity.toLocaleString()}${batchNumber ? ` · ${batchNumber}` : ""}`
+                    const unitName =
+                      (t.baseUnit as { name?: string } | undefined)?.name ?? "unit"
+                    const qtyLabel = `${t.quantity.toLocaleString()} ${pluralizeUnit(unitName)}${batchNumber ? ` · ${batchNumber}` : ""}`
                     return (
                       <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{formatTime(t.createdAt)}</td>

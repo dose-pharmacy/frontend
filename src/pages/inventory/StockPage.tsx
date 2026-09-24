@@ -18,6 +18,7 @@ import {
 import { useProductUnits } from "../../features/inventory/useProductUnits"
 import { toBaseQuantity } from "../../features/inventory/unitOptions"
 import { formatFactor } from "../../features/inventory/unitOptions"
+import { pluralizeUnit } from "../../utils/format"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Pagination from "../../components/ui/Pagination"
@@ -343,7 +344,7 @@ export default function StockPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-[#666666] hidden md:table-cell">
-                            {r.unitName ? `${r.unitName}s` : "—"}
+                            {r.unitName ? pluralizeUnit(r.unitName) : "—"}
                           </td>
                           <td className="px-4 py-3 text-[#666666] hidden lg:table-cell">
                             {fmtDate(r.expiryDate)}
@@ -498,7 +499,7 @@ function BatchDetailView({
         <Row
           label="Quantity"
           value={`${row.quantity.toLocaleString()} ${
-            row.unitName ? `${row.unitName}s` : ""
+            row.unitName ? pluralizeUnit(row.unitName) : ""
           }`.trim()}
         />
         <Row label="Reserved" value={row.reservedQuantity.toLocaleString()} />
@@ -521,14 +522,14 @@ function BatchDetailView({
             >
               <span className="text-sm text-[#333333]">{l.location}</span>
               <span className="text-sm font-semibold text-[#333333]">
-                {l.qty.toLocaleString()}
+                {l.qty.toLocaleString()} {row.unitName ?? ""}
               </span>
             </div>
           ))}
           <div className="flex items-center justify-between px-4 py-2.5 bg-[#E6ECE2]/30">
             <span className="text-sm font-semibold text-[#333333]">Total</span>
             <span className="text-sm font-bold text-[#333333]">
-              {totalQty.toLocaleString()}
+              {totalQty.toLocaleString()} {row.unitName ?? ""}
             </span>
           </div>
         </div>
@@ -882,18 +883,23 @@ function AdjustStockModal({
   const selectedBatch = batches.find((b) => b.id === batchId)
   const currentStock = selectedBatch?.totalQuantity ?? 0
   const adjNum = parseInt(adjustment) || 0
-  const newStock = Math.max(0, currentStock + adjNum)
   const selectedUnit = unitsApi.units.find((u) => u.unitId === unitId)
+  // currentStock is the batch's BASE-unit total. Convert the adjustment to
+  // base units too so the preview never mixes units (e.g. 2 Box onto a
+  // 30-Tablet stock adjusts to 50, not 32).
   const baseAdjPreview = toBaseQuantity(Math.abs(adjNum), selectedUnit)
+  const baseAdj = baseAdjPreview !== null ? (adjNum >= 0 ? baseAdjPreview : -baseAdjPreview) : adjNum
+  const newStock = Math.max(0, currentStock + baseAdj)
   const baseAdjLabel =
     baseAdjPreview !== null && unitsApi.baseUnit
-      ? baseAdjPreview.toLocaleString() + " " + (unitsApi.baseUnit.name ?? "")
+      ? baseAdjPreview.toLocaleString() + " " + pluralizeUnit(unitsApi.baseUnit.name)
       : ""
 
   function reset() {
     setProductId("")
     setBatchId("")
     setLocationId("")
+    setUnitId("")
     setAdjustment("")
     setReason("")
     setNotes("")
@@ -1016,7 +1022,7 @@ function AdjustStockModal({
             <span className="text-sm text-[#666666]">Current Stock</span>
             <span className="text-sm font-bold text-[#333333]">
               {currentStock.toLocaleString()}{" "}
-              {selectedUnit ? selectedUnit.unit.name : ""}
+              {unitsApi.baseUnit?.name ?? selectedUnit?.unit.name ?? ""}
             </span>
           </div>
         )}
@@ -1072,7 +1078,7 @@ function AdjustStockModal({
               }`}
             >
               {newStock.toLocaleString()}{" "}
-              {selectedUnit ? selectedUnit.unit.name : ""}
+              {unitsApi.baseUnit?.name ?? selectedUnit?.unit.name ?? ""}
             </span>
           </div>
         )}

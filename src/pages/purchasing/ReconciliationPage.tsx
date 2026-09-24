@@ -164,6 +164,9 @@ export default function ReconciliationPage() {
   const totalOrdered = receipt.items.reduce((s, i) => s + i.expectedQty, 0);
   const totalDelivered = receipt.items.reduce((s, i) => s + i.deliveredQty, 0);
   const totalActual = receipt.items.reduce((s, i) => s + i.actualQty, 0);
+  const distinctUnits = [...new Set(receipt.items.map((i) => i.unit?.name).filter(Boolean))];
+  const summaryUnit = distinctUnits.length === 1 ? (distinctUnits[0] as string) : "";
+  const unitLabel = (item: GRItemDto): string => item.unit?.name ?? "";
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -213,18 +216,18 @@ export default function ReconciliationPage() {
               <p className="text-lg font-bold text-[#333333] mt-1">{receipt.purchaseOrder?.poNumber ?? "—"}</p>
             </div>
             <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
-              <p className="text-xs text-[#666666]">Expected Qty</p>
-              <p className="text-lg font-bold text-[#333333] mt-1">{totalOrdered}</p>
+              <p className="text-xs text-[#666666]">Expected Qty {summaryUnit && `(${summaryUnit})`}</p>
+              <p className="text-lg font-bold text-[#333333] mt-1">{totalOrdered} {summaryUnit}</p>
             </div>
             <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
-              <p className="text-xs text-[#666666]">Delivered Qty</p>
+              <p className="text-xs text-[#666666]">Delivered Qty {summaryUnit && `(${summaryUnit})`}</p>
               <p className={`text-lg font-bold mt-1 ${totalDelivered < totalOrdered ? "text-yellow-500" : "text-[#333333]"}`}>
-                {totalDelivered}
+                {totalDelivered} {summaryUnit}
               </p>
             </div>
             <div className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
-              <p className="text-xs text-[#666666]">Actual Qty</p>
-              <p className="text-lg font-bold text-green-600 mt-1">{totalActual}</p>
+              <p className="text-xs text-[#666666]">Actual Qty {summaryUnit && `(${summaryUnit})`}</p>
+              <p className="text-lg font-bold text-green-600 mt-1">{totalActual} {summaryUnit}</p>
             </div>
           </div>
         </div>
@@ -274,11 +277,11 @@ export default function ReconciliationPage() {
                       <td className="px-3 py-2.5 font-medium text-[#333333]">
                         {item.purchaseOrderItem?.product?.name ?? `Product (${item.purchaseOrderItem?.productId?.slice(0, 8) ?? "?"})`}
                       </td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.expectedQty}</td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.deliveredQty}</td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.actualQty}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.expectedQty} {unitLabel(item)}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.deliveredQty} {unitLabel(item)}</td>
+                      <td className="px-3 py-2.5 text-[#333333]">{item.actualQty} {unitLabel(item)}</td>
                       <td className={`px-3 py-2.5 font-semibold ${isMatch ? "text-green-600" : "text-red-500"}`}>
-                        {isMatch ? <span className="inline-flex items-center gap-1"><IconCheck className="h-3.5 w-3.5" />0</span> : `${variance > 0 ? "+" : ""}${variance}`}
+                        {isMatch ? <span className="inline-flex items-center gap-1"><IconCheck className="h-3.5 w-3.5" />0{unitLabel(item) && ` ${unitLabel(item)}`}</span> : `${variance > 0 ? "+" : ""}${variance} ${unitLabel(item)}`}
                       </td>
                       <td className="px-3 py-2.5 text-[#333333]">{item.batchNumber ?? "—"}</td>
                       <td className="px-3 py-2.5 text-[#333333]">{fmtDate(item.expiryDate)}</td>
@@ -319,6 +322,7 @@ export default function ReconciliationPage() {
                           </td>
                           <td className="px-3 py-2">
                             <input type="number" min={0} value={item.actualQty} onChange={(e) => updateResolveItem(item.id, "actualQty", Number(e.target.value))} className="w-16 rounded border border-yellow-300 px-2 py-1 text-sm" />
+                            {originalItem?.unit?.name && <span className="ml-1.5 text-xs text-yellow-700">{originalItem.unit.name}</span>}
                           </td>
                           <td className="px-3 py-2">
                             <input value={item.batchNumber} onChange={(e) => updateResolveItem(item.id, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-yellow-300 px-2 py-1 text-xs" />

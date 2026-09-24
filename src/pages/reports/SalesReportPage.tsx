@@ -121,8 +121,8 @@ export default function SalesReportPage() {
   }
 
   const detailSale = detailLines[0]?.sale ?? null;
-  const detailLocation = detailLines[0]?.location ?? null;
-  const detailCashier = detailLines[0]?.cashier ?? null;
+  const detailLocation = detailSale?.location ?? null;
+  const detailCashier = detailSale?.cashier ?? null;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -262,6 +262,9 @@ export default function SalesReportPage() {
                       <tr className="bg-[#E6ECE2] text-left">
                         <th className="px-4 py-2.5 font-semibold text-[#333333]">Product</th>
                         <th className="px-4 py-2.5 font-semibold text-[#333333]">SKU</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#333333]">Unit</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#333333] text-right">Qty</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#333333] text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -269,6 +272,9 @@ export default function SalesReportPage() {
                         <tr key={`${line.product?.id ?? i}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}>
                           <td className="px-4 py-2.5 text-[#333333]">{line.product?.name ?? "—"}</td>
                           <td className="px-4 py-2.5 text-[#666666]">{line.product?.sku ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-[#666666]">{line.unit?.name ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-right text-[#333333]">{fmtNumber(line.quantity)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-[#333333]">{fmtMoney(line.lineTotal)}</td>
                         </tr>
                       ))}
                     </tbody>

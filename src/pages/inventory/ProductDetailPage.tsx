@@ -683,6 +683,7 @@ export default function ProductDetailPage() {
                             </td>
                             <td className="px-4 py-3 font-semibold text-[#333333]">
                               {l.quantity.toLocaleString()}
+                              {product.baseUnit?.name ? ` ${product.baseUnit.name}` : ""}
                             </td>
                           </tr>
                         ))}

@@ -980,15 +980,35 @@ function RequirementDetailScreen({
                       </td>
                       <td className="px-4 py-3 text-right text-[#333333]">
                         {line.quantityOrdered}
+                        {line.unitName && (
+                          <span className="ml-1 text-xs font-normal text-[#999]">
+                            {line.unitName}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-[#7A9076]">
                         {line.quantityRemaining}
+                        {line.unitName && (
+                          <span className="ml-1 text-xs font-normal text-[#999]">
+                            {line.unitName}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden sm:table-cell">
                         {line.quantityDelivered}
+                        {line.unitName && (
+                          <span className="ml-1 text-xs font-normal text-[#999]">
+                            {line.unitName}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-[#666666] hidden md:table-cell">
                         {line.remainingToReceive}
+                        {line.unitName && (
+                          <span className="ml-1 text-xs font-normal text-[#999]">
+                            {line.unitName}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <LineBadge status={line.status} />
@@ -1226,9 +1246,45 @@ function RequirementDetailScreen({
 interface NewLine {
   productId: string
   product: ProductDto | null
+  /** null = the product's base unit. */
+  unitId: string | null
   quantity: string
   reason: LineReason
   notes: string
+}
+
+/** Per-row unit picker for the create-requirement modal. */
+function NewLineUnitPicker({
+  productId,
+  value,
+  onChange,
+}: {
+  productId: string
+  value: string | null
+  onChange: (unitId: string | null) => void
+}) {
+  const { options, loading, error, baseUnit } = useProductUnits(
+    productId || null,
+  )
+  const effective = value ?? baseUnit?.id ?? ""
+  if (!productId) return <span className="text-xs text-[#999]">—</span>
+  return (
+    <div className="flex flex-col gap-0.5">
+      <select
+        value={effective}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="w-28 rounded border border-[#C6D4BF] bg-white px-2 py-1 text-xs focus:outline-none"
+      >
+        {loading && <option value="">Loading…</option>}
+        {error && <option value="">Error loading units</option>}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 }
 
 function NewRequirementModal({
@@ -1247,6 +1303,7 @@ function NewRequirementModal({
     {
       productId: "",
       product: null,
+      unitId: null,
       quantity: "",
       reason: "Low Stock",
       notes: "",
@@ -1268,6 +1325,7 @@ function NewRequirementModal({
       {
         productId: "",
         product: null,
+        unitId: null,
         quantity: "",
         reason: "Low Stock",
         notes: "",
@@ -1321,6 +1379,7 @@ function NewRequirementModal({
         lines: lines.map((l) => ({
           productId: l.productId,
           quantityNeeded: parseInt(l.quantity),
+          ...(l.unitId ? { unitId: l.unitId } : {}),
           ...(reasonCode(l.reason)
             ? { reasonCode: reasonCode(l.reason)! }
             : {}),
@@ -1333,6 +1392,7 @@ function NewRequirementModal({
         {
           productId: "",
           product: null,
+          unitId: null,
           quantity: "",
           reason: "Low Stock",
           notes: "",
@@ -1392,7 +1452,7 @@ function NewRequirementModal({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#E6ECE2]">
-                    {["Product", "Qty Needed", "Reason", "Notes", ""].map(
+                    {["Product", "Unit", "Qty Needed", "Reason", "Notes", ""].map(
                       (h) => (
                         <th
                           key={h}
@@ -1417,6 +1477,7 @@ function NewRequirementModal({
                             const p = products.find((x) => x.id === v) ?? null
                             updateLine(i, "productId", v)
                             updateLine(i, "product", p)
+                            updateLine(i, "unitId", null)
                           }}
                           options={products.map((p) => ({
                             value: p.id,
@@ -1426,6 +1487,13 @@ function NewRequirementModal({
                           searchPlaceholder="Search products..."
                           emptyMessage="No products found"
                           noResultsMessage="No products matching your search"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <NewLineUnitPicker
+                          productId={line.productId}
+                          value={line.unitId}
+                          onChange={(v) => updateLine(i, "unitId", v)}
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -2212,25 +2280,29 @@ function OrderPreviewModal({
             <div>
               <p className="text-[#999]">Required</p>
               <p className="font-bold text-[#333333]">
-                {preview.requiredQuantity}
+                {preview.requiredQuantity}{" "}
+                <span className="text-xs font-normal text-[#999]">{line.unitName}</span>
               </p>
             </div>
             <div>
               <p className="text-[#999]">Ordered</p>
               <p className="font-bold text-[#333333]">
-                {preview.orderedQuantity}
+                {preview.orderedQuantity}{" "}
+                <span className="text-xs font-normal text-[#999]">{line.unitName}</span>
               </p>
             </div>
             <div>
               <p className="text-[#999]">Remaining to Order</p>
               <p className="font-bold text-[#7A9076]">
-                {preview.remainingQuantity}
+                {preview.remainingQuantity}{" "}
+                <span className="text-xs font-normal text-[#999]">{line.unitName}</span>
               </p>
             </div>
             <div>
               <p className="text-[#999]">Suggested Order Qty</p>
               <p className="font-bold text-[#7A9076]">
-                {preview.suggestedOrderQuantity}
+                {preview.suggestedOrderQuantity}{" "}
+                <span className="text-xs font-normal text-[#999]">{line.unitName}</span>
               </p>
             </div>
             <div>
@@ -2254,16 +2326,23 @@ function OrderPreviewModal({
           </p>
           <div className="grid sm:grid-cols-2 gap-4">
             <Fw label="Quantity to Order">
-              <input
-                type="number"
-                min={1}
-                max={preview.remainingQuantity}
-                step="0.001"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className={SC}
-                placeholder={preview.suggestedOrderQuantity.toString()}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={preview.remainingQuantity}
+                  step="0.001"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className={SC}
+                  placeholder={preview.suggestedOrderQuantity.toString()}
+                />
+                {line.unitName && (
+                  <span className="text-sm text-[#666666] whitespace-nowrap">
+                    {line.unitName}
+                  </span>
+                )}
+              </div>
             </Fw>
             <Fw label="Unit Cost (ETB)">
               <input

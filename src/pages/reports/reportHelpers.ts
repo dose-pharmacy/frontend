@@ -1,16 +1,19 @@
-export function fmtMoney(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return "—";
-  return `${n.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
+export function fmtMoney(n: number | string | null | undefined): string {
+  const num = typeof n === "string" ? Number(n) : n;
+  if (num == null || isNaN(num)) return "—";
+  return `${num.toLocaleString("en-ET", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
 }
 
-export function fmtPercent(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return "—";
-  return `${n.toFixed(1)}%`;
+export function fmtPercent(n: number | string | null | undefined): string {
+  const num = typeof n === "string" ? Number(n) : n;
+  if (num == null || isNaN(num)) return "—";
+  return `${num.toFixed(1)}%`;
 }
 
-export function fmtNumber(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return "—";
-  return n.toLocaleString("en-ET");
+export function fmtNumber(n: number | string | null | undefined): string {
+  const num = typeof n === "string" ? Number(n) : n;
+  if (num == null || isNaN(num)) return "—";
+  return num.toLocaleString("en-ET");
 }
 
 export function fmtDate(d: string | null | undefined): string {

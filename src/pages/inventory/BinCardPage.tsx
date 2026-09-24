@@ -13,6 +13,7 @@ import Select from "../../components/ui/Select";
 import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
 import DatePicker from "../../components/ui/DatePicker";
+import { pluralizeUnit } from "../../utils/format";
 
 function fmtDate(d: string) {
   if (!d) return "—";
@@ -151,7 +152,7 @@ export default function BinCardPage() {
   const selectedLocation = locations.find((l) => l.id === locationId);
   const selectedBatch = batches.find((b) => b.id === batchId);
   const unit = card?.baseUnit?.name || unitsProd.product?.baseUnit?.name || "";
-  const unitLabel = unit ? `${unit}s` : "";
+  const unitLabel = unit ? pluralizeUnit(unit) : "";
 
   function handleExportCSV() {
     const header = "Date,Reference,Type,Notes,In,Out,Balance,Cost\n";

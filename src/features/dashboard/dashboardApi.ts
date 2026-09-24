@@ -53,6 +53,7 @@ export interface LowStockAttentionItem {
   sku: string;
   availableStock: number;
   reorderPoint: number;
+  baseUnitName?: string;
 }
 
 export interface ExpiringSoonAttentionItem {
@@ -62,6 +63,7 @@ export interface ExpiringSoonAttentionItem {
   batchNumber: string;
   expiryDate: string;
   remainingQuantity: number;
+  baseUnitName?: string;
 }
 
 export interface AwaitingDeliveryAttentionItem {

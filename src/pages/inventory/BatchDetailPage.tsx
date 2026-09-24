@@ -32,6 +32,7 @@ interface TxRow {
   balanceAfter: number;
   date: string;
   reference: string;
+  unitName: string;
 }
 
 function adaptTx(tx: StockTransactionDto): TxRow {
@@ -43,6 +44,8 @@ function adaptTx(tx: StockTransactionDto): TxRow {
     balanceAfter: tx.balanceAfter,
     date: tx.createdAt,
     reference: [tx.referenceType, tx.referenceId].filter(Boolean).join(" · ") || "—",
+    unitName:
+      (tx.baseUnit as { name?: string } | undefined)?.name ?? "",
   };
 }
 
@@ -278,9 +281,9 @@ export default function BatchDetailPage() {
                         </td>
                         <td className="px-4 py-3 capitalize text-[#333333]">{prettyTxType(t.type)}</td>
                         <td className={`px-4 py-3 font-semibold ${t.direction === "IN" ? "text-green-700" : "text-red-700"}`}>
-                          {t.direction === "IN" ? "+" : "−"}{t.quantity.toLocaleString()}
+                          {t.direction === "IN" ? "+" : "−"}{t.quantity.toLocaleString()} {t.unitName}
                         </td>
-                        <td className="px-4 py-3 text-[#666666]">{t.balanceAfter.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-[#666666]">{t.balanceAfter.toLocaleString()} {t.unitName}</td>
                         <td className="px-4 py-3 font-mono text-xs text-[#666666]">{t.reference}</td>
                       </tr>
                     ))}

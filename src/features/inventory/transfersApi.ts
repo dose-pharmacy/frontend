@@ -14,6 +14,7 @@
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { invalidateCachePrefix } from "./apiCache";
 
 // ─── Types (mirror the Swagger request/response shapes) ──────────────────────
 
@@ -351,6 +352,9 @@ export async function completeTransfer(id: string): Promise<TransferDto> {
     `/${encodeURIComponent(id)}/complete`,
     { method: "POST", body: JSON.stringify({}) },
   );
+  // Completions move stock — drop cached product/stock reads.
+  invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
   return unwrap<TransferDto>(result);
 }
 
@@ -363,5 +367,7 @@ export async function cancelTransfer(id: string): Promise<TransferDto> {
     `/${encodeURIComponent(id)}/cancel`,
     { method: "POST", body: JSON.stringify({}) },
   );
+  invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
   return unwrap<TransferDto>(result);
 }

@@ -32,6 +32,18 @@ export function fmtDateTime(d: string | null | undefined): string {
   });
 }
 
+/**
+ * Basic English pluralization for product unit names
+ * (Box → Boxes, Tablet → Tablets, Strip → Strips, Syrup stays Syrup by design).
+ */
+export function pluralizeUnit(name: string): string {
+  const n = name.trim();
+  if (!n) return n;
+  if (/[sxz]$/i.test(n)) return `${n}es`;
+  if (/[^aeiou]y$/i.test(n)) return `${n.slice(0, -1)}ies`;
+  return `${n}s`;
+}
+
 /** Compact human-readable relative time, e.g. "5 minutes ago", "Yesterday". */
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "—";

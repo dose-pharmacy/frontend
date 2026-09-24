@@ -109,7 +109,7 @@ export default function LocationStockPage() {
                         {locations.map((loc) => (
                           <th key={loc} className="px-4 py-3 text-right font-semibold text-[#333333] whitespace-nowrap">{loc}</th>
                         ))}
-                        <th className="px-4 py-3 text-right font-semibold text-[#333333]">Total</th>
+                        <th className="px-4 py-3 text-right font-semibold text-[#333333]">Total (base units)</th>
                       </tr>
                     </thead>
                     <tbody>

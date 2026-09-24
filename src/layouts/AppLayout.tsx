@@ -117,7 +117,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: <IconGrid /> },
-  { to: "/pos", label: "Point of Sale", icon: <IconCart /> },
+    { to: "/pos", label: "Point of Sale", icon: <IconCart /> },
   {
     to: "/inventory",
     label: "Inventory",

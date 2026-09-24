@@ -270,21 +270,21 @@ export default function ReorderManagementPage() {
                                   : "text-[#333333]"
                               }`}
                             >
-                              {r.currentStock}
+                              {r.currentStock}{" "}{r.product.baseUnit?.name?.toLowerCase() ?? ""}
                             </td>
                             <td className="px-4 py-3 text-[#666666]">
-                              {r.threshold}
+                              {r.threshold}{" "}{r.product.baseUnit?.name?.toLowerCase() ?? ""}
                             </td>
                             <td className="px-4 py-3 text-[#666666]">
                               {r.averageDailySales === null
                                 ? "—"
-                                : r.averageDailySales}
+                                : `${r.averageDailySales} ${r.product.baseUnit?.name?.toLowerCase() ?? ""}`}
                             </td>
                             <td className="px-4 py-3 text-[#666666]">
                               {r.leadTimeDays}
                             </td>
                             <td className="px-4 py-3 font-semibold text-[#7A9076]">
-                              {r.suggestedQuantity}
+                              {r.suggestedQuantity}{" "}{r.product.baseUnit?.name?.toLowerCase() ?? ""}
                             </td>
                             <td className="px-4 py-3">
                               {r.urgency ? (

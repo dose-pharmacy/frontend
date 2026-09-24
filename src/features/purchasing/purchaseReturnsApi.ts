@@ -13,6 +13,27 @@ export interface PaginatedResponse<T> {
 
 export type PurchaseReturnReason = "EXPIRED" | "DAMAGED" | "INCORRECT_DELIVERY"
 
+/**
+ * Quantity as the user entered it (in the return's unit). The stored `quantity`
+ * is always in base units; when the return was entered in a non-base unit this
+ * divides it back by the conversion-factor snapshot.
+ */
+export function purchaseReturnDisplayQty(
+  r: Pick<
+    PurchaseReturnDto,
+    "quantity" | "unitConversionFactor" | "unit"
+  >,
+): number {
+  if (
+    r.unit &&
+    typeof r.unitConversionFactor === "number" &&
+    r.unitConversionFactor > 0
+  ) {
+    return r.quantity / r.unitConversionFactor
+  }
+  return r.quantity
+}
+
 export interface PurchaseReturnDto {
   id: string
   returnNumber: string
@@ -23,6 +44,8 @@ export interface PurchaseReturnDto {
   /** ISO8601 datetime — the backend returns `returnedDate` (not returnDate). */
   returnedDate: string
   quantity: number
+  /** 1 unit = factor base units. Present when the return was entered in a non-base unit. */
+  unitConversionFactor?: number | null
   unitCost: number
   /** number (2 decimals) — quantity × unitCost computed by the backend. */
   debitNoteAmount: number
@@ -48,6 +71,12 @@ export interface PurchaseReturnDto {
     id: string
     name: string
   }
+  /** Unit the return was entered in (null = base unit / legacy rows). */
+  unit?: {
+    id: string
+    name: string
+    symbol: string
+  } | null
   recordedBy?: {
     id: string
     name: string
@@ -145,8 +174,9 @@ export async function getPurchaseReturn(id: string): Promise<PurchaseReturnDto> 
  * omitted the backend picks the first batch with stock at the location.
  * unitCost is REQUIRED (positive money); debitNoteAmount / notes are
  * optional (debitNoteAmount defaults to quantity × unitCost).
- * NOTE: quantity is expressed in the product's base units — the backend
- * records the total stock movement as given and has no per-return unitId.
+ * unitId is optional: the quantity is expressed in that unit and the backend
+ * converts it to the product's base units for stock. When omitted the
+ * quantity is assumed to already be in base units.
  */
 export interface CreatePurchaseReturnInput {
   supplierId: string
@@ -155,6 +185,7 @@ export interface CreatePurchaseReturnInput {
   locationId: string
   reason: PurchaseReturnReason
   quantity: number
+  unitId?: string | null
   unitCost: number
   debitNoteAmount?: number
   notes?: string | null
@@ -169,6 +200,7 @@ export async function createPurchaseReturn(input: CreatePurchaseReturnInput): Pr
     quantity: input.quantity,
   }
   if (input.batchId) body.batchId = input.batchId
+  if (input.unitId) body.unitId = input.unitId
   body.unitCost = input.unitCost
   if (input.debitNoteAmount != null) body.debitNoteAmount = input.debitNoteAmount
   if (input.notes) body.notes = input.notes
