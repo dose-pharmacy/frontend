@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  createProductGroup,
   deactivateProductGroup,
   getProductGroup,
   listProductGroups,
@@ -11,78 +10,15 @@ import {
 } from "../../features/inventory/productGroupsApi";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
+import ProductGroupFormModal from "../../components/ui/ProductGroupFormModal";
 import { IconPencil, IconRefresh, IconTrash } from "../../components/ui/icons";
 import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
-import Input from "../../components/ui/Input";
-import FormError from "../../components/ui/FormError";
 
 const PAGE_LIMIT = 20;
 
-interface GroupForm {
-  name: string;
-  description: string;
-  margin: string;
-  isActive: boolean;
-}
-
-function emptyForm(): GroupForm {
-  return { name: "", description: "", margin: "", isActive: true };
-}
-
-function formErrors(f: GroupForm) {
-  const e: Partial<Record<keyof GroupForm, string>> = {};
-  if (!f.name.trim()) e.name = "Name is required.";
-  if (
-    !f.margin ||
-    isNaN(Number(f.margin)) ||
-    Number(f.margin) < 0 ||
-    Number(f.margin) > 100
-  )
-    e.margin = "Enter a valid margin (0–100).";
-  return e;
-}
-
 function apiErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ProductGroupsApiError ? err.message : fallback;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Toggle Switch
-// ─────────────────────────────────────────────────────────────
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
-          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            checked ? "translate-x-6" : "translate-x-1"
-          }`}
-        />
-      </button>
-      {label && (
-        <span className="text-sm font-medium text-[#333333]">
-          {checked ? "Active" : "Inactive"}
-        </span>
-      )}
-    </div>
-  );
 }
 
 export default function ProductGroupsPage() {
@@ -106,14 +42,6 @@ export default function ProductGroupsPage() {
   const [confirmTarget, setConfirmTarget] = useState<ProductGroupDto | null>(
     null,
   );
-
-  // ── Form state ──
-  const [form, setForm] = useState<GroupForm>(emptyForm());
-  const [errors, setErrors] = useState<Partial<Record<keyof GroupForm, string>>>(
-    {},
-  );
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
   // ── Row action state ──
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -157,22 +85,11 @@ export default function ProductGroupsPage() {
 
   function openAdd() {
     setEditTarget(null);
-    setForm(emptyForm());
-    setErrors({});
-    setFormError(null);
     setModalOpen(true);
   }
 
   function openEdit(g: ProductGroupDto) {
     setEditTarget(g);
-    setForm({
-      name: g.name,
-      description: g.description ?? "",
-      margin: String(g.defaultProfitMargin ?? 0),
-      isActive: g.isActive,
-    });
-    setErrors({});
-    setFormError(null);
     setModalOpen(true);
   }
 
@@ -188,46 +105,6 @@ export default function ProductGroupsPage() {
         /* keep the row data if the refetch fails */
       })
       .finally(() => setDetailLoading(false));
-  }
-
-  async function handleSave() {
-    const e = formErrors(form);
-    if (Object.keys(e).length) {
-      setErrors(e);
-      return;
-    }
-    setSaving(true);
-    setFormError(null);
-    try {
-      if (editTarget) {
-        await updateProductGroup(editTarget.id, {
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          defaultProfitMargin: Number(form.margin),
-          isActive: form.isActive,
-        });
-      } else {
-        await createProductGroup({
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          defaultProfitMargin: Number(form.margin),
-          isActive: form.isActive,
-        });
-      }
-      setModalOpen(false);
-      await reload(search, page);
-    } catch (err) {
-      setFormError(
-        apiErrorMessage(
-          err,
-          editTarget
-            ? "Could not save the group. Please try again."
-            : "Could not create the group. Please try again.",
-        ),
-      );
-    } finally {
-      setSaving(false);
-    }
   }
 
   // ── Ask for confirmation (opens custom modal) ──
@@ -473,73 +350,15 @@ export default function ProductGroupsPage() {
         </div>
       </div>
 
-      {/* ─────────── Add / Edit Modal ─────────── */}
-      <Modal
+      {/* ─────────── Add / Edit Group Modal (shared) ─────────── */}
+      <ProductGroupFormModal
         open={modalOpen}
-        title={editTarget ? "Edit Group" : "Add New Group"}
+        group={editTarget}
         onClose={() => setModalOpen(false)}
-        size="md"
-      >
-        <div className="flex flex-col gap-4">
-          <FormError message={formError} />
-
-          <Input
-            label="Group Name"
-            value={form.name}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, name: e.target.value }));
-              setErrors((er) => ({ ...er, name: undefined }));
-            }}
-            error={errors.name}
-          />
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#333333]">
-              Description
-            </label>
-            <textarea
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 resize-none"
-            />
-          </div>
-
-          <Input
-            label="Profit Margin (%)"
-            type="number"
-            min={0}
-            max={100}
-            value={form.margin}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, margin: e.target.value }));
-              setErrors((er) => ({ ...er, margin: undefined }));
-            }}
-            error={errors.margin}
-          />
-
-          {/* Status toggle */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[#333333]">Status</label>
-            <ToggleSwitch
-              checked={form.isActive}
-              onChange={(v) => setForm((f) => ({ ...f, isActive: v }))}
-              label="Status"
-            />
-          </div>
-
-          <div className="flex gap-3 justify-end mt-2">
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} loading={saving}>
-              {editTarget ? "Save Changes" : "Create Group"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onSaved={async () => {
+          await reload(search, page);
+        }}
+      />
 
       {/* ─────────── Detail Modal ─────────── */}
       <Modal

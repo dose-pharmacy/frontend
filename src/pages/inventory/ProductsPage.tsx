@@ -21,6 +21,9 @@ import Button from "../../components/ui/Button"
 import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import ProductGroupFormModal from "../../components/ui/ProductGroupFormModal"
+import type { ProductGroupDto } from "../../features/inventory/productGroupsApi"
+import UnitFormModal from "../../components/ui/UnitFormModal"
 import { IconLightBulb, IconTrash } from "../../components/ui/icons"
 
 const PAGE_SIZE = 20
@@ -144,6 +147,13 @@ export default function ProductsPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  // ── Quick "Add Product Group" (reuses the Settings modal) ──
+  const [groupModalOpen, setGroupModalOpen] = useState(false)
+  const [createdGroup, setCreatedGroup] = useState<ProductGroupDto | null>(null)
+
+  // ── Quick "Add New Unit" (reuses the Settings modal) ──
+  const [unitModalOpen, setUnitModalOpen] = useState(false)
+
   const selectedFilterGroup =
     groupFilterSearch.options.find((o) => o.value === groupFilter) ?? null
   const groupFilterOptions: SearchableOption[] = selectedFilterGroup
@@ -156,7 +166,14 @@ export default function ProductsPage() {
     searchProductGroups,
     createOpen,
   )
+  // Keep the freshly created group selectable even before the refreshed
+  // server-side search results arrive.
+  const createdGroupOption =
+    createdGroup && createdGroup.id === form.productGroupId
+      ? { value: createdGroup.id, label: createdGroup.name }
+      : null
   const selectedCreateGroup =
+    createdGroupOption ??
     createGroupSearch.options.find((o) => o.value === form.productGroupId) ??
     null
   const createGroupOptions: SearchableOption[] = selectedCreateGroup
@@ -254,6 +271,59 @@ export default function ProductsPage() {
   function closeCreate() {
     if (creating) return
     setCreateOpen(false)
+  }
+
+  // Called when the quick "Add Product Group" modal saves a group.
+  // Refreshes the group options and auto-selects the new group.
+  function handleGroupSaved(group: ProductGroupDto) {
+    setCreatedGroup(group)
+    setForm((f) => ({ ...f, productGroupId: group.id }))
+    setFieldErrors((e) => {
+      const next = { ...e }
+      delete next.productGroupId
+      return next
+    })
+    createGroupSearch.refresh()
+    setGroupModalOpen(false)
+  }
+
+  // Called when the quick "Add New Unit" modal saves a unit.
+  // Makes the unit immediately selectable and auto-selects it into an
+  // empty row (or appends a new row), then syncs the unit list.
+  function handleUnitSaved(unit: UnitDto) {
+    setUnits((prev) =>
+      prev.some((u) => u.id === unit.id) ? prev : [unit, ...prev],
+    )
+    setForm((f) => {
+      const emptyIdx = f.units.findIndex((r) => !r.unitId)
+      if (emptyIdx >= 0) {
+        return {
+          ...f,
+          units: f.units.map((r, i) =>
+            i === emptyIdx ? { ...r, unitId: unit.id } : r,
+          ),
+        }
+      }
+      return {
+        ...f,
+        units: [
+          ...f.units,
+          {
+            unitId: unit.id,
+            conversionFactor: "1",
+            sellPrice: "",
+            purchasePrice: "",
+            isBaseUnit: false,
+          },
+        ],
+      }
+    })
+    void listUnits({ limit: 100 })
+      .then((res) => setUnits(res.data))
+      .catch(() => {
+        /* keep the current unit list on refetch failure */
+      })
+    setUnitModalOpen(false)
   }
 
   function updateRow(idx: number, patch: Partial<UnitRow>) {
@@ -687,9 +757,18 @@ export default function ProductsPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-[#333333]">
-                Product Group <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-sm font-medium text-[#333333]">
+                  Product Group <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setGroupModalOpen(true)}
+                  className="text-xs font-semibold text-[#7A9076] hover:underline"
+                >
+                  + Add Product Group
+                </button>
+              </div>
               <SearchableSelect
                 value={form.productGroupId || null}
                 onChange={(v) => setForm((f) => ({ ...f, productGroupId: v }))}
@@ -777,14 +856,23 @@ export default function ProductsPage() {
 
           {/* Units & Pricing */}
           <section className="flex flex-col gap-4">
-            <div>
-              <h4 className="text-sm font-bold text-[#333333] uppercase tracking-wide">
-                Units & Pricing
-              </h4>
-              <p className="text-xs text-[#666666] mt-1">
-                Define how this product is sold, purchased, and counted. Exactly
-                one unit must be marked as the base unit.
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-[#333333] uppercase tracking-wide">
+                  Units & Pricing
+                </h4>
+                <p className="text-xs text-[#666666] mt-1">
+                  Define how this product is sold, purchased, and counted.
+                  Exactly one unit must be marked as the base unit.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUnitModalOpen(true)}
+                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap mt-0.5"
+              >
+                + Add New Unit
+              </button>
             </div>
 
             <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
@@ -1023,6 +1111,20 @@ export default function ProductsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Quick create a product group from the Add Product form */}
+      <ProductGroupFormModal
+        open={groupModalOpen}
+        onClose={() => setGroupModalOpen(false)}
+        onSaved={handleGroupSaved}
+      />
+
+      {/* Quick create a unit from the Add Product form */}
+      <UnitFormModal
+        open={unitModalOpen}
+        onClose={() => setUnitModalOpen(false)}
+        onSaved={handleUnitSaved}
+      />
     </div>
   )
 }

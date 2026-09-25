@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useSearchParams, useNavigate } from "react-router";
 import { getBinCard, type BinCardResult } from "../../features/inventory/stockApi";
 import { listLocations } from "../../features/inventory/locationsApi";
 import { listProductBatches, type BatchDto } from "../../features/inventory/batchesApi";
@@ -59,6 +59,7 @@ function TxTypeBadge({ type }: { type: string }) {
 }
 
 export default function BinCardPage() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const initProductId = params.get("productId") || "";
   const initBatchId = params.get("batchId") || "";
@@ -178,6 +179,19 @@ export default function BinCardPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+        <button
+          type="button"
+          onClick={() =>
+            navigate(productId ? `/inventory/products/${productId}` : "/inventory/products")
+          }
+          aria-label="Back to product details"
+          className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+        >
+          ←
+        </button>
+      </div>
+
       <PageHeader
         title={selectedProduct ? `Bin Card — ${selectedProduct.name}` : "Bin Card"}
         subtitle="Stock movement history and ledger"
