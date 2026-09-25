@@ -8,7 +8,6 @@ import {
   type ProductDetailDto,
 } from "../../features/inventory/productsApi";
 import { listUnits, type UnitDto } from "../../features/inventory/unitsApi";
-import Breadcrumb from "../../components/ui/Breadcrumb";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Button from "../../components/ui/Button";
 import Select from "../../components/ui/Select";
@@ -361,12 +360,16 @@ export default function ProductDetailPage() {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        <Breadcrumb
-          items={[
-            { label: "Inventory", to: "/inventory" },
-            { label: "Product Details" },
-          ]}
-        />
+        <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+          <button
+            type="button"
+            onClick={() => navigate("/inventory/products")}
+            aria-label="Back to products"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+          >
+            ←
+          </button>
+        </div>
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 animate-pulse space-y-4">
@@ -382,12 +385,16 @@ export default function ProductDetailPage() {
   if (loadError || !product) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        <Breadcrumb
-          items={[
-            { label: "Inventory", to: "/inventory" },
-            { label: "Product Details" },
-          ]}
-        />
+        <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+          <button
+            type="button"
+            onClick={() => navigate("/inventory/products")}
+            aria-label="Back to products"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+          >
+            ←
+          </button>
+        </div>
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-6">
@@ -395,22 +402,13 @@ export default function ProductDetailPage() {
               <p className="text-sm text-red-700">
                 {loadError ?? "Product not found."}
               </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => void reload()}
-                  className="text-sm font-semibold text-red-700 hover:underline"
-                >
-                  Retry
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/inventory/products")}
-                  className="text-sm font-semibold text-red-700 hover:underline"
-                >
-                  Back to Products
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void reload()}
+                className="text-sm font-semibold text-red-700 hover:underline"
+              >
+                Retry
+              </button>
             </div>
           </div>
         </div>
@@ -430,14 +428,17 @@ export default function ProductDetailPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* ── Fixed breadcrumb ── */}
-      <Breadcrumb
-        items={[
-          { label: "Inventory", to: "/inventory" },
-          { label: "Products", to: "/inventory/products" },
-          { label: product.name },
-        ]}
-      />
+      {/* ── Arrow back header ── */}
+      <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+        <button
+          type="button"
+          onClick={() => navigate("/inventory/products")}
+          aria-label="Back to products"
+          className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+        >
+          ←
+        </button>
+      </div>
 
       {/* ── Scrollable content ── */}
       <div className="flex-1 overflow-y-auto min-h-0">

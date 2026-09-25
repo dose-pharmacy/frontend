@@ -223,7 +223,7 @@ export default function BatchDetailPage() {
     <div className="flex-1 flex flex-col min-h-0">
       <Breadcrumb
         items={[
-          { label: "Inventory", to: "/inventory" },
+          { label: "Inventory", to: "/inventory/products" },
           { label: "Batches", to: "/inventory/batches" },
           { label: batch.batchNumber },
         ]}

@@ -402,7 +402,6 @@ export default function ProductsPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
-        breadcrumb="Inventory / Products"
         title="Products"
         subtitle="Manage medicines and inventory items."
         actions={<Button onClick={openCreate}>+ Add Product</Button>}

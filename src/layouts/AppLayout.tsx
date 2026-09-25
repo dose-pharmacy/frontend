@@ -125,7 +125,7 @@ const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: <IconGrid /> },
   { to: "/pos", label: "Point of Sale", icon: <IconCart /> },
   {
-    to: "/inventory",
+    to: "/inventory/products",
     label: "Inventory",
     icon: <IconBox />,
     children: [
@@ -181,7 +181,6 @@ function Sidebar({
 
   function isPathActive(path: string) {
     if (path === "/dashboard") return location.pathname.startsWith("/dashboard")
-    if (path === "/inventory") return location.pathname === "/inventory"
     return location.pathname.startsWith(path)
   }
 
@@ -190,7 +189,7 @@ function Sidebar({
       return item.children.some(
         (c) =>
           location.pathname === c.to ||
-          (c.to !== "/inventory" && location.pathname.startsWith(c.to)),
+          location.pathname.startsWith(c.to),
       )
     return isPathActive(item.to)
   }
@@ -413,8 +412,7 @@ function Sidebar({
                   {item.children!.map((child) => {
                     const exactActive =
                       location.pathname === child.to ||
-                      (child.to !== "/inventory" &&
-                        location.pathname.startsWith(child.to) &&
+                      (location.pathname.startsWith(child.to) &&
                         !item.children!.some(
                           (other) =>
                             other.to !== child.to &&

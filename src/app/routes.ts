@@ -5,7 +5,6 @@ import AppLayout from "../layouts/AppLayout";
 import LoginPage from "../pages/LoginPage";
 import SignupPage from "../pages/SignupPage";
 import DashboardPage from "../pages/DashboardPage";
-import InventoryDashboardPage from "../pages/inventory/InventoryDashboardPage";
 import ProductsPage from "../pages/inventory/ProductsPage";
 import ProductDetailPage from "../pages/inventory/ProductDetailPage";
 import ProductGroupsPage from "../pages/inventory/ProductGroupsPage";
@@ -65,7 +64,7 @@ export const router = createBrowserRouter([
           { path: "/dashboard/sales", Component: SalesReportPage },
           { path: "/dashboard/profitability", Component: ProfitabilityDashboardPage },
           // Inventory
-          { path: "/inventory", Component: InventoryDashboardPage },
+          { path: "/inventory", loader: () => redirect("/inventory/products") },
           { path: "/inventory/products", Component: ProductsPage },
           { path: "/inventory/products/:productId", Component: ProductDetailPage },
           { path: "/inventory/stock", Component: StockPage },
