@@ -95,7 +95,7 @@ export default function LocationStockPage() {
               <SearchInput value={search} onChange={setSearch} placeholder="Search products..." />
             </div>
 
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               {loading ? (
                 <div className="p-6 space-y-3 animate-pulse">{[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-[#E6ECE2] rounded-lg" />)}</div>
               ) : filtered.length === 0 ? (

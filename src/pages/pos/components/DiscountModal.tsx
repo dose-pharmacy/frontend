@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { fmt } from "../../../features/pos/posService";
 import { MAX_DISCOUNT_PCT } from "../../../features/pos/posMock";
+import {
+  IconArrowDownRight,
+  IconCheck,
+  IconUser,
+  IconWarningTriangle,
+} from "../../../components/ui/icons";
 
 interface Props {
   total: number;
@@ -95,7 +101,7 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
           </div>
 
           {pctNum > 0 && (
-            <p className="text-sm text-green-600 font-medium">↘ Savings: {fmt(savings)}</p>
+            <p className="text-sm text-green-600 font-medium inline-flex items-center gap-1"><IconArrowDownRight className="h-4 w-4" />Savings: {fmt(savings)}</p>
           )}
 
           {/* Reason */}
@@ -112,15 +118,25 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
 
           {/* Authorization note */}
           <div className="bg-[#E6ECE2] rounded-lg px-4 py-2.5 flex items-center gap-2 text-sm text-[#333333]">
-            <span>👤</span> Authorized By: {useCurrentUser()}
+            <IconUser className="h-4 w-4 text-[#7A9076] flex-shrink-0" /> Authorized By: {useCurrentUser()}
           </div>
 
           {/* Validation */}
           <div className={`rounded-lg border px-4 py-3 ${exceedsLimit ? "bg-red-50 border-red-300" : "bg-yellow-50 border-yellow-300"}`}>
             <p className="text-xs text-[#666666]">Maximum allowed discount: {MAX_DISCOUNT_PCT}%</p>
             {pctNum > 0 && (
-              <p className={`text-sm font-semibold mt-1 ${exceedsLimit ? "text-red-600" : "text-green-700"}`}>
-                {exceedsLimit ? `⚠ Current: ${pctNum}% — exceeds limit` : `✓ Current: ${pctNum}% — within limit`}
+              <p className={`text-sm font-semibold mt-1 flex items-center gap-1 ${exceedsLimit ? "text-red-600" : "text-green-700"}`}>
+                {exceedsLimit ? (
+                  <>
+                    <IconWarningTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>Current: {pctNum}% — exceeds limit</span>
+                  </>
+                ) : (
+                  <>
+                    <IconCheck className="h-4 w-4 flex-shrink-0" />
+                    <span>Current: {pctNum}% — within limit</span>
+                  </>
+                )}
               </p>
             )}
             <div className="mt-2 h-1.5 rounded-full bg-gray-200 overflow-hidden">
@@ -140,7 +156,7 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
                 <p className="text-xs text-[#666666]">Discounted Total</p>
                 <p className="text-xl font-bold text-green-600">{fmt(discountedTotal)}</p>
               </div>
-              <p className="text-sm font-semibold text-green-600">↘ -{fmt(savings)}</p>
+              <p className="text-sm font-semibold text-green-600 inline-flex items-center gap-1"><IconArrowDownRight className="h-4 w-4" />-{fmt(savings)}</p>
             </div>
           )}
         </div>

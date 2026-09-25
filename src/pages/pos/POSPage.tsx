@@ -1,22 +1,28 @@
-import { useEffect, useRef, useState } from "react";
-import type { POSProduct } from "../../features/pos/posMock";
-import { getPosProducts, adaptPosProduct, PosApiError } from "../../features/pos/posApi";
-import type { PosProductsMeta } from "../../features/pos/posApi";
-import { listProductGroups } from "../../features/inventory/productGroupsApi";
-import type { ProductGroupDto } from "../../features/inventory/productGroupsApi";
-import { listLocations } from "../../features/inventory/locationsApi";
-import { completeSale } from "../../features/sales/salesApi";
-import { fmt } from "../../features/pos/posService";
-import { useCart, type BillDiscount } from "../../features/pos/useCart";
-import { useAuth } from "../../features/auth/AuthContext";
-import type { POSUnit } from "../../features/pos/posMock";
-import ProductSelectionModal, { ProductIcon } from "./components/ProductSelectionModal";
-import PaymentModal from "./components/PaymentModal";
-import NarcoticBadge from "../../components/ui/NarcoticBadge";
+import { useEffect, useRef, useState } from "react"
+import type { POSProduct } from "../../features/pos/posMock"
+import {
+  getPosProducts,
+  adaptPosProduct,
+  PosApiError,
+} from "../../features/pos/posApi"
+import type { PosProductsMeta } from "../../features/pos/posApi"
+import { listProductGroups } from "../../features/inventory/productGroupsApi"
+import type { ProductGroupDto } from "../../features/inventory/productGroupsApi"
+import { listLocations } from "../../features/inventory/locationsApi"
+import { completeSale } from "../../features/sales/salesApi"
+import { fmt } from "../../features/pos/posService"
+import { useCart, type BillDiscount } from "../../features/pos/useCart"
+import { useAuth } from "../../features/auth/AuthContext"
+import type { POSUnit } from "../../features/pos/posMock"
+import ProductSelectionModal from "./components/ProductSelectionModal"
+import PaymentModal from "./components/PaymentModal"
+import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import SearchableSelect from "../../components/ui/SearchableSelect"
+import { IconCheck, IconX } from "../../components/ui/icons"
 
-type Modal = "none" | "product" | "payment";
+type Modal = "none" | "product" | "payment"
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 20
 
 // ─── Toast component ──────────────────────────────────────────────────────────
 
@@ -25,165 +31,200 @@ function Toast({
   type = "success",
   onDismiss,
 }: {
-  message: string;
-  type?: "success" | "error";
-  onDismiss: () => void;
+  message: string
+  type?: "success" | "error"
+  onDismiss: () => void
 }) {
   useEffect(() => {
-    const t = setTimeout(onDismiss, 4000);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
+    const t = setTimeout(onDismiss, 4000)
+    return () => clearTimeout(t)
+  }, [onDismiss])
 
   return (
     <div
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-xl text-white text-sm font-semibold animate-in fade-in slide-in-from-bottom-4 duration-300 ${
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-xl text-white text-sm font-semibold ${
         type === "success" ? "bg-green-600" : "bg-red-600"
       }`}
     >
-      <span aria-hidden>{type === "success" ? "✓" : "✕"}</span>
+      <span aria-hidden className="flex-shrink-0">
+        {type === "success" ? (
+          <IconCheck className="h-5 w-5" />
+        ) : (
+          <IconX className="h-5 w-5" />
+        )}
+      </span>
       {message}
       <button
         onClick={onDismiss}
         className="ml-2 opacity-70 hover:opacity-100"
         aria-label="Dismiss"
       >
-        ✕
+        <IconX className="h-5 w-5" />
       </button>
     </div>
-  );
+  )
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function POSPage() {
-  const { user } = useAuth();
+  const { user } = useAuth()
 
   // Products
-  const [products, setProducts] = useState<POSProduct[]>([]);
-  const [meta, setMeta] = useState<PosProductsMeta>({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 });
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [products, setProducts] = useState<POSProduct[]>([])
+  const [meta, setMeta] = useState<PosProductsMeta>({
+    page: 1,
+    limit: PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  })
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Filters / pagination
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-  const [selectedLocation, setSelectedLocation] = useState("");
-  const [retryTick, setRetryTick] = useState(0);
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("")
+  const [selectedLocation, setSelectedLocation] = useState("")
+  const [retryTick, setRetryTick] = useState(0)
 
   // Reference data
-  const [groups, setGroups] = useState<ProductGroupDto[]>([]);
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
+  const [groups, setGroups] = useState<ProductGroupDto[]>([])
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
 
   // UI state
-  const [selectedProduct, setSelectedProduct] = useState<POSProduct | null>(null);
-  const [modal, setModal] = useState<Modal>("none");
-  const [cartOpen, setCartOpen] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [now, setNow] = useState(new Date());
+  const [selectedProduct, setSelectedProduct] = useState<POSProduct | null>(
+    null,
+  )
+  const [modal, setModal] = useState<Modal>("none")
+  const [cartOpen, setCartOpen] = useState(false)
+  const [toast, setToast] = useState<{
+    message: string
+    type: "success" | "error"
+  } | null>(null)
+  const [now, setNow] = useState(new Date())
 
-  const cart = useCart();
+  const cart = useCart()
 
   // Discount inline UI state
-  const [discountType, setDiscountType] = useState<"PERCENTAGE" | "FIXED_AMOUNT">("PERCENTAGE");
-  const [discountValue, setDiscountValue] = useState("");
+  const [discountType, setDiscountType] =
+    useState<"PERCENTAGE" | "FIXED_AMOUNT">("PERCENTAGE")
+  const [discountValue, setDiscountValue] = useState("")
 
   // Clock
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   // Load groups and locations once
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
     Promise.all([
       listProductGroups({ isActive: true, limit: 100 }),
       listLocations({ isActive: true, limit: 100 }),
     ])
       .then(([groupRes, locRes]) => {
-        if (cancelled) return;
-        setGroups(groupRes.data.filter((g) => g.isActive));
-        const locs = locRes.data.filter((l) => l.isActive);
-        setLocations(locs);
-        if (locs.length > 0) setSelectedLocation(locs[0].id);
+        if (cancelled) return
+        setGroups(groupRes.data.filter((g) => g.isActive))
+        const locs = locRes.data.filter((l) => l.isActive)
+        setLocations(locs)
+        if (locs.length > 0) setSelectedLocation(locs[0].id)
       })
       .catch(() => {
-        if (cancelled) return;
-      });
-    return () => { cancelled = true; };
-  }, []);
+        if (cancelled) return
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Debounced product fetch
-  const searchRef = useRef(search);
-  searchRef.current = search;
+  const searchRef = useRef(search)
+  searchRef.current = search
 
   useEffect(() => {
-    let cancelled = false;
-    const t = setTimeout(() => {
-      setLoading(true);
-      getPosProducts({
-        page,
-        limit: PAGE_SIZE,
-        search: search.trim() || undefined,
-        productGroupId: selectedGroupId || undefined,
-        locationId: selectedLocation || undefined,
-      })
-        .then((res) => {
-          if (cancelled) return;
-          setProducts(res.data.map(adaptPosProduct));
-          setMeta(res.meta);
-          setLoadError(null);
+    let cancelled = false
+    const t = setTimeout(
+      () => {
+        setLoading(true)
+        getPosProducts({
+          page,
+          limit: PAGE_SIZE,
+          search: search.trim() || undefined,
+          productGroupId: selectedGroupId || undefined,
+          locationId: selectedLocation || undefined,
         })
-        .catch((err: unknown) => {
-          if (cancelled) return;
-          setLoadError(
-            err instanceof PosApiError ? err.message : "Failed to load products. Please try again."
-          );
-        })
-        .finally(() => { if (!cancelled) setLoading(false); });
-    }, search !== searchRef.current ? 0 : 300);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [search, selectedGroupId, selectedLocation, page, retryTick]);
+          .then((res) => {
+            if (cancelled) return
+            setProducts(res.data.map(adaptPosProduct))
+            setMeta(res.meta)
+            setLoadError(null)
+          })
+          .catch((err: unknown) => {
+            if (cancelled) return
+            setLoadError(
+              err instanceof PosApiError
+                ? err.message
+                : "Failed to load products. Please try again.",
+            )
+          })
+          .finally(() => {
+            if (!cancelled) setLoading(false)
+          })
+      },
+      search !== searchRef.current ? 0 : 300,
+    )
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [search, selectedGroupId, selectedLocation, page, retryTick])
 
   // Reset to page 1 when any filter changes
-  useEffect(() => { setPage(1); }, [search, selectedGroupId, selectedLocation]);
+  useEffect(() => {
+    setPage(1)
+  }, [search, selectedGroupId, selectedLocation])
 
   // Apply/clear discount
   function applyDiscount() {
-    const v = parseFloat(discountValue);
+    const v = parseFloat(discountValue)
     if (!discountValue || isNaN(v) || v <= 0) {
-      cart.setBillDiscount(null);
-      return;
+      cart.setBillDiscount(null)
+      return
     }
-    const bill: BillDiscount = { type: discountType, value: v };
-    cart.setBillDiscount(bill);
+    const bill: BillDiscount = { type: discountType, value: v }
+    cart.setBillDiscount(bill)
   }
 
   function clearDiscount() {
-    cart.setBillDiscount(null);
-    setDiscountValue("");
+    cart.setBillDiscount(null)
+    setDiscountValue("")
   }
 
   function handleProductClick(p: POSProduct) {
-    if (p.status === "out_of_stock") return;
-    setSelectedProduct(p);
-    setModal("product");
+    if (p.status === "out_of_stock") return
+    setSelectedProduct(p)
+    setModal("product")
   }
 
   function handleAddToCart(unit: POSUnit, quantity: number) {
-    if (!selectedProduct) return;
-    cart.addItem(selectedProduct, unit, quantity);
-    setSelectedProduct(null);
-    setModal("none");
+    if (!selectedProduct) return
+    cart.addItem(selectedProduct, unit, quantity)
+    setSelectedProduct(null)
+    setModal("none")
   }
 
   async function handleCompleteSale(
-    payments: { method: "CASH" | "CARD" | "DIGITAL_TRANSFER"; amount: number; reference?: string }[]
+    payments: {
+      method: "CASH" | "CARD" | "DIGITAL_TRANSFER"
+      amount: number
+      reference?: string
+    }[],
   ) {
     if (!selectedLocation) {
-      setToast({ message: "Please select a location first.", type: "error" });
-      return;
+      setToast({ message: "Please select a location first.", type: "error" })
+      return
     }
     const input = {
       locationId: selectedLocation,
@@ -191,44 +232,61 @@ export default function POSPage() {
         productId: item.product.id,
         unitId: item.unit.id, // ProductUnit row id
         quantity: item.quantity,
-        actualUnitPrice: item.unitPrice !== item.unit.price ? item.unitPrice : undefined,
+        actualUnitPrice:
+          item.unitPrice !== item.unit.price ? item.unitPrice : undefined,
       })),
       payments,
       billDiscount: cart.cart.billDiscount ?? undefined,
-    };
-    await completeSale(input);
-    cart.clearCart();
-    setDiscountValue("");
-    setModal("none");
-    setCartOpen(false);
-    setToast({ message: "Sale completed successfully!", type: "success" });
-    setRetryTick((t) => t + 1);
+    }
+    await completeSale(input)
+    cart.clearCart()
+    setDiscountValue("")
+    setModal("none")
+    setCartOpen(false)
+    setToast({ message: "Sale completed successfully!", type: "success" })
+    setRetryTick((t) => t + 1)
   }
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Toast */}
       {toast && (
-        <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
       )}
 
       {/* POS sub-header */}
       <div className="bg-[#E6ECE2] px-6 py-2.5 flex items-center justify-between border-t border-[#C6D4BF]">
         <div className="flex items-center gap-4">
-          <span className="text-sm font-semibold text-[#4F6B4A]">Pharmacy POS</span>
-          <select
-            value={selectedLocation}
-            onChange={(e) => { setSelectedLocation(e.target.value); setPage(1); }}
-            className="text-xs bg-white text-[#333333] border border-[#C6D4BF] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#B6C8AF] transition-colors"
-          >
-            {locations.length === 0 && <option value="">Loading locations...</option>}
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
-            ))}
-          </select>
+          <span className="text-sm font-semibold text-[#4F6B4A]">
+            Pharmacy POS
+          </span>
+          <SearchableSelect
+            value={selectedLocation || null}
+            onChange={(v) => {
+              setSelectedLocation(v)
+              setPage(1)
+            }}
+            options={locations.map((loc) => ({
+              value: loc.id,
+              label: loc.name,
+            }))}
+            placeholder={
+              locations.length === 0
+                ? "Loading locations..."
+                : "Select location..."
+            }
+            searchPlaceholder="Search locations..."
+            emptyMessage="No locations found"
+            noResultsMessage="No locations matching your search"
+          />
         </div>
         <span className="text-xs text-[#666666]">
-          {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {now.toLocaleDateString()}
+          {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
+          {now.toLocaleDateString()}
         </span>
         <span className="text-xs text-[#666666]">Cashier: {user?.name}</span>
       </div>
@@ -236,13 +294,26 @@ export default function POSPage() {
       {/* Two-panel layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ─── LEFT: Product browser ──────────────────────── */}
-        <div className={`flex flex-col bg-white flex-1 min-w-0 ${cartOpen ? "hidden lg:flex" : "flex"}`}>
+        <div
+          className={`flex flex-col bg-white flex-1 min-w-0 ${
+            cartOpen ? "hidden lg:flex" : "flex"
+          }`}
+        >
           {/* Filters row */}
           <div className="p-4 flex flex-col gap-3 border-b border-[#E6ECE2]">
             {/* Search */}
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                  clipRule="evenodd"
+                />
               </svg>
               <input
                 type="search"
@@ -257,7 +328,7 @@ export default function POSPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] hover:text-[#333333]"
                   aria-label="Clear search"
                 >
-                  ✕
+                  <IconX className="h-4 w-4" />
                 </button>
               )}
             </div>
@@ -266,10 +337,10 @@ export default function POSPage() {
             <div className="flex gap-2 overflow-x-auto pb-1">
               <button
                 onClick={() => setSelectedGroupId("")}
-                className={`flex items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                   selectedGroupId === ""
                     ? "bg-[#B6C8AF] text-[#333333] shadow-sm"
-                    : "bg-[#C6D4BF]/60 text-[#333333] hover:bg-[#C6D4BF]"
+                    : "bg-[#E6ECE2] text-[#4A4A4A] hover:bg-[#D8E0D3]"
                 }`}
               >
                 All Products
@@ -278,10 +349,10 @@ export default function POSPage() {
                 <button
                   key={g.id}
                   onClick={() => setSelectedGroupId(g.id)}
-                  className={`flex items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                     selectedGroupId === g.id
                       ? "bg-[#B6C8AF] text-[#333333] shadow-sm"
-                      : "bg-[#C6D4BF]/60 text-[#333333] hover:bg-[#C6D4BF]"
+                      : "bg-[#E6ECE2] text-[#4A4A4A] hover:bg-[#D8E0D3]"
                   }`}
                 >
                   {g.name}
@@ -294,8 +365,12 @@ export default function POSPage() {
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
             {loadError ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-lg font-semibold text-[#333333]">Couldn't load products</p>
-                <p className="text-sm text-red-600 mt-1 max-w-sm">{loadError}</p>
+                <p className="text-lg font-semibold text-[#333333]">
+                  Couldn't load products
+                </p>
+                <p className="text-sm text-red-600 mt-1 max-w-sm">
+                  {loadError}
+                </p>
                 <button
                   onClick={() => setRetryTick((t) => t + 1)}
                   className="mt-4 rounded-lg bg-[#B6C8AF] text-[#333333] px-5 py-2 text-sm font-semibold hover:bg-[#A5B89E] transition-colors"
@@ -306,15 +381,25 @@ export default function POSPage() {
             ) : loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className="h-40 rounded-xl bg-[#E6ECE2] animate-pulse" />
+                  <div
+                    key={i}
+                    className="h-40 rounded-xl bg-[#E6ECE2] animate-pulse"
+                  />
                 ))}
               </div>
             ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-lg font-semibold text-[#333333]">No products found</p>
-                <p className="text-sm text-[#666666] mt-1">Try adjusting your search or group filter</p>
+                <p className="text-lg font-semibold text-[#333333]">
+                  No products found
+                </p>
+                <p className="text-sm text-[#666666] mt-1">
+                  Try adjusting your search or group filter
+                </p>
                 <button
-                  onClick={() => { setSearch(""); setSelectedGroupId(""); }}
+                  onClick={() => {
+                    setSearch("")
+                    setSelectedGroupId("")
+                  }}
                   className="mt-4 rounded-lg bg-[#B6C8AF] text-[#333333] px-5 py-2 text-sm font-semibold hover:bg-[#A5B89E] transition-colors"
                 >
                   Clear Filters
@@ -337,16 +422,27 @@ export default function POSPage() {
                       {p.isNarcotic && (
                         <NarcoticBadge className="absolute top-2 right-2" />
                       )}
-                      <div className="h-12 w-12 rounded-lg bg-[#DBEFF3] flex items-center justify-center text-[#49B0C1] mb-2 group-hover:bg-[#ABDBE3]/40 transition-colors">
-                        <ProductIcon type={p.icon} size={24} />
-                      </div>
-                      <p className="text-sm font-bold text-[#333333] leading-tight line-clamp-2">{p.name}</p>
-                      {p.brand !== "—" && <p className="text-xs text-[#666666] mt-0.5">{p.brand}</p>}
+                      <p className="text-sm font-bold text-[#333333] leading-tight line-clamp-2 mt-1">
+                        {p.name}
+                      </p>
+                      {p.brand !== "—" && (
+                        <p className="text-xs text-[#666666] mt-0.5">
+                          {p.brand}
+                        </p>
+                      )}
                       <div className="mt-2 flex items-center justify-between w-full gap-1">
                         <POSStatusBadge status={p.status} />
-                        <span className="text-xs text-[#999]">{p.availableStock} avail.</span>
+                        <span className="text-xs text-[#999]">
+                          {p.availableStock} avail.
+                        </span>
                       </div>
-                      <p className="text-sm font-bold text-[#7A9076] mt-1">{fmt(p.units.find((u) => u.isBaseUnit)?.price ?? p.units[0]?.price ?? 0)}</p>
+                      <p className="text-sm font-bold text-[#7A9076] mt-1">
+                        {fmt(
+                          p.units.find((u) => u.isBaseUnit)?.price ??
+                            p.units[0]?.price ??
+                            0,
+                        )}
+                      </p>
                       {p.status !== "out_of_stock" && (
                         <div className="absolute bottom-3 right-3 h-6 w-6 rounded-full bg-[#B6C8AF] text-[#333333] flex items-center justify-center text-base leading-none shadow-sm group-hover:scale-110 transition-transform">
                           +
@@ -370,13 +466,17 @@ export default function POSPage() {
                       Page {meta.page} of {meta.totalPages}
                     </span>
                     <button
-                      onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                      onClick={() =>
+                        setPage((p) => Math.min(meta.totalPages, p + 1))
+                      }
                       disabled={page >= meta.totalPages}
                       className="rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#333333] hover:bg-[#E6ECE2] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       Next
                     </button>
-                    <span className="text-xs text-[#999]">{meta.total} products</span>
+                    <span className="text-xs text-[#999]">
+                      {meta.total} products
+                    </span>
                   </div>
                 )}
               </>
@@ -385,55 +485,97 @@ export default function POSPage() {
         </div>
 
         {/* ─── RIGHT: Cart ──────────────────────────────── */}
-        <div className={`flex flex-col bg-[#E6ECE2] border-l border-[#C6D4BF] w-full lg:w-80 xl:w-96 flex-shrink-0 ${!cartOpen ? "hidden lg:flex" : "flex"}`}>
+        <div
+          className={`flex flex-col bg-[#E6ECE2] border-l border-[#C6D4BF] w-full lg:w-80 xl:w-96 flex-shrink-0 ${
+            !cartOpen ? "hidden lg:flex" : "flex"
+          }`}
+        >
           {/* Cart header */}
-          <div className="bg-[#4F6B4A] px-4 py-3 flex items-center justify-between">
+          <div className="bg-[#E6ECE2] px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-white">Current Sale</p>
-              <p className="text-xs text-white/70">{cart.cart.items.length} item{cart.cart.items.length !== 1 ? "s" : ""}</p>
+              <p className="text-sm font-bold text-black">Current Sale</p>
+              <p className="text-xs text-black/70">
+                {cart.cart.items.length} item
+                {cart.cart.items.length !== 1 ? "s" : ""}
+              </p>
             </div>
             <button
               onClick={() => setCartOpen(false)}
               className="lg:hidden text-white/80 hover:text-white"
               aria-label="Close cart"
             >
-              ✕
+              <IconX className="h-5 w-5" />
             </button>
           </div>
 
           {/* Cart items */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto bg-[#FAF9F4]">
             {cart.cart.items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-                <svg className="h-10 w-10 text-[#C6D4BF] mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                <svg
+                  className="h-10 w-10 text-[#C6D4BF] mb-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
+                  />
                 </svg>
-                <p className="text-sm font-semibold text-[#333333]">Cart is empty</p>
-                <p className="text-xs text-[#666666] mt-1">Search and add products</p>
+                <p className="text-sm font-semibold text-[#333333]">
+                  Cart is empty
+                </p>
+                <p className="text-xs text-[#666666] mt-1">
+                  Search and add products
+                </p>
               </div>
             ) : (
               <div>
                 {cart.cart.items.map((item, i) => (
-                  <div key={item.id} className={`px-4 py-3 border-b border-[#E6ECE2] ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/60"}`}>
+                  <div
+                    key={item.id}
+                    className={`px-4 py-3 border-b border-[#E6ECE2] ${
+                      i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/60"
+                    }`}
+                  >
                     <div className="flex gap-3">
                       {/* Left: info */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-[#333333] leading-tight truncate">
                           {item.product.name}
-                          {item.product.isNarcotic && <NarcoticBadge className="ml-1 align-middle" />}
+                          {item.product.isNarcotic && (
+                            <NarcoticBadge className="ml-1 align-middle" />
+                          )}
                         </p>
-                        <p className="text-xs text-[#666666] mt-0.5">{item.unit.name} · {fmt(item.unitPrice)}/unit</p>
+                        <p className="text-xs text-[#666666] mt-0.5">
+                          {item.unit.name} · {fmt(item.unitPrice)}/unit
+                        </p>
                       </div>
                       {/* Right: total + remove */}
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        <p className="text-sm font-bold text-[#333333]">{fmt(cart.lineTotal(item))}</p>
+                        <p className="text-sm font-bold text-[#333333]">
+                          {fmt(cart.lineTotal(item))}
+                        </p>
                         <button
                           onClick={() => cart.removeItem(item.id)}
                           className="text-[#C6D4BF] hover:text-red-500 transition-colors"
                           aria-label="Remove item"
                         >
-                          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                            <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            aria-hidden
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
+                              clipRule="evenodd"
+                            />
                           </svg>
                         </button>
                       </div>
@@ -441,14 +583,20 @@ export default function POSPage() {
                     {/* Qty controls */}
                     <div className="flex items-center gap-1 mt-2">
                       <button
-                        onClick={() => cart.updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() =>
+                          cart.updateQuantity(item.id, item.quantity - 1)
+                        }
                         className="h-6 w-6 rounded bg-[#C6D4BF] text-xs font-bold hover:bg-[#B5C6AE] transition-colors"
                       >
                         −
                       </button>
-                      <span className="text-xs w-8 text-center font-semibold">{item.quantity}</span>
+                      <span className="text-xs w-8 text-center font-semibold">
+                        {item.quantity}
+                      </span>
                       <button
-                        onClick={() => cart.updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() =>
+                          cart.updateQuantity(item.id, item.quantity + 1)
+                        }
                         className="h-6 w-6 rounded bg-[#B6C8AF] text-[#333333] text-xs font-bold hover:bg-[#A5B89E] transition-colors"
                       >
                         +
@@ -466,16 +614,24 @@ export default function POSPage() {
             <div className="flex flex-col gap-1.5 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-[#666666]">Subtotal</span>
-                <span className="font-semibold text-[#333333]">{fmt(cart.subtotal)}</span>
+                <span className="font-semibold text-[#333333]">
+                  {fmt(cart.subtotal)}
+                </span>
               </div>
 
               {/* Inline discount control */}
               <div className="rounded-lg border border-[#C6D4BF] p-2.5 flex flex-col gap-2">
-                <p className="text-xs font-semibold text-[#666666]">Bill Discount</p>
+                <p className="text-xs font-semibold text-[#666666]">
+                  Bill Discount
+                </p>
                 <div className="flex gap-2">
                   <select
                     value={discountType}
-                    onChange={(e) => setDiscountType(e.target.value as "PERCENTAGE" | "FIXED_AMOUNT")}
+                    onChange={(e) =>
+                      setDiscountType(
+                        e.target.value as "PERCENTAGE" | "FIXED_AMOUNT",
+                      )
+                    }
                     className="flex-shrink-0 rounded border border-[#C6D4BF] px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none"
                   >
                     <option value="PERCENTAGE">%</option>
@@ -502,7 +658,7 @@ export default function POSPage() {
                       onClick={clearDiscount}
                       className="rounded bg-[#C6D4BF] text-[#333333] px-2 py-1 text-xs font-semibold hover:bg-[#B5C6AE] transition-colors"
                     >
-                      ✕
+                      <IconX className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
@@ -515,8 +671,12 @@ export default function POSPage() {
 
               {/* Total */}
               <div className="flex items-center justify-between rounded-lg bg-[#E6ECE2] px-3 py-2 mt-1">
-                <span className="text-base font-bold text-[#333333]">TOTAL</span>
-                <span className="text-2xl font-bold text-[#7A9076]">{fmt(cart.total)}</span>
+                <span className="text-base font-bold text-[#333333]">
+                  TOTAL
+                </span>
+                <span className="text-2xl font-bold text-[#7A9076]">
+                  {fmt(cart.total)}
+                </span>
               </div>
             </div>
 
@@ -560,7 +720,10 @@ export default function POSPage() {
         <ProductSelectionModal
           product={selectedProduct}
           onAdd={handleAddToCart}
-          onClose={() => { setModal("none"); setSelectedProduct(null); }}
+          onClose={() => {
+            setModal("none")
+            setSelectedProduct(null)
+          }}
         />
       )}
 
@@ -578,11 +741,15 @@ export default function POSPage() {
         />
       )}
     </div>
-  );
+  )
 }
 
 function POSStatusBadge({ status }: { status: string }) {
-  if (status === "in_stock") return <span className="text-xs font-medium text-green-700">In Stock</span>;
-  if (status === "low_stock") return <span className="text-xs font-medium text-yellow-600">Low Stock</span>;
-  return <span className="text-xs font-medium text-gray-400">Out of Stock</span>;
+  if (status === "in_stock")
+    return <span className="text-xs font-medium text-green-700">In Stock</span>
+  if (status === "low_stock")
+    return (
+      <span className="text-xs font-medium text-yellow-600">Low Stock</span>
+    )
+  return <span className="text-xs font-medium text-gray-400">Out of Stock</span>
 }

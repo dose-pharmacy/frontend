@@ -313,7 +313,7 @@ export default function SlowMovingPage() {
         </div>
 
         {/* Report table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-4 border-b border-[#E6ECE2]">
             <h2 className="text-base font-bold text-[#333333]">Slow-Moving Products</h2>
             <p className="text-xs text-[#666666] mt-0.5">Products that have not sold within their configured threshold.</p>
@@ -380,7 +380,7 @@ export default function SlowMovingPage() {
         </div>
 
         {/* Configuration */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-4 border-b border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="text-base font-bold text-[#333333]">Configuration</h2>

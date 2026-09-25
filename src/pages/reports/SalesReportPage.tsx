@@ -145,7 +145,7 @@ export default function SalesReportPage() {
           onLocationChange={(v) => { setLocationId(v); setPage(1); }}
         />
 
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />

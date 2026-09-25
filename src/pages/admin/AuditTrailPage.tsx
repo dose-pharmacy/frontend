@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
+import DatePicker from "../../components/ui/DatePicker";
 import {
   listAuditTrail,
   AuditApiError,
@@ -213,20 +214,18 @@ export default function AuditTrailPage() {
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
               <label className="text-sm font-medium text-[#333333]">From</label>
-              <input
-                type="date"
+              <DatePicker
                 value={dateFrom}
-                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                className={inputClass}
+                onChange={(v) => { setDateFrom(v); setPage(1); }}
+                placeholder="From date..."
               />
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
               <label className="text-sm font-medium text-[#333333]">To</label>
-              <input
-                type="date"
+              <DatePicker
                 value={dateTo}
-                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                className={inputClass}
+                onChange={(v) => { setDateTo(v); setPage(1); }}
+                placeholder="To date..."
               />
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
@@ -285,7 +284,7 @@ export default function AuditTrailPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#4F6B4A] animate-spin" />

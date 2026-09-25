@@ -276,7 +276,7 @@ export default function LocationsPage() {
         actions={<Button onClick={openAdd}>+ Add Location</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {/* Error banner */}
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between gap-3">

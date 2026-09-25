@@ -15,6 +15,7 @@ import {
 import DashboardSubNav from "./dashboard/DashboardSubNav";
 import { defaultDateRange } from "./reports/reportHelpers";
 import { listLocations } from "../features/inventory/locationsApi";
+import DatePicker from "../components/ui/DatePicker";
 import {
   getSalesSummary,
   getSalesTrend,
@@ -1170,20 +1171,16 @@ function FinancialOverviewCard({
           <div className="flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2">
             <IconCalendar className="h-4 w-4 shrink-0 text-[#7A9076]" />
             <div className="flex items-center gap-1.5 text-sm">
-              <input
-                type="date"
+              <DatePicker
                 value={dateFrom}
-                onChange={(e) => onDateFromChange(e.target.value)}
-                className="bg-transparent outline-none text-sm font-semibold text-[#333333] w-[8.5rem]"
-                aria-label="From date"
+                onChange={onDateFromChange}
+                placeholder="From date"
               />
               <span className="text-[#999999]">–</span>
-              <input
-                type="date"
+              <DatePicker
                 value={dateTo}
-                onChange={(e) => onDateToChange(e.target.value)}
-                className="bg-transparent outline-none text-sm font-semibold text-[#333333] w-[8.5rem]"
-                aria-label="To date"
+                onChange={onDateToChange}
+                placeholder="To date"
               />
             </div>
           </div>

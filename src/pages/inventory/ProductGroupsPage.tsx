@@ -11,6 +11,7 @@ import {
 } from "../../features/inventory/productGroupsApi";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
+import { IconPencil, IconRefresh, IconTrash } from "../../components/ui/icons";
 import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
@@ -273,7 +274,7 @@ export default function ProductGroupsPage() {
         actions={<Button onClick={openAdd}>+ Add New Group</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {/* Error banner */}
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between gap-3">
@@ -288,7 +289,7 @@ export default function ProductGroupsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {/* Toolbar: search + pagination info */}
           <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
@@ -418,7 +419,10 @@ export default function ProductGroupsPage() {
                               className="text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Edit"
                             >
-                              ✏️ Edit
+                              <span className="inline-flex items-center gap-1">
+                                <IconPencil className="h-3.5 w-3.5" />
+                                Edit
+                              </span>
                             </button>
                             <button
                               onClick={() => requestToggleActive(g)}
@@ -431,8 +435,8 @@ export default function ProductGroupsPage() {
                               {togglingId === g.id
                                 ? "Saving…"
                                 : g.isActive
-                                  ? "🗑️ Deactivate"
-                                  : "↻ Activate"}
+                                  ? <span className="inline-flex items-center gap-1"><IconTrash className="h-3.5 w-3.5" />Deactivate</span>
+                                  : <span className="inline-flex items-center gap-1"><IconRefresh className="h-3.5 w-3.5" />Activate</span>}
                             </button>
                           </div>
                         </td>

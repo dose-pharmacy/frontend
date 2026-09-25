@@ -4,6 +4,11 @@ import {
   SuppliersApiError,
   type SupplierDto,
 } from "../../features/purchasing/suppliersApi";
+import {
+  IconCheck,
+  IconCheckCircle,
+  IconWarningTriangle,
+} from "../../components/ui/icons";
 
 interface AddSupplierProps {
   open: boolean;
@@ -121,15 +126,17 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
 
         {/* Error banner */}
         {apiError && (
-          <div className="mx-5 mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-            ⚠ {apiError}
+          <div className="mx-5 mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-700 flex items-start gap-2">
+            <IconWarningTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>{apiError}</span>
           </div>
         )}
 
         {/* Success banner */}
         {success && (
-          <div className="mx-5 mt-4 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-700">
-            ✅ Supplier added successfully!
+          <div className="mx-5 mt-4 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-700 flex items-start gap-2">
+            <IconCheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>Supplier added successfully!</span>
           </div>
         )}
 
@@ -240,7 +247,7 @@ export default function AddSupplier({ open, onClose, onCreated }: AddSupplierPro
             disabled={saving}
             className="rounded-lg bg-[#B6C8AF] px-5 py-2 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? "Saving..." : "✓ Save Supplier"}
+            {saving ? "Saving..." : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Save Supplier</span>}
           </button>
         </div>
       </div>

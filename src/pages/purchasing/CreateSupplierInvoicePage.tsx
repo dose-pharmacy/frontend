@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
+import DatePicker from "../../components/ui/DatePicker"
 import { getSupplierById } from "../../features/purchasing/suppliersApi"
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto } from "../../features/purchasing/purchaseOrdersApi"
 import { searchSuppliers } from "../../features/inventory/searchSelectors"
@@ -270,11 +271,19 @@ export default function CreateSupplierInvoicePage() {
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Invoice Date</label>
-                  <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className={SC} />
+                  <DatePicker
+                    value={invoiceDate}
+                    onChange={setInvoiceDate}
+                    placeholder="Select invoice date..."
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Due Date</label>
-                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={SC} />
+                  <DatePicker
+                    value={dueDate}
+                    onChange={setDueDate}
+                    placeholder="Select due date..."
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Payment Terms</label>
@@ -378,7 +387,7 @@ export default function CreateSupplierInvoicePage() {
 
           {/* PO context panel */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               <div className="px-4 py-3 bg-[#E6ECE2]/50 border-b border-[#E6ECE2]">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">Linked Purchase Order</p>
               </div>

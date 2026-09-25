@@ -12,6 +12,7 @@ import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import FormError from "../../components/ui/FormError";
 import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory";
+import { IconWarningTriangle } from "../../components/ui/icons";
 
 interface Thresholds { t30: number; t60: number; t90: number; }
 type ExpiryAction = "return" | "clearance" | "dispose";
@@ -127,7 +128,7 @@ export default function ExpiryDashboardPage() {
         actions={<Button variant="secondary" onClick={() => alert("Export report — backend pending")}>Export Expiry Report</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {/* Threshold configuration */}
         <div className="bg-[#E6ECE2] rounded-xl p-5">
           <p className="text-sm font-bold text-[#333333] mb-3">Threshold Settings (days)</p>
@@ -289,7 +290,7 @@ function ExpirySection({ title, batches, urgency, onAction }: {
                         <span className={`font-bold ${urgency === "high" ? "text-red-600" : urgency === "medium" ? "text-yellow-600" : urgency === "expired" ? "text-red-700" : "text-[#7A9076]"}`}>
                           {days} days
                         </span>
-                        {urgency === "high" && <span className="ml-2 text-xs text-red-400" aria-label="Urgent">⚠</span>}
+                        {urgency === "high" && <span className="ml-1.5 text-red-400" role="img" aria-label="Urgent"><IconWarningTriangle className="h-4 w-4 inline-block align-middle" /></span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

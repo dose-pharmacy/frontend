@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useCallback, useEffect, useState } from "react"
+import { useParams, useNavigate } from "react-router"
 import {
   deactivateProduct,
   getProduct,
@@ -13,26 +13,28 @@ import Button from "../../components/ui/Button";
 import Select from "../../components/ui/Select";
 import Modal from "../../components/ui/Modal";
 import NarcoticBadge from "../../components/ui/NarcoticBadge";
-
+import SearchableSelect from "../../components/ui/SearchableSelect";
+//import { IconTrash } from "react-icons/fa"; // Replace "react-icons/fa" with the actual library or file path
+import { IconTrash } from "../../components/ui/icons";
 // ─────────────────────────────────────────────────────────────
 // Edit form types
 // ─────────────────────────────────────────────────────────────
 
 interface UnitRow {
-  unitId: string;
-  conversionFactor: string;
-  sellPrice: string;
-  purchasePrice: string;
-  isBaseUnit: boolean;
+  unitId: string
+  conversionFactor: string
+  sellPrice: string
+  purchasePrice: string
+  isBaseUnit: boolean
 }
 
 interface ProductForm {
-  name: string;
-  minimumStock: string;
-  reorderPoint: string;
-  isActive: boolean;
-  isNarcotic: boolean;
-  units: UnitRow[];
+  name: string
+  minimumStock: string
+  reorderPoint: string
+  isActive: boolean
+  isNarcotic: boolean
+  units: UnitRow[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -44,9 +46,9 @@ function ToggleSwitch({
   onChange,
   label,
 }: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label?: string;
+  checked: boolean
+  onChange: (v: boolean) => void
+  label?: string
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -70,7 +72,7 @@ function ToggleSwitch({
         <span className="text-sm font-medium text-[#333333]">{label}</span>
       )}
     </div>
-  );
+  )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -78,62 +80,62 @@ function ToggleSwitch({
 // ─────────────────────────────────────────────────────────────
 
 export default function ProductDetailPage() {
-  const { productId } = useParams<{ productId: string }>();
-  const navigate = useNavigate();
+  const { productId } = useParams<{ productId: string }>()
+  const navigate = useNavigate()
 
-  const [product, setProduct] = useState<ProductDetailDto | null>(null);
-  const [masterUnits, setMasterUnits] = useState<UnitDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [product, setProduct] = useState<ProductDetailDto | null>(null)
+  const [masterUnits, setMasterUnits] = useState<UnitDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // ── Delete state ──
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // ── Edit modal state ──
-  const [editOpen, setEditOpen] = useState(false);
-  const [form, setForm] = useState<ProductForm | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [editOpen, setEditOpen] = useState(false)
+  const [form, setForm] = useState<ProductForm | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // ─────────────────────────────────────────────────────────
   // Load product (GET /inventory/products/{id})
   // ─────────────────────────────────────────────────────────
 
   const reload = useCallback(async () => {
-    if (!productId) return;
-    setLoading(true);
-    setLoadError(null);
+    if (!productId) return
+    setLoading(true)
+    setLoadError(null)
     try {
       const [detail, units] = await Promise.all([
         getProduct(productId),
         listUnits({ limit: 100 }).catch(() => ({ data: [] as UnitDto[] })),
-      ]);
-      setProduct(detail);
-      setMasterUnits(units.data);
+      ])
+      setProduct(detail)
+      setMasterUnits(units.data)
     } catch (err) {
       setLoadError(
         err instanceof ProductsApiError
           ? err.message
           : "Failed to load the product. Please try again.",
-      );
+      )
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [productId]);
+  }, [productId])
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    void reload()
+  }, [reload])
 
   // ─────────────────────────────────────────────────────────
   // Edit handlers
   // ─────────────────────────────────────────────────────────
 
   function openEdit() {
-    if (!product) return;
+    if (!product) return
 
     const rows: UnitRow[] = product.units.length
       ? product.units.map((u) => ({
@@ -151,14 +153,12 @@ export default function ProductDetailPage() {
             purchasePrice: "",
             isBaseUnit: true,
           },
-        ];
+        ]
 
     // Ensure exactly one base row
-    const baseIdx = rows.findIndex((r) => r.isBaseUnit);
-    rows.forEach(
-      (r, i) => (r.isBaseUnit = i === (baseIdx >= 0 ? baseIdx : 0)),
-    );
-    if (baseIdx >= 0) rows[baseIdx].conversionFactor = "1";
+    const baseIdx = rows.findIndex((r) => r.isBaseUnit)
+    rows.forEach((r, i) => (r.isBaseUnit = i === (baseIdx >= 0 ? baseIdx : 0)))
+    if (baseIdx >= 0) rows[baseIdx].conversionFactor = "1"
 
     setForm({
       name: product.name,
@@ -167,45 +167,45 @@ export default function ProductDetailPage() {
       isActive: product.isActive,
       isNarcotic: product.isNarcotic,
       units: rows,
-    });
+    })
 
-    setFormError(null);
-    setFieldErrors({});
-    setEditOpen(true);
+    setFormError(null)
+    setFieldErrors({})
+    setEditOpen(true)
   }
 
   function closeEdit() {
-    if (saving) return;
-    setEditOpen(false);
+    if (saving) return
+    setEditOpen(false)
   }
 
   function updateRow(idx: number, patch: Partial<UnitRow>) {
     setForm((f) => {
-      if (!f) return f;
+      if (!f) return f
       const unitsNext = f.units.map((r, i) =>
         i === idx ? { ...r, ...patch } : r,
-      );
-      return { ...f, units: unitsNext };
-    });
+      )
+      return { ...f, units: unitsNext }
+    })
   }
 
   function setBaseRow(idx: number) {
     setForm((f) => {
-      if (!f) return f;
+      if (!f) return f
       const unitsNext = f.units.map((r, i) => ({
         ...r,
         isBaseUnit: i === idx,
         conversionFactor: i === idx ? "1" : r.conversionFactor,
-      }));
-      return { ...f, units: unitsNext };
-    });
+      }))
+      return { ...f, units: unitsNext }
+    })
   }
 
   function addRow() {
     setForm((f) => {
-      if (!f) return f;
-      const used = new Set(f.units.map((r) => r.unitId));
-      const available = masterUnits.find((u) => !used.has(u.id));
+      if (!f) return f
+      const used = new Set(f.units.map((r) => r.unitId))
+      const available = masterUnits.find((u) => !used.has(u.id))
       return {
         ...f,
         units: [
@@ -218,30 +218,30 @@ export default function ProductDetailPage() {
             isBaseUnit: false,
           },
         ],
-      };
-    });
+      }
+    })
   }
 
   function removeRow(idx: number) {
     setForm((f) => {
-      if (!f) return f;
-      const row = f.units[idx];
-      if (row.isBaseUnit) return f;
-      return { ...f, units: f.units.filter((_, i) => i !== idx) };
-    });
+      if (!f) return f
+      const row = f.units[idx]
+      if (row.isBaseUnit) return f
+      return { ...f, units: f.units.filter((_, i) => i !== idx) }
+    })
   }
 
   function validate(f: ProductForm): boolean {
-    const errs: Record<string, string> = {};
+    const errs: Record<string, string> = {}
 
-    if (!f.name.trim()) errs.name = "Product name is required.";
+    if (!f.name.trim()) errs.name = "Product name is required."
 
     if (
       f.minimumStock === "" ||
       isNaN(Number(f.minimumStock)) ||
       Number(f.minimumStock) < 0
     ) {
-      errs.minimumStock = "Minimum stock must be 0 or more.";
+      errs.minimumStock = "Minimum stock must be 0 or more."
     }
 
     if (
@@ -249,49 +249,48 @@ export default function ProductDetailPage() {
       isNaN(Number(f.reorderPoint)) ||
       Number(f.reorderPoint) < 0
     ) {
-      errs.reorderPoint = "Reorder point must be 0 or more.";
+      errs.reorderPoint = "Reorder point must be 0 or more."
     }
 
-    if (f.units.length === 0)
-      errs.units = "At least one unit is required.";
+    if (f.units.length === 0) errs.units = "At least one unit is required."
 
     if (f.units.filter((u) => u.isBaseUnit).length !== 1)
-      errs.units = "Exactly one unit must be marked as base.";
+      errs.units = "Exactly one unit must be marked as base."
 
     f.units.forEach((u, i) => {
-      if (!u.unitId) errs[`u${i}.unitId`] = "Select a unit.";
+      if (!u.unitId) errs[`u${i}.unitId`] = "Select a unit."
 
-      const cf = Number(u.conversionFactor);
+      const cf = Number(u.conversionFactor)
       if (isNaN(cf) || cf < 1)
-        errs[`u${i}.conversionFactor`] = "Conversion factor must be ≥ 1.";
+        errs[`u${i}.conversionFactor`] = "Conversion factor must be ≥ 1."
 
       if (
         u.sellPrice === "" ||
         isNaN(Number(u.sellPrice)) ||
         Number(u.sellPrice) < 0
       )
-        errs[`u${i}.sellPrice`] = "Enter a valid sell price.";
+        errs[`u${i}.sellPrice`] = "Enter a valid sell price."
 
       if (
         u.purchasePrice === "" ||
         isNaN(Number(u.purchasePrice)) ||
         Number(u.purchasePrice) < 0
       )
-        errs[`u${i}.purchasePrice`] = "Enter a valid purchase price.";
-    });
+        errs[`u${i}.purchasePrice`] = "Enter a valid purchase price."
+    })
 
-    setFieldErrors(errs);
-    return Object.keys(errs).length === 0;
+    setFieldErrors(errs)
+    return Object.keys(errs).length === 0
   }
 
   const handleSave = async () => {
-    if (!product) return;
-  
-    setSaving(true);
-    setError(null, setFormError);
-  
+    if (!product) return
+
+    setSaving(true)
+    setError(null, setFormError)
+
     try {
-      if (!form) return;
+      if (!form) return
 
       await updateProduct(product.id, {
         name: form.name.trim(),
@@ -306,50 +305,49 @@ export default function ProductDetailPage() {
           purchasePrice: Number(u.purchasePrice),
           isBaseUnit: u.isBaseUnit,
         })),
-      });
-  
+      })
+
       // IMPORTANT:
       // Don't rely on the PATCH response to update the screen.
       // Fetch the product again from the backend.
-      const freshProduct = await getProduct(product.id);
-  
-      setProduct(freshProduct);
-      setEditOpen(false);
+      const freshProduct = await getProduct(product.id)
+
+      setProduct(freshProduct)
+      setEditOpen(false)
     } catch (err) {
       setError(
         err instanceof ProductsApiError
           ? err.message
           : "Failed to update product.",
         setFormError,
-      );
+      )
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
-  
+  }
 
   // ─────────────────────────────────────────────────────────
   // Delete (soft → deactivate)
   // ─────────────────────────────────────────────────────────
 
   async function handleDelete() {
-    if (!product) return;
+    if (!product) return
 
-    setDeleting(true);
-    setDeleteError(null);
+    setDeleting(true)
+    setDeleteError(null)
 
     try {
-      await deactivateProduct(product.id);
-      setConfirmDeleteOpen(false);
-      navigate("/inventory/products");
+      await deactivateProduct(product.id)
+      setConfirmDeleteOpen(false)
+      navigate("/inventory/products")
     } catch (err) {
       setDeleteError(
         err instanceof ProductsApiError
           ? err.message
           : "Could not deactivate the product. Please try again.",
-      );
+      )
     } finally {
-      setDeleting(false);
+      setDeleting(false)
     }
   }
 
@@ -379,7 +377,7 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   if (loadError || !product) {
@@ -413,18 +411,18 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
-  const stockQty = product.stockSummary?.totalQuantity ?? 0;
-  const minStock = product.minimumStock ?? 0;
-  const reorderPoint = product.reorderPoint ?? 0;
+  const stockQty = product.stockSummary?.totalQuantity ?? 0
+  const minStock = product.minimumStock ?? 0
+  const reorderPoint = product.reorderPoint ?? 0
   const derivedStatus =
     stockQty <= 0
       ? "out_of_stock"
       : stockQty <= Math.max(minStock, reorderPoint)
         ? "low_stock"
-        : "in_stock";
+        : "in_stock"
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -474,16 +472,29 @@ export default function ProductDetailPage() {
 
                     <div className="flex flex-wrap gap-2 mt-3">
                       <Chip label="Brand" value={product.brand ?? "—"} />
-                      <Chip label="Group" value={product.productGroup?.name ?? "—"} />
+                      <Chip
+                        label="Group"
+                        value={product.productGroup?.name ?? "—"}
+                      />
                       <Chip label="SKU" value={product.sku} />
                     </div>
                   </div>
 
                   <div className="flex gap-2 flex-wrap justify-end">
-                    <Button variant="secondary" onClick={() => navigate(`/inventory/stock?productId=${product.id}`)}>
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        navigate(`/inventory/stock?productId=${product.id}`)
+                      }
+                    >
                       View Stock →
                     </Button>
-                    <Button variant="secondary" onClick={() => navigate(`/inventory/bin-card?productId=${product.id}`)}>
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        navigate(`/inventory/bin-card?productId=${product.id}`)
+                      }
+                    >
                       View Bin Card →
                     </Button>
                     <Button variant="secondary" onClick={openEdit}>
@@ -493,8 +504,8 @@ export default function ProductDetailPage() {
                     {product.isActive ? (
                       <button
                         onClick={() => {
-                          setDeleteError(null);
-                          setConfirmDeleteOpen(true);
+                          setDeleteError(null)
+                          setConfirmDeleteOpen(true)
                         }}
                         className="rounded-lg px-4 py-2.5 text-sm font-semibold text-red-600 border border-red-200 bg-white hover:bg-red-50 transition-colors"
                       >
@@ -511,7 +522,9 @@ export default function ProductDetailPage() {
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <Stat
                     label="Total Stock"
-                    value={`${stockQty.toLocaleString()}${product.baseUnit?.name ? ` ${product.baseUnit.name}` : ""}`}
+                    value={`${stockQty.toLocaleString()}${
+                      product.baseUnit?.name ? ` ${product.baseUnit.name}` : ""
+                    }`}
                   />
                   <Stat label="Min Threshold" value={String(minStock)} />
                   <Stat label="Reorder Point" value={String(reorderPoint)} />
@@ -539,7 +552,7 @@ export default function ProductDetailPage() {
                 Units & Packaging
               </h3>
 
-              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -687,12 +700,7 @@ export default function ProductDetailPage() {
       {/* EDIT PRODUCT MODAL */}
       {/* ─────────────────────────────────────────────────── */}
 
-      <Modal
-        open={editOpen}
-        onClose={closeEdit}
-        title="Edit Product"
-        size="lg"
-      >
+      <Modal open={editOpen} onClose={closeEdit} title="Edit Product" size="lg">
         {form && (
           <div className="flex flex-col gap-6">
             {formError && (
@@ -716,9 +724,7 @@ export default function ProductDetailPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) =>
-                    setForm((f) =>
-                      f ? { ...f, name: e.target.value } : f,
-                    )
+                    setForm((f) => (f ? { ...f, name: e.target.value } : f))
                   }
                   className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                 />
@@ -824,17 +830,13 @@ export default function ProductDetailPage() {
 
                     <tbody>
                       {form.units.map((row, idx) => {
-                        const usedIds = new Set(
-                          form.units.map((r) => r.unitId),
-                        );
+                        const usedIds = new Set(form.units.map((r) => r.unitId))
 
                         return (
                           <tr
                             key={idx}
                             className={
-                              idx % 2 === 0
-                                ? "bg-white"
-                                : "bg-[#E6ECE2]/20"
+                              idx % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
                             }
                           >
                             {/* Base radio */}
@@ -850,49 +852,54 @@ export default function ProductDetailPage() {
 
                             {/* Unit dropdown */}
                             <td className="px-3 py-2.5">
-                              <select
-                                value={row.unitId}
-                                onChange={(e) =>
+                              <SearchableSelect
+                                value={row.unitId || null}
+                                onChange={(v) =>
                                   updateRow(idx, {
-                                    unitId: e.target.value,
+                                    unitId: v,
                                   })
                                 }
-                                className="w-full rounded-lg border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
-                              >
-                                <option value="">— Select —</option>
-
-                                {masterUnits
-                                  .concat(
-                                    product.units
-                                      .filter(
-                                        (pu) =>
-                                          pu.unitId === row.unitId &&
-                                          !masterUnits.some(
-                                            (mu) => mu.id === pu.unitId,
-                                          ),
-                                      )
-                                      .map((pu) => ({
-                                        id: pu.unitId,
-                                        name: pu.unit?.name ?? pu.unitId,
-                                        symbol: pu.unit?.symbol ?? "",
-                                        description: null,
-                                        isActive: true,
-                                        productCount: 0,
-                                        createdAt: "",
-                                        updatedAt: "",
-                                      } satisfies UnitDto)),
-                                  )
-                                  .filter(
-                                    (u) =>
-                                      u.id === row.unitId ||
-                                      !usedIds.has(u.id),
-                                  )
-                                  .map((u) => (
-                                    <option key={u.id} value={u.id}>
-                                      {u.name}
-                                    </option>
-                                  ))}
-                              </select>
+                                options={[
+                                  { value: "", label: "— Select —" },
+                                  ...masterUnits
+                                    .concat(
+                                      product.units
+                                        .filter(
+                                          (pu) =>
+                                            pu.unitId === row.unitId &&
+                                            !masterUnits.some(
+                                              (mu) => mu.id === pu.unitId,
+                                            ),
+                                        )
+                                        .map(
+                                          (pu) =>
+                                            ({
+                                              id: pu.unitId,
+                                              name: pu.unit?.name ?? pu.unitId,
+                                              symbol: pu.unit?.symbol ?? "",
+                                              description: null,
+                                              isActive: true,
+                                              productCount: 0,
+                                              createdAt: "",
+                                              updatedAt: "",
+                                            }) satisfies UnitDto,
+                                        ),
+                                    )
+                                    .filter(
+                                      (u) =>
+                                        u.id === row.unitId ||
+                                        !usedIds.has(u.id),
+                                    )
+                                    .map((u) => ({
+                                      value: u.id,
+                                      label: u.name,
+                                    })),
+                                ]}
+                                placeholder="— Select —"
+                                searchPlaceholder="Search units..."
+                                emptyMessage="No units available"
+                                noResultsMessage="No matching units"
+                              />
 
                               {fieldErrors[`u${idx}.unitId`] && (
                                 <p className="text-xs text-red-600 mt-1">
@@ -984,11 +991,14 @@ export default function ProductDetailPage() {
                                 }
                                 className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-30 disabled:cursor-not-allowed"
                               >
-                                🗑 Remove
+                                <span className="inline-flex items-center gap-1">
+                                  <IconTrash className="h-3.5 w-3.5" />
+                                  Remove
+                                </span>
                               </button>
                             </td>
                           </tr>
-                        );
+                        )
                       })}
                     </tbody>
                   </table>
@@ -1073,17 +1083,16 @@ export default function ProductDetailPage() {
       <Modal
         open={confirmDeleteOpen}
         onClose={() => {
-          if (!deleting) setConfirmDeleteOpen(false);
+          if (!deleting) setConfirmDeleteOpen(false)
         }}
         title="Deactivate Product"
         size="sm"
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[#333333]">
-            Deactivate{" "}
-            <span className="font-semibold">{product?.name}</span>? The product
-            stays in historical records but will no longer be available for
-            new purchases or sales.
+            Deactivate <span className="font-semibold">{product?.name}</span>?
+            The product stays in historical records but will no longer be
+            available for new purchases or sales.
           </p>
 
           {deleteError && (
@@ -1135,7 +1144,7 @@ export default function ProductDetailPage() {
         </div>
       </Modal>
     </div>
-  );
+  )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1148,7 +1157,7 @@ function Chip({ label, value }: { label: string; value: string }) {
       <span className="text-[#666666]">{label}:</span>
       <span className="font-medium text-[#333333]">{value}</span>
     </span>
-  );
+  )
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -1157,9 +1166,11 @@ function Stat({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-[#666666] font-medium">{label}</p>
       <p className="text-lg font-bold text-[#333333]">{value}</p>
     </div>
-  );
+  )
 }
-function setError(error: string | null, setFormError: (error: string | null) => void) {
-  setFormError(error);
+function setError(
+  error: string | null,
+  setFormError: (error: string | null) => void,
+) {
+  setFormError(error)
 }
-

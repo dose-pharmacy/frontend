@@ -10,6 +10,7 @@ import Button from "../../components/ui/Button"
 import Input from "../../components/ui/Input"
 import FormError from "../../components/ui/FormError"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import DatePicker from "../../components/ui/DatePicker"
 import {
   listSales,
   getSale,
@@ -212,7 +213,7 @@ export default function SalesPage() {
 
       <DashboardSubNav />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {loadError}
@@ -220,30 +221,33 @@ export default function SalesPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex flex-col gap-3">
-          <SearchInput
-            value={search}
-            onChange={(v) => { setSearch(v); setPage(1) }}
-            placeholder="Search invoice, product, cashier..."
-          />
-          <div className="flex flex-wrap gap-3">
-            <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="flex-1 min-w-[130px]">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <div className="flex-1">
+              <SearchInput
+                value={search}
+                onChange={(v) => { setSearch(v); setPage(1) }}
+                placeholder="Search invoice, product, cashier..."
+              />
+            </div>
+            <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="sm:w-44">
               <option value="">All Statuses</option>
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
               <option value="DRAFT">Draft</option>
             </Select>
-            <Input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => { setDateFilter(e.target.value); setPage(1) }}
-              className="flex-1 min-w-[130px]"
-            />
+            <div className="sm:w-44">
+              <DatePicker
+                value={dateFilter}
+                onChange={(v) => { setDateFilter(v); setPage(1) }}
+                placeholder="Filter by date"
+              />
+            </div>
           </div>
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <LoadingSkeleton />
           ) : sales.length === 0 ? (

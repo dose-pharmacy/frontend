@@ -12,6 +12,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import Select from "../../components/ui/Select";
 import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
+import DatePicker from "../../components/ui/DatePicker";
 
 function fmtDate(d: string) {
   if (!d) return "—";
@@ -231,11 +232,19 @@ export default function BinCardPage() {
             </Select>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#666666]">From Date</label>
-              <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+              <DatePicker
+                value={fromDate}
+                onChange={(v) => { setFromDate(v); setPage(1); }}
+                placeholder="From date"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#666666]">To Date</label>
-              <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+              <DatePicker
+                value={toDate}
+                onChange={(v) => { setToDate(v); setPage(1); }}
+                placeholder="To date"
+              />
             </div>
           </div>
           {(fromDate || toDate) && (
@@ -292,7 +301,7 @@ export default function BinCardPage() {
             </div>
 
             {/* Ledger */}
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
