@@ -28,6 +28,13 @@ import Input from "../../components/ui/Input"
 import SearchableSelect from "../../components/ui/SearchableSelect"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
+import ProductFormModal from "../../components/ui/ProductFormModal"
+import type { ProductDetailDto } from "../../features/inventory/productsApi"
+import BatchFormModal from "../../components/ui/BatchFormModal"
+import LocationFormModal from "../../components/ui/LocationFormModal"
+import type { LocationDto } from "../../features/inventory/locationsApi"
+import UnitFormModal from "../../components/ui/UnitFormModal"
+import type { UnitDto } from "../../features/inventory/unitsApi"
 
 function describeError(err: unknown): string {
   if (err instanceof StockApiError) {
@@ -573,12 +580,40 @@ function AddStockModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
+  // Quick "Add Product" (reuses Inventory > Products > Add Product)
+  const [addProductOpen, setAddProductOpen] = useState(false)
+  const [createdProduct, setCreatedProduct] = useState<ProductDetailDto | null>(
+    null,
+  )
+
+  // Quick "Add Batch" (reuses Inventory > Batches & Expiry > Add Batch)
+  const [addBatchOpen, setAddBatchOpen] = useState(false)
+  const [createdBatch, setCreatedBatch] = useState<BatchDto | null>(null)
+
+  // Quick "Add New Location" (reuses Settings > Locations > Add Location)
+  const [addLocationOpen, setAddLocationOpen] = useState(false)
+  const [createdLocation, setCreatedLocation] = useState<LocationDto | null>(
+    null,
+  )
+
+  // Quick "Add New Unit" (reuses Settings > Units > Add Unit)
+  const [addUnitOpen, setAddUnitOpen] = useState(false)
+  const [createdUnit, setCreatedUnit] = useState<UnitDto | null>(null)
+
   const productSearch = useSearchableResource(searchProducts, open)
   const locationsSearch = useSearchableResource(searchLocations, open)
   const unitsApi = useProductUnits(productId)
 
+  // Keep the freshly created product selectable even before the refreshed
+  // server-side search results arrive.
+  const createdProductOption =
+    createdProduct && createdProduct.id === productId
+      ? { value: createdProduct.id, label: createdProduct.name }
+      : null
   const selectedProductOption =
-    productSearch.options.find((o) => o.value === productId) ?? null
+    createdProductOption ??
+    productSearch.options.find((o) => o.value === productId) ??
+    null
   const productOptions: SearchableOption[] = selectedProductOption
     ? [
         selectedProductOption,
@@ -586,14 +621,72 @@ function AddStockModal({
       ]
     : productSearch.options
 
+  // Keep the freshly created batch selectable even before the synced
+  // server-side batch list arrives.
+  const createdBatchOption =
+    createdBatch && createdBatch.id === batchId
+      ? {
+          value: createdBatch.id,
+          label: createdBatch.batchNumber,
+          sub: createdBatch.expiryDate
+            ? `Expires ${fmtDate(createdBatch.expiryDate)}`
+            : undefined,
+        }
+      : null
+  const batchOptions = createdBatchOption
+    ? [
+        createdBatchOption,
+        ...batches
+          .filter((b) => b.id !== batchId)
+          .map((b) => ({
+            value: b.id,
+            label: b.batchNumber,
+            sub: b.expiryDate ? `Expires ${fmtDate(b.expiryDate)}` : undefined,
+          })),
+      ]
+    : batches.map((b) => ({
+        value: b.id,
+        label: b.batchNumber,
+        sub: b.expiryDate ? `Expires ${fmtDate(b.expiryDate)}` : undefined,
+      }))
+
+  // Keep the freshly created location selectable even before the refreshed
+  // server-side search results arrive.
+  const createdLocationOption =
+    createdLocation && createdLocation.id === locationId
+      ? { value: createdLocation.id, label: createdLocation.name }
+      : null
   const selectedLocationOption =
-    locationsSearch.options.find((o) => o.value === locationId) ?? null
+    createdLocationOption ??
+    locationsSearch.options.find((o) => o.value === locationId) ??
+    null
   const locationOptions: SearchableOption[] = selectedLocationOption
     ? [
         selectedLocationOption,
         ...locationsSearch.options.filter((o) => o.value !== locationId),
       ]
     : locationsSearch.options
+
+  // Keep the freshly created unit selectable even before the product's unit
+  // configuration reflects it.
+  const createdUnitOption =
+    createdUnit && createdUnit.id === unitId
+      ? { value: createdUnit.id, label: createdUnit.name }
+      : null
+  const unitOptions = createdUnitOption
+    ? [
+        createdUnitOption,
+        ...unitsApi.units
+          .filter((u) => u.unitId !== unitId)
+          .map((u) => ({
+            value: u.unitId,
+            label: `${u.unit.name}${u.isBaseUnit ? " (base)" : ""}`,
+          })),
+      ]
+    : unitsApi.units.map((u) => ({
+        value: u.unitId,
+        label: `${u.unit.name}${u.isBaseUnit ? " (base)" : ""}`,
+      }))
 
   useEffect(() => {
     if (!productId) {
@@ -618,7 +711,16 @@ function AddStockModal({
     }
   }, [productId])
 
+  // A newly created unit is scoped to the selected product's form. Clear it
+  // when the product changes so the auto-select guard can't keep a stale id.
   useEffect(() => {
+    setCreatedUnit(null)
+  }, [productId])
+
+  // Keep a freshly created unit selected even before the product's unit
+  // configuration reflects it.
+  useEffect(() => {
+    if (createdUnit && createdUnit.id === unitId) return
     if (unitsApi.units.length === 0) {
       setUnitId("")
       return
@@ -628,7 +730,56 @@ function AddStockModal({
       const base = unitsApi.units.find((u) => u.isBaseUnit) ?? unitsApi.units[0]
       setUnitId(base?.unitId ?? "")
     }
-  }, [unitsApi.units, unitId])
+  }, [unitsApi.units, unitId, createdUnit])
+
+  // Called when the shared "Add Product" modal saves a product.
+  // Refreshes the product options and auto-selects the new product.
+  function handleProductCreated(product: ProductDetailDto) {
+    setCreatedProduct(product)
+    setProductId(product.id)
+    setBatchId("")
+    productSearch.refresh()
+    setAddProductOpen(false)
+  }
+
+  // Called when the shared "Add Batch" modal saves a batch. Makes the batch
+  // immediately selectable (and auto-selects it), then syncs the batch list.
+  function handleBatchCreated(batch: BatchDto) {
+    setCreatedBatch(batch)
+    setBatches((prev) => [batch, ...prev.filter((b) => b.id !== batch.id)])
+    setBatchId(batch.id)
+    void listProductBatches(batch.productId, { limit: 100 })
+      .then((res) =>
+        setBatches((prev) => {
+          const has = res.data.some((b) => b.id === batch.id)
+          return has ? res.data : [batch, ...res.data]
+        }),
+      )
+      .catch(() => {
+        /* keep the current batch list on refetch failure */
+      })
+    setAddBatchOpen(false)
+  }
+
+  // Called when the shared "Add Location" modal saves a location. Makes the new
+  // location immediately selectable (and auto-selects it), then refreshes the
+  // searchable location list.
+  function handleLocationCreated(location: LocationDto) {
+    setCreatedLocation(location)
+    setLocationId(location.id)
+    locationsSearch.refresh()
+    setAddLocationOpen(false)
+  }
+
+  // Called when the shared "Add Unit" modal saves a unit. Makes the new unit
+  // immediately selectable (and auto-selects it), then refreshes the product's
+  // unit configuration.
+  function handleUnitCreated(unit: UnitDto) {
+    setCreatedUnit(unit)
+    setUnitId(unit.id)
+    unitsApi.refresh()
+    setAddUnitOpen(false)
+  }
 
   async function handleSubmit() {
     if (!productId || !batchId || !locationId || !qty) return
@@ -668,7 +819,8 @@ function AddStockModal({
       : ""
 
   return (
-    <Modal open={open} title="Add Opening Stock" onClose={onClose} size="md">
+    <>
+      <Modal open={open} title="Add Opening Stock" onClose={onClose} size="md">
       <p className="text-sm text-[#666666] -mt-2 mb-4">
         Add stock already physically available in the pharmacy.
       </p>
@@ -679,58 +831,94 @@ function AddStockModal({
           </p>
         )}
 
-        <SearchableSelect
-          label="Product"
-          value={productId || null}
-          onChange={(v) => {
-            setProductId(v)
-            setBatchId("")
-          }}
-          options={productOptions}
-          onSearch={productSearch.setTerm}
-          loading={productSearch.loading}
-          error={productSearch.error}
-          onRetry={productSearch.retry}
-          placeholder="Search and select a product..."
-          searchPlaceholder="Search by name or SKU..."
-          emptyMessage="No products found"
-          noResultsMessage="No products matching your search"
-        />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-sm font-medium text-[#333333]">
+              Product <span className="text-red-500">*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setAddProductOpen(true)}
+              className="text-xs font-semibold text-[#7A9076] hover:underline"
+            >
+              + Add Product
+            </button>
+          </div>
+          <SearchableSelect
+            value={productId || null}
+            onChange={(v) => {
+              setProductId(v)
+              setBatchId("")
+            }}
+            options={productOptions}
+            onSearch={productSearch.setTerm}
+            loading={productSearch.loading}
+            error={productSearch.error}
+            onRetry={productSearch.retry}
+            placeholder="Search and select a product..."
+            searchPlaceholder="Search by name or SKU..."
+            emptyMessage="No products found"
+            noResultsMessage="No products matching your search"
+          />
+        </div>
 
-        <SearchableSelect
-          label="Batch"
-          value={batchId || null}
-          onChange={setBatchId}
-          options={batches.map((b) => ({
-            value: b.id,
-            label: b.batchNumber,
-            sub: b.expiryDate ? `Expires ${fmtDate(b.expiryDate)}` : undefined,
-          }))}
-          disabled={!productId || batchesLoading}
-          placeholder={
-            batchesLoading ? "Loading batches..." : "Select batch..."
-          }
-          searchPlaceholder="Search batches..."
-          emptyMessage={
-            batchesLoading ? "Loading batches..." : "No batches found"
-          }
-          noResultsMessage="No batches matching your search"
-        />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-sm font-medium text-[#333333]">
+              Batch <span className="text-red-500">*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setAddBatchOpen(true)}
+              disabled={!productId}
+              className="text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              + Add Batch
+            </button>
+          </div>
+          <SearchableSelect
+            value={batchId || null}
+            onChange={setBatchId}
+            options={batchOptions}
+            disabled={!productId || batchesLoading}
+            placeholder={
+              batchesLoading ? "Loading batches..." : "Select batch..."
+            }
+            searchPlaceholder="Search batches..."
+            emptyMessage={
+              batchesLoading ? "Loading batches..." : "No batches found"
+            }
+            noResultsMessage="No batches matching your search"
+          />
+        </div>
 
-        <SearchableSelect
-          label="Location"
-          value={locationId || null}
-          onChange={(v) => setLocationId(v)}
-          options={locationOptions}
-          onSearch={locationsSearch.setTerm}
-          loading={locationsSearch.loading}
-          error={locationsSearch.error}
-          onRetry={locationsSearch.retry}
-          placeholder="Search and select a location..."
-          searchPlaceholder="Search locations..."
-          emptyMessage="No locations found"
-          noResultsMessage="No locations matching your search"
-        />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-sm font-medium text-[#333333]">
+              Location <span className="text-red-500">*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setAddLocationOpen(true)}
+              className="text-xs font-semibold text-[#7A9076] hover:underline"
+            >
+              + Add New Location
+            </button>
+          </div>
+          <SearchableSelect
+            value={locationId || null}
+            onChange={(v) => setLocationId(v)}
+            options={locationOptions}
+            onSearch={locationsSearch.setTerm}
+            loading={locationsSearch.loading}
+            error={locationsSearch.error}
+            onRetry={locationsSearch.retry}
+            placeholder="Search and select a location..."
+            searchPlaceholder="Search locations..."
+            emptyMessage="No locations found"
+            noResultsMessage="No locations matching your search"
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Input
@@ -741,26 +929,40 @@ function AddStockModal({
             onChange={(e) => setQty(e.target.value)}
             placeholder="0"
           />
-          <SearchableSelect
-            label="Unit"
-            value={unitId || null}
-            onChange={setUnitId}
-            options={unitsApi.units.map((u) => ({
-              value: u.unitId,
-              label: `${u.unit.name}${u.isBaseUnit ? " (base)" : ""}`,
-            }))}
-            disabled={!productId || unitsApi.units.length === 0}
-            placeholder={
-              unitsApi.units.length === 0
-                ? productId
-                  ? "No units configured"
-                  : "Select product first"
-                : "Select unit..."
-            }
-            searchPlaceholder="Search units..."
-            emptyMessage="No units available"
-            noResultsMessage="No units matching your search"
-          />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-medium text-[#333333]">
+                Unit <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setAddUnitOpen(true)}
+                disabled={!productId}
+                className="text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                + Add New Unit
+              </button>
+            </div>
+            <SearchableSelect
+              value={unitId || null}
+              onChange={setUnitId}
+              options={unitOptions}
+              disabled={
+                !productId ||
+                (unitsApi.units.length === 0 && !createdUnitOption)
+              }
+              placeholder={
+                unitsApi.units.length === 0
+                  ? productId
+                    ? "No units configured"
+                    : "Select product first"
+                  : "Select unit..."
+              }
+              searchPlaceholder="Search units..."
+              emptyMessage="No units available"
+              noResultsMessage="No units matching your search"
+            />
+          </div>
         </div>
         {baseLabel &&
           qty &&
@@ -794,7 +996,39 @@ function AddStockModal({
           </Button>
         </div>
       </div>
-    </Modal>
+      </Modal>
+
+      {/* Quick create a product from the Add Stock form (reuses the shared Add Product modal) */}
+      <ProductFormModal
+        open={addProductOpen}
+        onClose={() => setAddProductOpen(false)}
+        onSaved={handleProductCreated}
+      />
+
+      {/* Quick create a batch from the Add Stock form (reuses the shared Add Batch modal) */}
+      <BatchFormModal
+        open={addBatchOpen}
+        onClose={() => setAddBatchOpen(false)}
+        initialProductId={productId || undefined}
+        initialProductName={selectedProductOption?.label ?? undefined}
+        onSaved={handleBatchCreated}
+      />
+
+      {/* Quick create a location from the Add Stock form (reuses the shared Add Location modal) */}
+      <LocationFormModal
+        open={addLocationOpen}
+        mode="add"
+        onClose={() => setAddLocationOpen(false)}
+        onSaved={handleLocationCreated}
+      />
+
+      {/* Quick create a unit from the Add Stock form (reuses the shared Add Unit modal) */}
+      <UnitFormModal
+        open={addUnitOpen}
+        onClose={() => setAddUnitOpen(false)}
+        onSaved={handleUnitCreated}
+      />
+    </>
   )
 }
 

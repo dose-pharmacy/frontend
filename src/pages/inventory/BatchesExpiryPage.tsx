@@ -4,7 +4,6 @@ import {
   fetchBatches,
   fetchProductOptions,
   daysUntilExpiry,
-  createBatch,
   type ProductOption,
 } from "../../features/inventory/inventoryService"
 import type { Batch } from "../../features/inventory/inventoryMock"
@@ -18,7 +17,7 @@ import {
   type ExpiredProductDto,
   type ExpiredProductBatchDto,
 } from "../../features/inventory/expiryApi"
-import { searchProducts, searchLocations } from "../../features/inventory/searchSelectors"
+import { searchLocations } from "../../features/inventory/searchSelectors"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchableSelect from "../../components/ui/SearchableSelect"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
@@ -29,53 +28,18 @@ import Select from "../../components/ui/Select"
 import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
 import Input from "../../components/ui/Input"
-import DatePicker from "../../components/ui/DatePicker"
 import FormError from "../../components/ui/FormError"
 import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory"
 import Pagination from "../../components/ui/Pagination"
 import StatusBadge from "../../components/ui/StatusBadge"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import BatchFormModal from "../../components/ui/BatchFormModal"
 
 type Tab = "batches" | "expiring" | "expired"
 type ExpiryAction = "return" | "clearance" | "dispose"
 
 const PAGE_SIZE = 10
 const EXPIRY_LIMIT = 100
-
-interface AddBatchForm {
-  productId: string
-  batchNumber: string
-  receivedDate: string
-  expiryDate: string
-  purchaseCost: string
-  supplierReference: string
-}
-
-function emptyBatchForm(): AddBatchForm {
-  const today = new Date().toISOString().slice(0, 10)
-  return {
-    productId: "",
-    batchNumber: "",
-    receivedDate: today,
-    expiryDate: "",
-    purchaseCost: "",
-    supplierReference: "",
-  }
-}
-
-function addBatchErrors(f: AddBatchForm) {
-  const e: Partial<Record<keyof AddBatchForm, string>> = {}
-  if (!f.productId) e.productId = "Product is required."
-  if (!f.batchNumber.trim()) e.batchNumber = "Batch number is required."
-  if (!f.receivedDate) e.receivedDate = "Received date is required."
-  if (!f.expiryDate) e.expiryDate = "Expiry date is required."
-  else if (f.expiryDate < f.receivedDate)
-    e.expiryDate = "Expiry must be after received date."
-  if (f.purchaseCost.trim() === "") e.purchaseCost = "Purchase cost is required."
-  else if (Number.isNaN(Number(f.purchaseCost)) || Number(f.purchaseCost) < 0)
-    e.purchaseCost = "Purchase cost must be a non-negative number."
-  return e
-}
 
 export default function BatchesExpiryPage() {
   const navigate = useNavigate()
@@ -111,20 +75,11 @@ export default function BatchesExpiryPage() {
   const [submitting, setSubmitting] = useState(false)
   const [actionRefreshKey, setActionRefreshKey] = useState(0)
 
-  // Add Batch modal
+  // Add Batch modal (shared component — also used by the Add Stock form)
   const [addOpen, setAddOpen] = useState(false)
-  const [addForm, setAddForm] = useState<AddBatchForm>(emptyBatchForm())
-  const [addErrors, setAddErrors] = useState<Partial<Record<keyof AddBatchForm, string>>>({})
-  const [addError, setAddError] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
 
   const locationSearch = useSearchableResource(searchLocations)
   const locationFilterOptions: SearchableOption[] = locationSearch.options
-  const addProductSearch = useSearchableResource(searchProducts, addOpen)
-  const selectedAddProduct = addProductSearch.options.find((o) => o.value === addForm.productId) ?? null
-  const addProductOptions: SearchableOption[] = selectedAddProduct
-    ? [selectedAddProduct, ...addProductSearch.options.filter((o) => o.value !== addForm.productId)]
-    : addProductSearch.options
 
   useEffect(() => {
     fetchProductOptions()
@@ -388,36 +343,7 @@ export default function BatchesExpiryPage() {
 
   // ── Add Batch ──
   function openAdd() {
-    setAddForm(emptyBatchForm())
-    setAddErrors({})
-    setAddError(null)
     setAddOpen(true)
-  }
-
-  async function handleAddBatch() {
-    const e = addBatchErrors(addForm)
-    if (Object.keys(e).length) {
-      setAddErrors(e)
-      return
-    }
-    setAdding(true)
-    setAddError(null)
-    try {
-      await createBatch({
-        productId: addForm.productId,
-        batchNumber: addForm.batchNumber.trim(),
-        receivedDate: addForm.receivedDate,
-        expiryDate: addForm.expiryDate,
-        purchaseCost: Number(addForm.purchaseCost),
-        supplierReference: addForm.supplierReference.trim(),
-      })
-      setAddOpen(false)
-      await reloadBatches()
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Failed to create batch.")
-    } finally {
-      setAdding(false)
-    }
   }
 
   function formatDate(d: string) {
@@ -722,118 +648,14 @@ export default function BatchesExpiryPage() {
         )}
       </div>
 
-      {/* ─────────── Add Batch Modal ─────────── */}
-      <Modal
+      {/* Add Batch modal (shared — also used by the Add Stock form) */}
+      <BatchFormModal
         open={addOpen}
-        title="Add Batch"
-        onClose={() => !adding && setAddOpen(false)}
-        size="md"
-      >
-        <div className="flex flex-col gap-4">
-          <FormError message={addError} />
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#333333]">Product</label>
-            <SearchableSelect
-              value={addForm.productId || null}
-              onChange={(v) => {
-                setAddForm((f) => ({ ...f, productId: v }))
-                setAddErrors((er) => ({ ...er, productId: undefined }))
-              }}
-              options={addProductOptions}
-              onSearch={addProductSearch.setTerm}
-              loading={addProductSearch.loading}
-              error={addProductSearch.error}
-              onRetry={addProductSearch.retry}
-              placeholder="Search and select a product..."
-              searchPlaceholder="Search by name or SKU..."
-              emptyMessage="No products found"
-              noResultsMessage="No products matching your search"
-            />
-            {addErrors.productId && (
-              <p className="text-xs text-red-500">{addErrors.productId}</p>
-            )}
-          </div>
-
-          <Input
-            label="Batch Number"
-            value={addForm.batchNumber}
-            onChange={(e) => {
-              setAddForm((f) => ({ ...f, batchNumber: e.target.value }))
-              setAddErrors((er) => ({ ...er, batchNumber: undefined }))
-            }}
-            error={addErrors.batchNumber}
-            placeholder="e.g. PCM001"
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-[#333333]">Received Date</label>
-              <DatePicker
-                value={addForm.receivedDate}
-                onChange={(v) => {
-                  setAddForm((f) => ({ ...f, receivedDate: v }))
-                  setAddErrors((er) => ({ ...er, receivedDate: undefined }))
-                }}
-                placeholder="Select received date..."
-              />
-              {addErrors.receivedDate && (
-                <p className="text-xs text-red-500">{addErrors.receivedDate}</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-[#333333]">Expiry Date</label>
-              <DatePicker
-                value={addForm.expiryDate}
-                onChange={(v) => {
-                  setAddForm((f) => ({ ...f, expiryDate: v }))
-                  setAddErrors((er) => ({ ...er, expiryDate: undefined }))
-                }}
-                placeholder="Select expiry date..."
-              />
-              {addErrors.expiryDate && (
-                <p className="text-xs text-red-500">{addErrors.expiryDate}</p>
-              )}
-            </div>
-          </div>
-
-          <Input
-            label="Purchase Cost"
-            type="number"
-            min={0}
-            step="0.01"
-            value={addForm.purchaseCost}
-            onChange={(e) => {
-              setAddForm((f) => ({ ...f, purchaseCost: e.target.value }))
-              setAddErrors((er) => ({ ...er, purchaseCost: undefined }))
-            }}
-            error={addErrors.purchaseCost}
-            placeholder="e.g. 110"
-          />
-
-          <Input
-            label="Supplier Reference"
-            value={addForm.supplierReference}
-            onChange={(e) =>
-              setAddForm((f) => ({ ...f, supplierReference: e.target.value }))
-            }
-            placeholder="e.g. ABC Pharma invoice 1042"
-          />
-
-          <div className="flex gap-3 justify-end pt-2">
-            <Button
-              variant="secondary"
-              onClick={() => setAddOpen(false)}
-              disabled={adding}
-            >
-              Cancel
-            </Button>
-            <Button onClick={() => void handleAddBatch()} loading={adding}>
-              Create Batch
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onClose={() => setAddOpen(false)}
+        onSaved={async () => {
+          await reloadBatches()
+        }}
+      />
 
       {/* ─────────── Expiry Action Modal ─────────── */}
       <Modal open={!!actionBatch} title="Expiry Action" onClose={() => setActionBatch(null)} size="md">

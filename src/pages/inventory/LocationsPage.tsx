@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listLocations,
-  createLocation,
   getLocation,
   updateLocation,
   deactivateLocation,
@@ -13,28 +12,11 @@ import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
-import Input from "../../components/ui/Input";
-import FormError from "../../components/ui/FormError";
+import LocationFormModal from "../../components/ui/LocationFormModal";
 
 const PAGE_LIMIT = 20;
 
 type StatusFilter = "all" | "active" | "inactive";
-
-interface LocationForm {
-  name: string;
-  description: string;
-  isActive: boolean;
-}
-
-function emptyForm(): LocationForm {
-  return { name: "", description: "", isActive: true };
-}
-
-function formErrors(f: LocationForm) {
-  const e: Partial<Record<keyof LocationForm, string>> = {};
-  if (!f.name.trim()) e.name = "Name is required.";
-  return e;
-}
 
 function apiErrorMessage(err: unknown, fallback: string): string {
   return err instanceof LocationsApiError ? err.message : fallback;
@@ -45,44 +27,6 @@ function formatDate(value?: string) {
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
   return d.toLocaleString();
-}
-
-// ─────────────────────────────────────────────────────────────
-// Toggle Switch (used inside Add/Edit form)
-// ─────────────────────────────────────────────────────────────
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
-          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            checked ? "translate-x-6" : "translate-x-1"
-          }`}
-        />
-      </button>
-      {label && (
-        <span className="text-sm font-medium text-[#333333]">
-          {checked ? "Active" : "Inactive"}
-        </span>
-      )}
-    </div>
-  );
 }
 
 export default function LocationsPage() {
@@ -109,14 +53,6 @@ export default function LocationsPage() {
     "deactivate",
   );
   const [confirmBusy, setConfirmBusy] = useState(false);
-
-  // ── Form state ──
-  const [form, setForm] = useState<LocationForm>(emptyForm());
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof LocationForm, string>>
-  >({});
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
   // ── Load locations from the API (server-side search + pagination) ──
   const reload = useCallback(
@@ -161,21 +97,11 @@ export default function LocationsPage() {
 
   function openAdd() {
     setEditTarget(null);
-    setForm(emptyForm());
-    setErrors({});
-    setFormError(null);
     setFormMode("add");
   }
 
   function openEdit(loc: LocationDto) {
     setEditTarget(loc);
-    setForm({
-      name: loc.name,
-      description: loc.description ?? "",
-      isActive: loc.isActive,
-    });
-    setErrors({});
-    setFormError(null);
     setFormMode("edit");
   }
 
@@ -191,45 +117,6 @@ export default function LocationsPage() {
         /* keep the row data if the refetch fails */
       })
       .finally(() => setDetailLoading(false));
-  }
-
-  async function handleSave() {
-    const e = formErrors(form);
-    if (Object.keys(e).length) {
-      setErrors(e);
-      return;
-    }
-    setSaving(true);
-    setFormError(null);
-    try {
-      if (formMode === "edit" && editTarget) {
-        await updateLocation(editTarget.id, {
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          isActive: form.isActive,
-        });
-      } else {
-        await createLocation({
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          isActive: form.isActive,
-        });
-      }
-      setFormMode(null);
-      setEditTarget(null);
-      await reload(search, page, statusFilter);
-    } catch (err) {
-      setFormError(
-        apiErrorMessage(
-          err,
-          editTarget
-            ? "Could not save the location. Please try again."
-            : "Could not create the location. Please try again.",
-        ),
-      );
-    } finally {
-      setSaving(false);
-    }
   }
 
   function requestToggleActive(loc: LocationDto) {
@@ -551,67 +438,16 @@ export default function LocationsPage() {
         )}
       </Modal>
 
-      {/* ─────────── Add / Edit Modal ─────────── */}
-      <Modal
+      {/* Add/Edit location modal (shared — also used by the Add Stock form) */}
+      <LocationFormModal
         open={formMode !== null}
-        title={formMode === "edit" ? "Edit Location" : "Add Location"}
-        onClose={() => !saving && setFormMode(null)}
-        size="sm"
-      >
-        <div className="flex flex-col gap-4">
-          <FormError message={formError} />
-
-          <Input
-            label="Name"
-            value={form.name}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, name: e.target.value }));
-              setErrors((er) => ({ ...er, name: undefined }));
-            }}
-            error={errors.name}
-            placeholder="e.g. Main Store"
-          />
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#333333]">
-              Description
-            </label>
-            <textarea
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-              placeholder="Short description of this location"
-              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 resize-none"
-            />
-          </div>
-
-          {/* Status toggle */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[#333333]">Status</label>
-            <ToggleSwitch
-              checked={form.isActive}
-              onChange={(v) => setForm((f) => ({ ...f, isActive: v }))}
-              label="Active"
-            />
-            <p className="text-xs text-[#666666]">
-              {form.isActive
-                ? "Location is active and available for stock."
-                : "Location will be marked inactive."}
-            </p>
-          </div>
-
-          <div className="flex gap-3 justify-end mt-2">
-            <Button variant="secondary" onClick={() => setFormMode(null)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSave()} loading={saving}>
-              {formMode === "edit" ? "Save Changes" : "Create Location"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        mode={formMode === "edit" ? "edit" : "add"}
+        location={editTarget}
+        onClose={() => setFormMode(null)}
+        onSaved={async () => {
+          await reload(search, page, statusFilter)
+        }}
+      />
 
       {/* ─────────── Confirm Deactivate / Reactivate Modal ─────────── */}
       <Modal
