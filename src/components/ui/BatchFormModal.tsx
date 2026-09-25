@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { createBatch, type BatchDto } from "../../features/inventory/batchesApi"
+import { listUnits, type UnitDto } from "../../features/inventory/unitsApi"
 import { searchProducts } from "../../features/inventory/searchSelectors"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchableSelect from "./SearchableSelect"
@@ -15,6 +16,7 @@ import Button from "./Button"
 // ─────────────────────────────────────────────────────────────
 interface AddBatchForm {
   productId: string
+  unitId: string
   batchNumber: string
   receivedDate: string
   expiryDate: string
@@ -26,6 +28,7 @@ function emptyBatchForm(): AddBatchForm {
   const today = new Date().toISOString().slice(0, 10)
   return {
     productId: "",
+    unitId: "",
     batchNumber: "",
     receivedDate: today,
     expiryDate: "",
@@ -37,6 +40,7 @@ function emptyBatchForm(): AddBatchForm {
 function addBatchErrors(f: AddBatchForm) {
   const e: Partial<Record<keyof AddBatchForm, string>> = {}
   if (!f.productId) e.productId = "Product is required."
+  if (!f.unitId) e.unitId = "Unit is required."
   if (!f.batchNumber.trim()) e.batchNumber = "Batch number is required."
   if (!f.receivedDate) e.receivedDate = "Received date is required."
   if (!f.expiryDate) e.expiryDate = "Expiry date is required."
@@ -77,6 +81,21 @@ export default function BatchFormModal({
   >({})
   const [addError, setAddError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [units, setUnits] = useState<UnitDto[]>([])
+
+  // ── Load the master unit list once (shared Units API) for the Unit field ──
+  useEffect(() => {
+    let cancelled = false
+    listUnits({ limit: 100 })
+      .catch(() => ({ data: [] as UnitDto[] }))
+      .then((u) => {
+        if (cancelled) return
+        setUnits(u.data)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const addProductSearch = useSearchableResource(searchProducts, open)
   // When a product is pre-selected (Add Stock flow), keep it visible even
@@ -129,6 +148,7 @@ export default function BatchFormModal({
     try {
       const saved = await createBatch({
         productId: addForm.productId,
+        unitId: addForm.unitId,
         batchNumber: addForm.batchNumber.trim(),
         receivedDate: addForm.receivedDate,
         expiryDate: addForm.expiryDate,
@@ -146,46 +166,81 @@ export default function BatchFormModal({
   }
 
   return (
-    <Modal open={open} title="Add Batch" onClose={close} size="md">
+    <Modal open={open} title="Add Batch" onClose={close} size="xl">
       <div className="flex flex-col gap-4">
         <FormError message={addError} />
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-[#333333]">Product</label>
-          <SearchableSelect
-            value={addForm.productId || null}
-            onChange={(v) => {
-              setAddForm((f) => ({ ...f, productId: v }))
-              setAddErrors((er) => ({ ...er, productId: undefined }))
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">Product</label>
+            <SearchableSelect
+              value={addForm.productId || null}
+              onChange={(v) => {
+                setAddForm((f) => ({ ...f, productId: v }))
+                setAddErrors((er) => ({ ...er, productId: undefined }))
+              }}
+              options={addProductOptions}
+              onSearch={addProductSearch.setTerm}
+              loading={addProductSearch.loading}
+              error={addProductSearch.error}
+              onRetry={addProductSearch.retry}
+              disabled={!!initialProductId}
+              placeholder="Search and select a product..."
+              searchPlaceholder="Search by name or SKU..."
+              emptyMessage="No products found"
+              noResultsMessage="No products matching your search"
+            />
+            {addErrors.productId && (
+              <p className="text-xs text-red-500">{addErrors.productId}</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">
+              Unit <span className="text-red-500">*</span>
+            </label>
+            <SearchableSelect
+              value={addForm.unitId || null}
+              onChange={(v) => {
+                setAddForm((f) => ({ ...f, unitId: v }))
+                setAddErrors((er) => ({ ...er, unitId: undefined }))
+              }}
+              options={units.map((u) => ({ value: u.id, label: u.name }))}
+              placeholder="Select a unit..."
+              searchPlaceholder="Search units..."
+              emptyMessage="No units available"
+              noResultsMessage="No matching units"
+            />
+            {addErrors.unitId && (
+              <p className="text-xs text-red-500">{addErrors.unitId}</p>
+            )}
+          </div>
+
+          <Input
+            label="Batch Number"
+            value={addForm.batchNumber}
+            onChange={(e) => {
+              setAddForm((f) => ({ ...f, batchNumber: e.target.value }))
+              setAddErrors((er) => ({ ...er, batchNumber: undefined }))
             }}
-            options={addProductOptions}
-            onSearch={addProductSearch.setTerm}
-            loading={addProductSearch.loading}
-            error={addProductSearch.error}
-            onRetry={addProductSearch.retry}
-            disabled={!!initialProductId}
-            placeholder="Search and select a product..."
-            searchPlaceholder="Search by name or SKU..."
-            emptyMessage="No products found"
-            noResultsMessage="No products matching your search"
+            error={addErrors.batchNumber}
+            placeholder="e.g. PCM001"
           />
-          {addErrors.productId && (
-            <p className="text-xs text-red-500">{addErrors.productId}</p>
-          )}
-        </div>
 
-        <Input
-          label="Batch Number"
-          value={addForm.batchNumber}
-          onChange={(e) => {
-            setAddForm((f) => ({ ...f, batchNumber: e.target.value }))
-            setAddErrors((er) => ({ ...er, batchNumber: undefined }))
-          }}
-          error={addErrors.batchNumber}
-          placeholder="e.g. PCM001"
-        />
+          <Input
+            label="Purchase Cost"
+            type="number"
+            min={0}
+            step="0.01"
+            value={addForm.purchaseCost}
+            onChange={(e) => {
+              setAddForm((f) => ({ ...f, purchaseCost: e.target.value }))
+              setAddErrors((er) => ({ ...er, purchaseCost: undefined }))
+            }}
+            error={addErrors.purchaseCost}
+            placeholder="e.g. 110"
+          />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[#333333]">
               Received Date
@@ -202,6 +257,7 @@ export default function BatchFormModal({
               <p className="text-xs text-red-500">{addErrors.receivedDate}</p>
             )}
           </div>
+
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-[#333333]">
               Expiry Date
@@ -218,30 +274,18 @@ export default function BatchFormModal({
               <p className="text-xs text-red-500">{addErrors.expiryDate}</p>
             )}
           </div>
+
+          <div className="md:col-span-2">
+            <Input
+              label="Supplier Reference"
+              value={addForm.supplierReference}
+              onChange={(e) =>
+                setAddForm((f) => ({ ...f, supplierReference: e.target.value }))
+              }
+              placeholder="e.g. ABC Pharma invoice 1042"
+            />
+          </div>
         </div>
-
-        <Input
-          label="Purchase Cost"
-          type="number"
-          min={0}
-          step="0.01"
-          value={addForm.purchaseCost}
-          onChange={(e) => {
-            setAddForm((f) => ({ ...f, purchaseCost: e.target.value }))
-            setAddErrors((er) => ({ ...er, purchaseCost: undefined }))
-          }}
-          error={addErrors.purchaseCost}
-          placeholder="e.g. 110"
-        />
-
-        <Input
-          label="Supplier Reference"
-          value={addForm.supplierReference}
-          onChange={(e) =>
-            setAddForm((f) => ({ ...f, supplierReference: e.target.value }))
-          }
-          placeholder="e.g. ABC Pharma invoice 1042"
-        />
 
         <div className="flex gap-3 justify-end pt-2">
           <Button variant="secondary" onClick={close} disabled={adding}>

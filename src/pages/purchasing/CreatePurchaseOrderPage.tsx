@@ -609,6 +609,12 @@ export default function CreatePurchaseOrderPage() {
   const productName = searchParams.get("productName")
   const productSku = searchParams.get("productSku")
 
+  // Reorder → Create PO prefill: the reorder row carries the product id and
+  // its base unit, which the requirement prefill above doesn't have.
+  const reorderProductId = searchParams.get("productId")
+  const prefilledUnitId = searchParams.get("unitId")
+  const prefilledUnitName = searchParams.get("unitName")
+
   // Track if we're in from-requirement mode
   const isFromRequirement = isNew && !!requirementLineId
 
@@ -691,6 +697,26 @@ export default function CreatePurchaseOrderPage() {
       if (prefilledNotes) setNotes(prefilledNotes)
     }
   }, [isFromRequirement, requirementLineId, prefilledQuantity, prefilledUnitCost, prefilledDelivDate, prefilledNotes, productName, products, items.length])
+
+  // Handle reorder prefill: open with the selected reorder product already
+  // added as a line item (no requirement link). The suggested reorder
+  // quantity comes through `quantity`; the user still reviews and edits
+  // everything before explicitly creating the purchase order.
+  useEffect(() => {
+    if (!isNew || !reorderProductId || items.length > 0) return
+    const qty = Number(prefilledQuantity)
+    if (!Number.isFinite(qty) || qty <= 0) return
+    setItems([{
+      id: `draft-reorder-${reorderProductId}`,
+      productId: reorderProductId,
+      product: productName ?? "",
+      unitId: prefilledUnitId || null,
+      unitLabel: prefilledUnitName ?? "",
+      requirementLineId: null,
+      quantity: qty,
+      unitCost: parseFloat(prefilledUnitCost ?? "0") || 0,
+    }])
+  }, [isNew, reorderProductId, prefilledQuantity, prefilledUnitCost, productName, prefilledUnitId, prefilledUnitName, items.length])
 
   // Load the PO from the real endpoint when editing/viewing.
   useEffect(() => {

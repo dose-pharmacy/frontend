@@ -961,6 +961,109 @@ function AddTransferItemModal({
 
 // ─── Transfer Details Screen ─────────────────────────────────────────────────
 
+// Loading skeleton for the Transfer Details screen. Mirrors the loaded layout
+// (header, Transfer Information card, Transfer Items table, action bar) using
+// the app's shimmer pattern (animate-pulse + sage-tinted placeholders) so the
+// page doesn't jump when the data arrives.
+function TransferDetailSkeleton() {
+  return (
+    <div className="flex-1 flex flex-col min-h-0 animate-pulse">
+      {/* Header */}
+      <div
+        className="px-6 pt-5 pb-4"
+        style={{
+          background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)",
+        }}
+      >
+        <div className="h-4 w-20 rounded bg-white/40 mb-3" />
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="h-6 w-52 rounded-lg bg-white/40" />
+          <div className="h-6 w-16 rounded-full bg-white/30" />
+        </div>
+      </div>
+
+      <div className="flex-1 p-6 flex flex-col gap-5">
+        {/* Transfer Information */}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
+            <div className="h-3 w-36 rounded bg-[#E6ECE2]" />
+            <div className="h-3 w-20 rounded bg-[#E6ECE2]" />
+          </div>
+          <div className="px-5 py-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[...Array(4)].map((_, i) => (
+              <div key={i}>
+                <div className="h-2.5 w-10 rounded bg-[#E6ECE2] mb-2" />
+                <div className="h-4 w-28 rounded bg-[#E6ECE2]" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Transfer Items */}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
+            <div className="h-3 w-40 rounded bg-[#E6ECE2]" />
+            <div className="h-3 w-16 rounded bg-[#E6ECE2]" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[#E6ECE2]/50 text-left">
+                  {["w-16", "w-12", "w-10", "w-14", "w-16"].map((w, i) => (
+                    <th
+                      key={i}
+                      className={`px-4 py-3 ${i === 3 ? "text-right" : ""}`}
+                    >
+                      <div
+                        className={`h-3 rounded bg-[#E6ECE2] ${
+                          i === 3 ? "ml-auto" : ""
+                        } ${w}`}
+                      />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...Array(3)].map((_, i) => (
+                  <tr
+                    key={i}
+                    className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}
+                  >
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-36 rounded bg-[#E6ECE2]" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-3.5 w-20 rounded bg-[#E6ECE2]" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-3.5 w-14 rounded bg-[#E6ECE2]" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-12 rounded bg-[#E6ECE2] ml-auto" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-3.5 w-16 rounded bg-[#E6ECE2]" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Transfer Actions */}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] px-5 py-4 flex items-center justify-between flex-wrap gap-3">
+          <div className="h-3 w-32 rounded bg-[#E6ECE2]" />
+          <div className="flex gap-3">
+            <div className="h-9 w-32 rounded-xl bg-[#E6ECE2]" />
+            <div className="h-9 w-40 rounded-xl bg-[#E6ECE2]" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TransferDetailsScreen({
   transferId,
   onBack,
@@ -1013,23 +1116,7 @@ function TransferDetailsScreen({
   }
 
   if (loading) {
-    return (
-      <div className="flex-1 flex flex-col min-h-0">
-        <div
-          className="px-6 pt-5 pb-4"
-          style={{
-            background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)",
-          }}
-        >
-          <p className="text-xl font-bold text-white">Loading transfer…</p>
-        </div>
-        <div className="flex-1 p-6 animate-pulse space-y-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-xl bg-[#E6ECE2]" />
-          ))}
-        </div>
-      </div>
-    )
+    return <TransferDetailSkeleton />
   }
 
   if (loadError || !transfer) {

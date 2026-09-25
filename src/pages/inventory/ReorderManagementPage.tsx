@@ -226,8 +226,6 @@ export default function ReorderManagementPage() {
                           "Product",
                           "Current Stock",
                           "Threshold",
-                          "Avg Daily Sales",
-                          "Lead Time (days)",
                           "Suggested Qty",
                           "Urgency",
                           "Action",
@@ -245,7 +243,7 @@ export default function ReorderManagementPage() {
                       {mergedRows.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={6}
                             className="px-4 py-6 text-center text-[#333333]/60"
                           >
                             No low-stock alerts or reorder suggestions right
@@ -275,14 +273,6 @@ export default function ReorderManagementPage() {
                             <td className="px-4 py-3 text-[#666666]">
                               {r.threshold}
                             </td>
-                            <td className="px-4 py-3 text-[#666666]">
-                              {r.averageDailySales === null
-                                ? "—"
-                                : r.averageDailySales}
-                            </td>
-                            <td className="px-4 py-3 text-[#666666]">
-                              {r.leadTimeDays}
-                            </td>
                             <td className="px-4 py-3 font-semibold text-[#7A9076]">
                               {r.suggestedQuantity}
                             </td>
@@ -297,11 +287,23 @@ export default function ReorderManagementPage() {
                             </td>
                             <td className="px-4 py-3">
                               <Button
-                                onClick={() =>
-                                  alert(
-                                    "Create purchase order — Purchasing module coming soon.",
+                                onClick={() => {
+                                  const params = new URLSearchParams()
+                                  params.set("productId", r.product.id)
+                                  params.set("productName", r.product.name)
+                                  params.set("productSku", r.product.sku)
+                                  params.set(
+                                    "quantity",
+                                    String(r.suggestedQuantity),
                                   )
-                                }
+                                  if (r.product.baseUnit?.id) {
+                                    params.set("unitId", r.product.baseUnit.id)
+                                    params.set("unitName", r.product.baseUnit.name)
+                                  }
+                                  navigate(
+                                    `/purchasing/orders/new?${params.toString()}`,
+                                  )
+                                }}
                               >
                                 Order
                               </Button>

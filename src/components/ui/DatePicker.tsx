@@ -9,6 +9,13 @@ interface DatePickerProps {
   disabled?: boolean
 }
 
+// Approximate popup footprint. Used only to decide whether the calendar has
+// enough room to open below the field or should flip above it. The calendar
+// itself is never resized.
+const POPUP_W = 304
+const POPUP_H = 360
+const POPUP_GAP = 8
+
 function toISO(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, "0")
@@ -41,6 +48,9 @@ export default function DatePicker({
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<Date | undefined>(fromISO(value))
   const wrapRef = useRef<HTMLDivElement>(null)
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(
+    null,
+  )
 
   // Sync external value → internal
   useEffect(() => {
@@ -55,6 +65,42 @@ export default function DatePicker({
     }
     document.addEventListener("mousedown", onDoc)
     return () => document.removeEventListener("mousedown", onDoc)
+  }, [open])
+
+  // Anchor the calendar to the field with position:fixed so it is never
+  // clipped by an overflow container (e.g. a scrolling modal body). It opens
+  // below the field when there is room, flips above when there isn't, and is
+  // clamped to stay inside the viewport. The calendar itself is unchanged.
+  useEffect(() => {
+    if (!open) {
+      setPopupPos(null)
+      return
+    }
+    function place() {
+      const wrap = wrapRef.current
+      if (!wrap) return
+      const rect = wrap.getBoundingClientRect()
+      const below = window.innerHeight - rect.bottom
+      const above = rect.top
+      const top =
+        below >= POPUP_H
+          ? rect.bottom + POPUP_GAP
+          : above >= POPUP_H
+            ? rect.top - POPUP_GAP - POPUP_H
+            : rect.bottom + POPUP_GAP
+      const left = Math.max(
+        POPUP_GAP,
+        Math.min(rect.left, window.innerWidth - POPUP_W - POPUP_GAP),
+      )
+      setPopupPos({ top: Math.max(POPUP_GAP, top), left })
+    }
+    place()
+    window.addEventListener("scroll", place, true)
+    window.addEventListener("resize", place)
+    return () => {
+      window.removeEventListener("scroll", place, true)
+      window.removeEventListener("resize", place)
+    }
   }, [open])
 
   return (
@@ -83,9 +129,18 @@ export default function DatePicker({
         </svg>
       </button>
 
-      {/* Popup calendar */}
-      {open && (
-        <div className="absolute z-50 mt-2 rounded-xl border border-[#E6ECE2] bg-white shadow-lg p-3">
+      {/* Popup calendar — fixed-positioned so it is never clipped by the
+          modal's overflow container; stays anchored to the field. */}
+      {open && popupPos && (
+        <div
+          style={{
+            position: "fixed",
+            top: popupPos.top,
+            left: popupPos.left,
+            zIndex: 50,
+          }}
+          className="rounded-xl border border-[#E6ECE2] bg-white shadow-lg p-3"
+        >
           <DayPicker
             mode="single"
             selected={selected}
