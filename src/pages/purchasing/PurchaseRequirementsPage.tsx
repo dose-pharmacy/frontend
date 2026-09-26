@@ -5,6 +5,7 @@ import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
 import DatePicker from "../../components/ui/DatePicker"
+import { IconPencil, IconTrash } from "../../components/ui/icons"
 import {
   listRequirements,
   createRequirement,
@@ -624,34 +625,31 @@ function RequirementsListScreen({
                           {fmtDate(r.createdDate)}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => onSelect(r.id)}
                               className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
                             >
                               View →
                             </button>
-                            <OverflowMenu
-                              items={[
-                                {
-                                  label: "View",
-                                  onClick: () => onSelect(r.id),
-                                },
-                                {
-                                  label: "Edit",
-                                  onClick: () => onSelect(r.id),
-                                },
-                                ...(r.status !== "CLOSED"
-                                  ? [
-                                      {
-                                        label: "Delete",
-                                        danger: true,
-                                        onClick: () => setDeleteTarget(r),
-                                      },
-                                    ]
-                                  : []),
-                              ]}
-                            />
+                            <button
+                              onClick={() => onSelect(r.id)}
+                              className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                              aria-label={`Edit ${r.reference}`}
+                              title="Edit requirement"
+                            >
+                              <IconPencil className="w-4 h-4" />
+                            </button>
+                            {r.status !== "CLOSED" && (
+                              <button
+                                onClick={() => setDeleteTarget(r)}
+                                className="p-1.5 rounded-lg text-[#666666] hover:bg-red-50 hover:text-red-600 transition-colors"
+                                aria-label={`Delete ${r.reference}`}
+                                title="Delete requirement"
+                              >
+                                <IconTrash className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

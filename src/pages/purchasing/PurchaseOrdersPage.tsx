@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
@@ -19,6 +19,7 @@ import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchableSelect from "../../components/ui/SearchableSelect"
 import Pagination from "../../components/ui/Pagination"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
+import { IconPencil } from "../../components/ui/icons"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,36 +125,6 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
       </svg>
       {message}
-    </div>
-  )
-}
-
-// ─── OverflowMenu ─────────────────────────────────────────────────────────────
-
-function OverflowMenu({ items }: { items: { label: string; danger?: boolean; onClick: () => void }[] }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    function close(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener("mousedown", close)
-    return () => document.removeEventListener("mousedown", close)
-  }, [])
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] transition-colors">
-        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-          <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 w-52 rounded-xl border border-[#E6ECE2] bg-white shadow-xl py-1">
-          {items.map((item) => (
-            <button key={item.label} onClick={() => { setOpen(false); item.onClick() }} className={`w-full text-left px-4 py-2 text-sm hover:bg-[#E6ECE2]/60 transition-colors ${item.danger ? "text-red-600" : "text-[#333333]"}`}>
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -395,22 +366,43 @@ export default function PurchaseOrdersPage() {
                         <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
                         <td className="px-4 py-3"><PaymentBadge status={po.paymentStatus} /></td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">View →</button>
-                            <OverflowMenu items={[
-                              { label: "View", onClick: () => navigate(`/purchasing/orders/${po.id}`) },
-                              ...(po.status === "REGISTERED" ? [
-                                { label: "Edit", onClick: () => navigate(`/purchasing/orders/${po.id}?edit=1`) },
-                                { label: "Mark as Awaiting Delivery", onClick: () => { setActionError(""); setActionTarget({ po, action: "markDelivery" }) } },
-                                { label: "Cancel Order", danger: true, onClick: () => { setActionError(""); setActionTarget({ po, action: "cancel" }) } },
-                              ] : []),
-                              ...(po.status === "AWAITING_DELIVERY" ? [
-                                { label: "Cancel Order", danger: true, onClick: () => { setActionError(""); setActionTarget({ po, action: "cancel" }) } },
-                              ] : []),
-                              ...(po.status === "RECEIVED" ? [
-                                { label: "Close Purchase Order", onClick: () => { setActionError(""); setActionTarget({ po, action: "close" }) } },
-                              ] : []),
-                            ]} />
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">View</button>
+                            {po.status === "REGISTERED" && (
+                              <>
+                                <button
+                                  onClick={() => navigate(`/purchasing/orders/${po.id}?edit=1`)}
+                                  className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                                  aria-label={`Edit ${po.reference}`}
+                                  title="Edit purchase order"
+                                >
+                                  <IconPencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => { setActionError(""); setActionTarget({ po, action: "markDelivery" }) }}
+                                  className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                                  title="Mark as awaiting delivery"
+                                >
+                                  Awaiting Delivery
+                                </button>
+                              </>
+                            )}
+                            {(po.status === "REGISTERED" || po.status === "AWAITING_DELIVERY") && (
+                              <button
+                                onClick={() => { setActionError(""); setActionTarget({ po, action: "cancel" }) }}
+                                className="text-xs font-semibold text-red-600 hover:underline whitespace-nowrap"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            {po.status === "RECEIVED" && (
+                              <button
+                                onClick={() => { setActionError(""); setActionTarget({ po, action: "close" }) }}
+                                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                              >
+                                Close
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

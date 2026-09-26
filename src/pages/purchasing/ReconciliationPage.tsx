@@ -35,6 +35,92 @@ const STATUS_BADGE: Record<string, string> = {
   RESOLVED: "bg-blue-100 text-blue-700",
 };
 
+// ─── Goods Receipt detail skeleton ───────────────────────────────────────────
+// Shimmer placeholder while a goods receipt is loading — mirrors the loaded
+// detail layout (header, summary cards, receipt info, items table, footer) so
+// the page doesn't jump once the real data arrives.
+
+function GoodsReceiptDetailSkeleton() {
+  return (
+    <div className="flex flex-col min-h-0 flex-1 animate-pulse">
+      {/* Header (mirrors PageHeader for a loaded receipt) */}
+      <div className="px-6 pt-5 pb-4 border-b border-[#E6ECE2] bg-white flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div className="h-3 w-40 rounded bg-[#E6ECE2] mb-1.5" />
+          <div className="h-6 w-52 rounded-lg bg-[#E6ECE2]" />
+          <div className="h-3 w-32 rounded bg-[#E6ECE2] mt-1.5" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-6 w-24 rounded-full bg-[#E6ECE2]" />
+          <div className="h-9 w-32 rounded-lg bg-[#E6ECE2]" />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto pb-24">
+        {/* Summary cards */}
+        <div className="px-4 sm:px-6 py-4 bg-[#E6ECE2]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl p-4 text-center border border-[#C6D4BF]/30">
+                <div className="h-2.5 w-16 rounded bg-[#E6ECE2] mx-auto" />
+                <div className="h-5 w-14 rounded bg-[#E6ECE2] mt-2 mx-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Receipt info */}
+        <div className="px-4 sm:px-6 py-4">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i}>
+                <div className="h-2.5 w-16 rounded bg-[#E6ECE2] mb-1.5" />
+                <div className="h-4 w-24 rounded bg-[#E6ECE2]" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Items table */}
+        <div className="px-4 sm:px-6">
+          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
+                <thead>
+                  <tr className="bg-[#C6D4BF]">
+                    {[...Array(9)].map((_, i) => (
+                      <th key={i} className="px-3 py-2.5">
+                        <div className="h-3 w-10 rounded bg-[#E6ECE2]" />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...Array(4)].map((_, i) => (
+                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
+                      {[...Array(9)].map((_, j) => (
+                        <td key={j} className="px-3 py-2.5">
+                          <div className="h-3 w-12 rounded bg-[#E6ECE2]" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E6ECE2] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
+        <div className="h-10 w-28 rounded-lg bg-[#E6ECE2]" />
+        <div className="h-10 w-40 rounded-lg bg-[#E6ECE2]" />
+      </div>
+    </div>
+  );
+}
+
 export default function ReconciliationPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -137,12 +223,7 @@ export default function ReconciliationPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex flex-col min-h-0 flex-1">
-        <PageHeader title="Goods Receipt" subtitle="Purchasing → Goods Receipts → Detail" />
-        <div className="flex-1 flex items-center justify-center text-[#666666]">Loading receipt…</div>
-      </div>
-    );
+    return <GoodsReceiptDetailSkeleton />;
   }
 
   if (error || !receipt) {

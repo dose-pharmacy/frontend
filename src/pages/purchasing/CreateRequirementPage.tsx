@@ -3,7 +3,9 @@ import { useNavigate } from "react-router";
 import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import DatePicker from "../../components/ui/DatePicker";
-import { listProducts, type ProductDto } from "../../features/inventory/productsApi";
+import Button from "../../components/ui/Button";
+import ProductFormModal from "../../components/ui/ProductFormModal";
+import { listProducts, type ProductDto, type ProductDetailDto } from "../../features/inventory/productsApi";
 import { createRequirement, type CreateRequirementInput, type RequirementReasonCode } from "../../features/purchasing/requirementsApi";
 import { useProductUnits } from "../../features/inventory/useProductUnits";
 import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions";
@@ -77,6 +79,9 @@ export default function CreateRequirementPage() {
   const [addQty, setAddQty] = useState(50);
   const [addReason, setAddReason] = useState<RequirementReasonCode>("LOW_STOCK");
   
+  // Shared Add Product modal (reuses Inventory > Products Add Product)
+  const [addProductOpen, setAddProductOpen] = useState(false);
+  
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -124,6 +129,26 @@ export default function CreateRequirementPage() {
     setSuggestions([]);
     setAddQty(50);
     setAddReason("LOW_STOCK");
+  }
+
+  /** Product created in the shared Add Product modal — add it straight into the
+   * requirement lines (auto-select) with the current qty/reason, then close. */
+  function handleProductSaved(saved: ProductDetailDto) {
+    if (!products.some((p) => p.productId === saved.id)) {
+      setProducts((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          productId: saved.id,
+          productName: saved.name,
+          unitId: null,
+          quantityNeeded: addQty,
+          reasonCode: addReason,
+          notes: "",
+        },
+      ]);
+    }
+    setAddProductOpen(false);
   }
 
   function removeProduct(id: string) {
@@ -222,7 +247,10 @@ export default function CreateRequirementPage() {
                 <p className="font-bold text-[#333333]">Products</p>
                 <p className="text-xs text-[#666666]">Add products to this requirement</p>
               </div>
-              <span className="text-sm font-medium text-[#7A9076]">{products.length} products added</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-[#7A9076]">{products.length} products added</span>
+                <Button type="button" onClick={() => setAddProductOpen(true)}>+ Add New Product</Button>
+              </div>
             </div>
 
             {/* Add product row */}
@@ -328,6 +356,15 @@ export default function CreateRequirementPage() {
           {saving ? "Saving…" : "Create Requirement →"}
         </button>
       </div>
+
+      {/* Shared Inventory → Products → Add Product modal — opens inline over this
+          page (no navigation), keeps form state intact, and auto-adds the
+          created product via handleProductSaved. */}
+      <ProductFormModal
+        open={addProductOpen}
+        onClose={() => setAddProductOpen(false)}
+        onSaved={handleProductSaved}
+      />
     </div>
   );
 }

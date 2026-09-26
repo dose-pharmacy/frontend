@@ -220,7 +220,7 @@ export default function GoodsReceiptsPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
                                 <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
-                                  View →
+                                  View
                                 </button>
                                 {!confirmed && (
                                   <button onClick={() => setDeleteTarget(r)} className="text-xs text-red-500 hover:underline whitespace-nowrap">
