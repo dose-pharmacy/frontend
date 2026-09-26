@@ -25,6 +25,7 @@ import {
   type UpdatePurchaseOrderItemInput,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, getSupplierById, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import AddSupplier from "./AddSupplier"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
 import { listRequirements, type RequirementLineDto } from "../../features/purchasing/requirementsApi"
 import type { POItem, POStatus } from "./PurchaseOrdersPage"
@@ -749,6 +750,7 @@ export default function CreatePurchaseOrderPage() {
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState("")
   const [addProductOpen, setAddProductOpen] = useState(false)
+  const [addSupplierOpen, setAddSupplierOpen] = useState(false)
 
   // Status action modals
   const [markDeliveryOpen, setMarkDeliveryOpen] = useState(false)
@@ -874,6 +876,16 @@ export default function CreatePurchaseOrderPage() {
   ]
   const total = orderTotal(items)
   const isReadOnly = !editMode || status === "CLOSED" || status === "CANCELLED"
+
+  /** Supplier created in the shared Add Supplier modal — add it to the local
+   * supplier options (so it's immediately selectable) and auto-select it as
+   * the purchase order's supplier. The modal closes itself after saving. */
+  function handleSupplierCreated(created: SupplierDto) {
+    setSuppliers((prev) =>
+      prev.some((s) => s.id === created.id) ? prev : [created, ...prev],
+    )
+    setSuppId(created.id)
+  }
 
   /**
    * Build the create/update items payload. `requirementLineId` is omitted
@@ -1188,9 +1200,20 @@ export default function CreatePurchaseOrderPage() {
 
             {/* Supplier selection */}
             <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-              <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">
-                Supplier <span className="text-red-400">*</span>
-              </p>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
+                  Supplier <span className="text-red-400">*</span>
+                </p>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setAddSupplierOpen(true)}
+                    className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                  >
+                    + Add New Supplier
+                  </button>
+                )}
+              </div>
               {isReadOnly ? (
                 <div className={ROC}>{supplierView?.name ?? "—"}</div>
               ) : (
@@ -1602,6 +1625,13 @@ export default function CreatePurchaseOrderPage() {
         error={actionError}
         onClose={() => setCancelOpen(false)}
         onConfirm={() => handleStatusAction("cancel")}
+      />
+
+      {/* Shared Add Supplier modal — same UI as Purchasing → Accounts Payable → + Add Supplier */}
+      <AddSupplier
+        open={addSupplierOpen}
+        onClose={() => setAddSupplierOpen(false)}
+        onCreated={handleSupplierCreated}
       />
 
       {toast && <Toast message={toast} onDone={() => setToast("")} />}
