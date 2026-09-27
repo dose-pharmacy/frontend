@@ -1,75 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ChevronRight, Search } from "lucide-react"
 import {
-  createUnit,
   deactivateUnit,
   getUnit,
   listUnits,
   updateUnit,
   UnitsApiError,
   type UnitDto,
-} from "../../features/inventory/unitsApi"
-import PageHeader from "../../components/ui/PageHeader"
-import Button from "../../components/ui/Button"
-import EmptyState from "../../components/ui/EmptyState"
-import StatusChip from "../../components/ui/StatusChip"
+} from "../../features/inventory/unitsApi";
+import PageHeader from "../../components/ui/PageHeader";
+import Button from "../../components/ui/Button";
+import EmptyState from "../../components/ui/EmptyState";
+import UnitFormModal from "../../components/ui/UnitFormModal";
 
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
-type UnitFormData = {
-  name: string
-  symbol: string
-  description: string
-  isActive: boolean
-}
-
-const emptyForm: UnitFormData = {
-  name: "",
-  symbol: "",
-  description: "",
-  isActive: true,
-}
-
-const PREVIEW_COUNT = 5
-
-// ─────────────────────────────────────────────────────────────
-// Toggle Switch Component
-// ─────────────────────────────────────────────────────────────
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  label?: string
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
-          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            checked ? "translate-x-6" : "translate-x-1"
-          }`}
-        />
-      </button>
-      {label && (
-        <span className="text-sm font-medium text-[#333333]">
-          {checked ? "Active" : "Inactive"}
-        </span>
-      )}
-    </div>
-  )
-}
+const PREVIEW_COUNT = 5;
 
 // ─────────────────────────────────────────────────────────────
 // Modal Wrapper
@@ -118,71 +62,6 @@ function Modal({
 }
 
 // ─────────────────────────────────────────────────────────────
-// Unit Form (used in both Add & Edit)
-// ─────────────────────────────────────────────────────────────
-function UnitForm({
-  form,
-  setForm,
-}: {
-  form: UnitFormData
-  setForm: (f: UnitFormData) => void
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <label className="block text-sm font-semibold text-[#333333] mb-1">
-          Unit Name <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="e.g. Kilogram"
-          className="w-full rounded-lg border border-[#E6ECE2] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-[#333333] mb-1">
-          Symbol <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={form.symbol}
-          onChange={(e) => setForm({ ...form, symbol: e.target.value })}
-          placeholder="e.g. kg"
-          className="w-full rounded-lg border border-[#E6ECE2] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-[#333333] mb-1">
-          Description
-        </label>
-        <textarea
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Optional description for this unit..."
-          rows={3}
-          className="w-full rounded-lg border border-[#E6ECE2] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] resize-none"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-[#333333] mb-2">
-          Status
-        </label>
-        <ToggleSwitch
-          checked={form.isActive}
-          onChange={(v) => setForm({ ...form, isActive: v })}
-          label={form.isActive ? "Active" : "Inactive"}
-        />
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────
 export default function UnitConfigPage() {
@@ -200,14 +79,7 @@ export default function UnitConfigPage() {
   const [detailUnit, setDetailUnit] = useState<UnitDto | null>(null)
 
   // Pending-operation state
-  const [creating, setCreating] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
-
-  // Form state
-  const [addForm, setAddForm] = useState<UnitFormData>(emptyForm)
-  const [editForm, setEditForm] = useState<UnitFormData>(emptyForm)
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // ── Load units from the API ──
   const reload = useCallback(async (searchTerm: string) => {
@@ -241,11 +113,8 @@ export default function UnitConfigPage() {
 
   // Reset to preview view whenever the search query changes
   useEffect(() => {
-    setShowAll(false)
-  }, [search])
-
-  const active = units.filter((u) => u.isActive)
-  const inactive = units.filter((u) => !u.isActive)
+    setShowAll(false);
+  }, [search]);
 
   // Visible rows: preview (first N) or all
   const visibleUnits = showAll ? units : units.slice(0, PREVIEW_COUNT)
@@ -265,72 +134,13 @@ export default function UnitConfigPage() {
 
   // ── Add handlers ──
   const openAdd = () => {
-    setAddForm(emptyForm)
-    setActionError(null)
-    setAddOpen(true)
-  }
-
-  const handleAddSubmit = async () => {
-    if (!addForm.name.trim() || !addForm.symbol?.trim()) return
-    setCreating(true)
-    setActionError(null)
-    try {
-      await createUnit({
-        name: addForm.name,
-        symbol: addForm.symbol,
-        description: addForm.description.trim() || null,
-        isActive: addForm.isActive,
-      })
-      setAddOpen(false)
-      await reload(search)
-    } catch (err) {
-      setActionError(
-        err instanceof UnitsApiError
-          ? err.message
-          : "Could not create the unit. Please try again.",
-      )
-    } finally {
-      setCreating(false)
-    }
-  }
+    setAddOpen(true);
+  };
 
   // ── Edit handlers ──
   const openEdit = (u: UnitDto) => {
-    setEditForm({
-      name: u.name,
-      symbol: u.symbol,
-      description: u.description ?? "",
-      isActive: u.isActive,
-    })
-    setActionError(null)
-    setEditUnit(u)
-  }
-
-  const handleEditSubmit = async () => {
-    if (!editUnit) return
-    if (!editForm.name?.trim() || !editForm.symbol?.trim()) return
-    //if (!editForm.name.trim() || !editForm.symbol.trim()) return;
-    setSaving(true)
-    setActionError(null)
-    try {
-      await updateUnit(editUnit.id, {
-        name: editForm.name,
-        symbol: editForm.symbol,
-        description: editForm.description.trim() || null,
-        isActive: editForm.isActive,
-      })
-      setEditUnit(null)
-      await reload(search)
-    } catch (err) {
-      setActionError(
-        err instanceof UnitsApiError
-          ? err.message
-          : "Could not save the unit. Please try again.",
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
+    setEditUnit(u);
+  };
 
   // ── Toggle status directly from row ──
   const toggleStatus = async (u: UnitDto) => {
@@ -363,35 +173,7 @@ export default function UnitConfigPage() {
         actions={<Button onClick={openAdd}>+ Add Unit</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Summary */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-            <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
-              Total Units
-            </p>
-            <p className="text-2xl font-bold text-[#333333] mt-1">
-              {loading ? "—" : units.length}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-            <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
-              Active
-            </p>
-            <p className="text-2xl font-bold text-green-600 mt-1">
-              {loading ? "—" : active.length}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-            <p className="text-xs font-medium text-[#666666] uppercase tracking-wide">
-              Inactive
-            </p>
-            <p className="text-2xl font-bold text-[#666666] mt-1">
-              {loading ? "—" : inactive.length}
-            </p>
-          </div>
-        </div>
-
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {/* Error banner */}
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between gap-3">
@@ -407,7 +189,7 @@ export default function UnitConfigPage() {
         )}
 
         {/* Units Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {/* Toolbar: search + view-all toggle */}
           <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
@@ -643,70 +425,24 @@ export default function UnitConfigPage() {
         </div>
       </div>
 
-      {/* ─────────── ADD UNIT MODAL ─────────── */}
-      <Modal
+      {/* ─────────── ADD UNIT MODAL (shared) ─────────── */}
+      <UnitFormModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title="Add Unit"
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => setAddOpen(false)}
-              disabled={creating}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleAddSubmit()}
-              loading={creating}
-              disabled={!addForm.name.trim() || !addForm.symbol?.trim()}
-            >
-              Create Unit
-            </Button>
-          </>
-        }
-      >
-        {actionError && (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {actionError}
-          </p>
-        )}
-        <UnitForm form={addForm} setForm={setAddForm} />
-      </Modal>
+        onSaved={async () => {
+          await reload(search);
+        }}
+      />
 
-      {/* ─────────── EDIT UNIT MODAL ─────────── */}
-      <Modal
+      {/* ─────────── EDIT UNIT MODAL (shared) ─────────── */}
+      <UnitFormModal
         open={!!editUnit}
+        unit={editUnit}
         onClose={() => setEditUnit(null)}
-        title={`Edit Unit — ${editUnit?.name ?? ""}`}
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => setEditUnit(null)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleEditSubmit()}
-              loading={saving}
-              disabled={!editForm.name?.trim() || !editForm.symbol?.trim()}
-              // disabled={!editForm.name.trim() || !editForm.symbol.trim()}
-            >
-              Save Changes
-            </Button>
-          </>
-        }
-      >
-        {actionError && (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {actionError}
-          </p>
-        )}
-        <UnitForm form={editForm} setForm={setEditForm} />
-      </Modal>
+        onSaved={async () => {
+          await reload(search);
+        }}
+      />
 
       {/* ─────────── UNIT DETAIL MODAL ─────────── */}
       <Modal

@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { ArrowDownRight } from "lucide-react";
 import { fmt } from "../../../features/pos/posService";
 import { MAX_DISCOUNT_PCT } from "../../../features/pos/posMock";
+import {
+  IconArrowDownRight,
+  IconCheck,
+  IconUser,
+  IconWarningTriangle,
+} from "../../../components/ui/icons";
 
 interface Props {
   total: number;
@@ -96,7 +102,7 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
           </div>
 
           {pctNum > 0 && (
-            <p className="text-sm text-green-600 font-medium inline-flex items-center gap-1"><ArrowDownRight className="h-4 w-4" /> Savings: {fmt(savings)}</p>
+            <p className="text-sm text-green-600 font-medium inline-flex items-center gap-1"><IconArrowDownRight className="h-4 w-4" />Savings: {fmt(savings)}</p>
           )}
 
           {/* Reason */}
@@ -113,28 +119,26 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
 
           {/* Authorization note */}
           <div className="bg-[#E6ECE2] rounded-lg px-4 py-2.5 flex items-center gap-2 text-sm text-[#333333]">
-            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-[#7A9076] flex-shrink-0" aria-hidden>
-              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
-            </svg>{" "}
-            Authorized By: {useCurrentUser()}
+            <IconUser className="h-4 w-4 text-[#7A9076] flex-shrink-0" /> Authorized By: {useCurrentUser()}
           </div>
 
           {/* Validation */}
           <div className={`rounded-lg border px-4 py-3 ${exceedsLimit ? "bg-red-50 border-red-300" : "bg-yellow-50 border-yellow-300"}`}>
             <p className="text-xs text-[#666666]">Maximum allowed discount: {MAX_DISCOUNT_PCT}%</p>
             {pctNum > 0 && (
-              <div className={`flex items-center gap-1.5 text-sm font-semibold mt-1 ${exceedsLimit ? "text-red-600" : "text-green-700"}`}>
+              <p className={`text-sm font-semibold mt-1 flex items-center gap-1 ${exceedsLimit ? "text-red-600" : "text-green-700"}`}>
                 {exceedsLimit ? (
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 flex-shrink-0" aria-hidden>
-                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
-                  </svg>
+                  <>
+                    <IconWarningTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>Current: {pctNum}% — exceeds limit</span>
+                  </>
                 ) : (
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 flex-shrink-0" aria-hidden>
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/>
-                  </svg>
+                  <>
+                    <IconCheck className="h-4 w-4 flex-shrink-0" />
+                    <span>Current: {pctNum}% — within limit</span>
+                  </>
                 )}
-                <span>Current: {pctNum}% — {exceedsLimit ? "exceeds limit" : "within limit"}</span>
-              </div>
+              </p>
             )}
             <div className="mt-2 h-1.5 rounded-full bg-gray-200 overflow-hidden">
               <div
@@ -153,7 +157,7 @@ export default function DiscountModal({ total, currentDiscount, onApply, onClose
                 <p className="text-xs text-[#666666]">Discounted Total</p>
                 <p className="text-xl font-bold text-green-600">{fmt(discountedTotal)}</p>
               </div>
-              <p className="text-sm font-semibold text-green-600 inline-flex items-center gap-1"><ArrowDownRight className="h-4 w-4" /> -{fmt(savings)}</p>
+              <p className="text-sm font-semibold text-green-600 inline-flex items-center gap-1"><IconArrowDownRight className="h-4 w-4" />-{fmt(savings)}</p>
             </div>
           )}
         </div>

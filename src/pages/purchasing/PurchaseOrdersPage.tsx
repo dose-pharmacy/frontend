@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router"
 import { ChevronRight } from "lucide-react"
 import PageHeader from "../../components/ui/PageHeader"
@@ -14,13 +14,15 @@ import {
   closePurchaseOrder,
   PurchaseOrdersApiError,
   type PurchaseOrderDto,
-  type POListSummaryDto,
   type POPaymentStatus,
 } from "../../features/purchasing/purchaseOrdersApi"
-import {
-  listSuppliers,
-  type SupplierDto,
-} from "../../features/purchasing/suppliersApi"
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { searchSuppliers } from "../../features/inventory/searchSelectors"
+import { useSearchableResource } from "../../hooks/useSearchableResource"
+import SearchableSelect from "../../components/ui/SearchableSelect"
+import Pagination from "../../components/ui/Pagination"
+import type { SearchableOption } from "../../components/ui/SearchableSelect"
+import { IconPencil } from "../../components/ui/icons"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,59 +144,6 @@ export function Toast({
   )
 }
 
-// ─── OverflowMenu ─────────────────────────────────────────────────────────────
-
-function OverflowMenu({
-  items,
-}: {
-  items: { label: string danger?: boolean onClick: () => void }[]
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    function close(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", close)
-    return () => document.removeEventListener("mousedown", close)
-  }, [])
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] transition-colors"
-      >
-        <svg
-          className="h-4 w-4"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden
-        >
-          <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 w-52 rounded-xl border border-[#E6ECE2] bg-white shadow-xl py-1">
-          {items.map((item) => (
-            <button
-              key={item.label}
-              onClick={() => {
-                setOpen(false)
-                item.onClick()
-              }}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-[#E6ECE2]/60 transition-colors ${
-                item.danger ? "text-red-600" : "text-[#333333]"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
 function ConfirmModal({
@@ -267,7 +216,6 @@ export default function PurchaseOrdersPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [poSummary, setPoSummary] = useState<POListSummaryDto | null>(null)
   const [toast, setToast] = useState("")
   const [actionError, setActionError] = useState("")
   const [actionTarget, setActionTarget] = useState<{
@@ -314,7 +262,6 @@ export default function PurchaseOrdersPage() {
         setOrders(res.data.map(toUiPO))
         setTotalPages(res.meta.totalPages)
         setTotalCount(res.meta.total)
-        if (res.summary) setPoSummary(res.summary)
       })
       .catch((err) => {
         if (!active) return
@@ -332,19 +279,7 @@ export default function PurchaseOrdersPage() {
     }
   }, [reloadTick, page, search, suppFilter, statusFilter])
 
-  function refresh() {
-    setReloadTick((t) => t + 1)
-  }
-
-  // Summary counts come from the server (computed over the filtered dataset).
-  // Fall back to the current page's rows if the server didn't send them.
-  const summary = {
-    total: totalCount,
-    registered: orders.filter((o) => o.status === "REGISTERED").length,
-    awaiting: orders.filter((o) => o.status === "AWAITING_DELIVERY").length,
-    received: orders.filter((o) => o.status === "RECEIVED").length,
-    closed: orders.filter((o) => o.status === "CLOSED").length,
-  }
+  function refresh() { setReloadTick((t) => t + 1) }
 
   // For backward compatibility with table rendering
   const filtered = orders
@@ -421,61 +356,29 @@ export default function PurchaseOrdersPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {([
-            ["Total Orders", summary.total, "text-[#333333]"],
-            ["Registered", summary.registered, "text-blue-600"],
-            ["Awaiting Delivery", summary.awaiting, "text-yellow-600"],
-            ["Received", summary.received, "text-[#7A9076]"],
-            ["Closed", summary.closed, "text-green-600"],
-          ] as [string, number, string][]).map(([label, val, accent]) => (
-            <div
-              key={label}
-              className="bg-white rounded-xl border border-[#E6ECE2] p-4"
-            >
-              <p className="text-xs text-[#666666]">{label}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{val}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex-1 min-w-[200px]">
-              <SearchInput
-                value={search}
-                onChange={(v) => {
-                  setSearch(v)
-                  setPage(1)
-                }}
-                placeholder="Search purchase orders..."
+          <div className="flex flex-col lg:flex-row gap-3 items-center">
+            <div className="flex-1">
+              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
+            </div>
+            <div className="lg:w-44">
+              <SearchableSelect
+                value={suppFilter || null}
+                onChange={(v) => { setSuppFilter(v); setPage(1) }}
+                options={supplierFilterOptions}
+                onSearch={supplierSearch.setTerm}
+                loading={supplierSearch.loading}
+                error={supplierSearch.error}
+                onRetry={supplierSearch.retry}
+                allowClear
+                placeholder="All Suppliers"
+                searchPlaceholder="Search by name, contact or email..."
+                emptyMessage="No suppliers available"
+                noResultsMessage="No suppliers matching your search"
               />
             </div>
-            <select
-              value={suppFilter}
-              onChange={(e) => {
-                setSuppFilter(e.target.value)
-                setPage(1)
-              }}
-              className="sm:w-48 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
-            >
-              <option value="">All Suppliers</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value)
-                setPage(1)
-              }}
-              className="sm:w-48 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
-            >
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
               <option value="REGISTERED">Registered</option>
               <option value="AWAITING_DELIVERY">Awaiting Delivery</option>
@@ -483,16 +386,15 @@ export default function PurchaseOrdersPage() {
               <option value="CLOSED">Closed</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
-            {(search || suppFilter || statusFilter) && (
-              <button
-                onClick={() => {
-                  setSearch("")
-                  setSuppFilter("")
-                  setStatusFilter("")
-                  setPage(1)
-                }}
-                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
-              >
+            <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+              <option value="">All Payment Statuses</option>
+              <option value="NOT_INVOICED">Not Invoiced</option>
+              <option value="UNPAID">Unpaid</option>
+              <option value="PARTIALLY_PAID">Partially Paid</option>
+              <option value="PAID">Paid</option>
+            </select>
+            {(search || suppFilter || statusFilter || paymentFilter) && (
+              <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-xs font-semibold text-[#7A9076] hover:underline">
                 Clear Filters
               </button>
             )}
@@ -500,7 +402,7 @@ export default function PurchaseOrdersPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
@@ -619,85 +521,43 @@ export default function PurchaseOrdersPage() {
                           <StatusBadge status={po.status} />
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() =>
-                                navigate(`/purchasing/orders/${po.id}`)
-                              }
-                              className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
-                            >
-                              View <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
-                            <OverflowMenu
-                              items={[
-                                {
-                                  label: "View",
-                                  onClick: () =>
-                                    navigate(`/purchasing/orders/${po.id}`),
-                                },
-                                ...(po.status === "REGISTERED"
-                                  ? [
-                                      {
-                                        label: "Edit",
-                                        onClick: () =>
-                                          navigate(
-                                            `/purchasing/orders/${po.id}?edit=1`,
-                                          ),
-                                      },
-                                      {
-                                        label: "Mark as Awaiting Delivery",
-                                        onClick: () => {
-                                          setActionError("")
-                                          setActionTarget({
-                                            po,
-                                            action: "markDelivery",
-                                          })
-                                        },
-                                      },
-                                      {
-                                        label: "Cancel Order",
-                                        danger: true,
-                                        onClick: () => {
-                                          setActionError("")
-                                          setActionTarget({
-                                            po,
-                                            action: "cancel",
-                                          })
-                                        },
-                                      },
-                                    ]
-                                  : []),
-                                ...(po.status === "AWAITING_DELIVERY"
-                                  ? [
-                                      {
-                                        label: "Cancel Order",
-                                        danger: true,
-                                        onClick: () => {
-                                          setActionError("")
-                                          setActionTarget({
-                                            po,
-                                            action: "cancel",
-                                          })
-                                        },
-                                      },
-                                    ]
-                                  : []),
-                                ...(po.status === "RECEIVED"
-                                  ? [
-                                      {
-                                        label: "Close Purchase Order",
-                                        onClick: () => {
-                                          setActionError("")
-                                          setActionTarget({
-                                            po,
-                                            action: "close",
-                                          })
-                                        },
-                                      },
-                                    ]
-                                  : []),
-                              ]}
-                            />
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">View</button>
+                            {po.status === "REGISTERED" && (
+                              <>
+                                <button
+                                  onClick={() => navigate(`/purchasing/orders/${po.id}?edit=1`)}
+                                  className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                                  aria-label={`Edit ${po.reference}`}
+                                  title="Edit purchase order"
+                                >
+                                  <IconPencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => { setActionError(""); setActionTarget({ po, action: "markDelivery" }) }}
+                                  className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                                  title="Mark as awaiting delivery"
+                                >
+                                  Awaiting Delivery
+                                </button>
+                              </>
+                            )}
+                            {(po.status === "REGISTERED" || po.status === "AWAITING_DELIVERY") && (
+                              <button
+                                onClick={() => { setActionError(""); setActionTarget({ po, action: "cancel" }) }}
+                                className="text-xs font-semibold text-red-600 hover:underline whitespace-nowrap"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            {po.status === "RECEIVED" && (
+                              <button
+                                onClick={() => { setActionError(""); setActionTarget({ po, action: "close" }) }}
+                                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                              >
+                                Close
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -705,15 +565,20 @@ export default function PurchaseOrdersPage() {
                   </tbody>
                 </table>
               </div>
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onPageChange={setPage}
-                total={totalCount}
-                pageSize={PAGE_SIZE}
-                itemLabel="orders"
-              />
             </>
+          )}
+          {!loading && !error && (
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              label={
+                <>
+                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
+                  {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} orders
+                </>
+              }
+            />
           )}
         </div>
       </div>

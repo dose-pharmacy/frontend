@@ -6,16 +6,16 @@ import {
   updateProduct,
   ProductsApiError,
   type ProductDetailDto,
-} from "../../features/inventory/productsApi"
-import { listUnits, type UnitDto } from "../../features/inventory/unitsApi"
-import Breadcrumb from "../../components/ui/Breadcrumb"
-import StatusBadge from "../../components/ui/StatusBadge"
-import StatusChip from "../../components/ui/StatusChip"
-import Button from "../../components/ui/Button"
-import { ChevronRight } from "lucide-react"
-import Select from "../../components/ui/Select"
-import Modal from "../../components/ui/Modal"
-
+} from "../../features/inventory/productsApi";
+import { listUnits, type UnitDto } from "../../features/inventory/unitsApi";
+import StatusBadge from "../../components/ui/StatusBadge";
+import Button from "../../components/ui/Button";
+import Select from "../../components/ui/Select";
+import Modal from "../../components/ui/Modal";
+import NarcoticBadge from "../../components/ui/NarcoticBadge";
+import SearchableSelect from "../../components/ui/SearchableSelect";
+//import { IconTrash } from "react-icons/fa"; // Replace "react-icons/fa" with the actual library or file path
+import { IconTrash } from "../../components/ui/icons";
 // ─────────────────────────────────────────────────────────────
 // Edit form types
 // ─────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ interface ProductForm {
   minimumStock: string
   reorderPoint: string
   isActive: boolean
+  isNarcotic: boolean
   units: UnitRow[]
 }
 
@@ -357,12 +358,16 @@ export default function ProductDetailPage() {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        <Breadcrumb
-          items={[
-            { label: "Inventory", to: "/inventory" },
-            { label: "Product Details" },
-          ]}
-        />
+        <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+          <button
+            type="button"
+            onClick={() => navigate("/inventory/products")}
+            aria-label="Back to products"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+          >
+            ←
+          </button>
+        </div>
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 animate-pulse space-y-4">
@@ -378,12 +383,16 @@ export default function ProductDetailPage() {
   if (loadError || !product) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        <Breadcrumb
-          items={[
-            { label: "Inventory", to: "/inventory" },
-            { label: "Product Details" },
-          ]}
-        />
+        <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+          <button
+            type="button"
+            onClick={() => navigate("/inventory/products")}
+            aria-label="Back to products"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+          >
+            ←
+          </button>
+        </div>
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-6">
@@ -391,22 +400,13 @@ export default function ProductDetailPage() {
               <p className="text-sm text-red-700">
                 {loadError ?? "Product not found."}
               </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => void reload()}
-                  className="text-sm font-semibold text-red-700 hover:underline"
-                >
-                  Retry
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/inventory/products")}
-                  className="text-sm font-semibold text-red-700 hover:underline"
-                >
-                  Back to Products
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void reload()}
+                className="text-sm font-semibold text-red-700 hover:underline"
+              >
+                Retry
+              </button>
             </div>
           </div>
         </div>
@@ -426,14 +426,17 @@ export default function ProductDetailPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* ── Fixed breadcrumb ── */}
-      <Breadcrumb
-        items={[
-          { label: "Inventory", to: "/inventory" },
-          { label: "Products", to: "/inventory/products" },
-          { label: product.name },
-        ]}
-      />
+      {/* ── Arrow back header ── */}
+      <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+        <button
+          type="button"
+          onClick={() => navigate("/inventory/products")}
+          aria-label="Back to products"
+          className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+        >
+          ←
+        </button>
+      </div>
 
       {/* ── Scrollable content ── */}
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -484,7 +487,7 @@ export default function ProductDetailPage() {
                         navigate(`/inventory/stock?productId=${product.id}`)
                       }
                     >
-                      View Stock <ChevronRight className="h-4 w-4" />
+                      View Stock →
                     </Button>
                     <Button
                       variant="secondary"
@@ -492,7 +495,7 @@ export default function ProductDetailPage() {
                         navigate(`/inventory/bin-card?productId=${product.id}`)
                       }
                     >
-                      View Bin Card <ChevronRight className="h-4 w-4" />
+                      View Bin Card →
                     </Button>
                     <Button variant="secondary" onClick={openEdit}>
                       Edit
@@ -547,7 +550,7 @@ export default function ProductDetailPage() {
                 Units & Packaging
               </h3>
 
-              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -847,51 +850,54 @@ export default function ProductDetailPage() {
 
                             {/* Unit dropdown */}
                             <td className="px-3 py-2.5">
-                              <select
-                                value={row.unitId}
-                                onChange={(e) =>
+                              <SearchableSelect
+                                value={row.unitId || null}
+                                onChange={(v) =>
                                   updateRow(idx, {
-                                    unitId: e.target.value,
+                                    unitId: v,
                                   })
                                 }
-                                className="w-full rounded-lg border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
-                              >
-                                <option value="">— Select —</option>
-
-                                {masterUnits
-                                  .concat(
-                                    product.units
-                                      .filter(
-                                        (pu) =>
-                                          pu.unitId === row.unitId &&
-                                          !masterUnits.some(
-                                            (mu) => mu.id === pu.unitId,
-                                          ),
-                                      )
-                                      .map(
-                                        (pu) =>
-                                          ({
-                                            id: pu.unitId,
-                                            name: pu.unit?.name ?? pu.unitId,
-                                            symbol: pu.unit?.symbol ?? "",
-                                            description: null,
-                                            isActive: true,
-                                            productCount: 0,
-                                            createdAt: "",
-                                            updatedAt: "",
-                                          }) satisfies UnitDto,
-                                      ),
-                                  )
-                                  .filter(
-                                    (u) =>
-                                      u.id === row.unitId || !usedIds.has(u.id),
-                                  )
-                                  .map((u) => (
-                                    <option key={u.id} value={u.id}>
-                                      {u.name}
-                                    </option>
-                                  ))}
-                              </select>
+                                options={[
+                                  { value: "", label: "— Select —" },
+                                  ...masterUnits
+                                    .concat(
+                                      product.units
+                                        .filter(
+                                          (pu) =>
+                                            pu.unitId === row.unitId &&
+                                            !masterUnits.some(
+                                              (mu) => mu.id === pu.unitId,
+                                            ),
+                                        )
+                                        .map(
+                                          (pu) =>
+                                            ({
+                                              id: pu.unitId,
+                                              name: pu.unit?.name ?? pu.unitId,
+                                              symbol: pu.unit?.symbol ?? "",
+                                              description: null,
+                                              isActive: true,
+                                              productCount: 0,
+                                              createdAt: "",
+                                              updatedAt: "",
+                                            }) satisfies UnitDto,
+                                        ),
+                                    )
+                                    .filter(
+                                      (u) =>
+                                        u.id === row.unitId ||
+                                        !usedIds.has(u.id),
+                                    )
+                                    .map((u) => ({
+                                      value: u.id,
+                                      label: u.name,
+                                    })),
+                                ]}
+                                placeholder="— Select —"
+                                searchPlaceholder="Search units..."
+                                emptyMessage="No units available"
+                                noResultsMessage="No matching units"
+                              />
 
                               {fieldErrors[`u${idx}.unitId`] && (
                                 <p className="text-xs text-red-600 mt-1">
@@ -983,19 +989,10 @@ export default function ProductDetailPage() {
                                 }
                                 className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-30 disabled:cursor-not-allowed"
                               >
-                                <svg
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                  className="h-3.5 w-3.5"
-                                  aria-hidden
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM8 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm3-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                                Remove
+                                <span className="inline-flex items-center gap-1">
+                                  <IconTrash className="h-3.5 w-3.5" />
+                                  Remove
+                                </span>
                               </button>
                             </td>
                           </tr>

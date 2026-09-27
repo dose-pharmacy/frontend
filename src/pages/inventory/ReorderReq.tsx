@@ -7,6 +7,7 @@ import {
   ReorderApiError,
   type PurchaseRequirementsResult,
 } from "../../features/inventory/reorderApi";
+import { IconX } from "../../components/ui/icons";
 
 interface ReorderSuggestion {
   id: string;
@@ -99,9 +100,9 @@ export default function GenerateRequirementsModal({
             type="button"
             onClick={handleClose}
             aria-label="Close"
-            className="text-[#333333]/60 hover:text-[#333333] transition-colors text-lg leading-none"
+            className="text-[#333333]/60 hover:text-[#333333] transition-colors flex items-center"
           >
-            <X className="h-5 w-5" />
+            <IconX className="h-4 w-4" />
           </button>
         </div>
 

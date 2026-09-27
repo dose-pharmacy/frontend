@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
-import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
+import DatePicker from "../../components/ui/DatePicker"
 import {
   getSupplierInvoice,
   recordInvoicePayment,
@@ -395,7 +395,7 @@ export default function SupplierInvoiceDetailPage() {
             </div>
 
             {/* Payments history */}
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
                   Payment History
@@ -462,7 +462,7 @@ export default function SupplierInvoiceDetailPage() {
 
           {/* PO context panel */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               <div className="px-4 py-3 bg-[#E6ECE2]/50 border-b border-[#E6ECE2]">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
                   Linked Purchase Order
@@ -606,14 +606,11 @@ export default function SupplierInvoiceDetailPage() {
             />
           </div>
           <div>
-            <label className="block text-sm text-[#666666] mb-1">
-              Payment Date
-            </label>
-            <input
-              type="date"
+            <label className="block text-sm text-[#666666] mb-1">Payment Date</label>
+            <DatePicker
               value={payDate}
-              onChange={(e) => setPayDate(e.target.value)}
-              className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
+              onChange={setPayDate}
+              placeholder="Select payment date..."
             />
           </div>
           <div>
@@ -663,14 +660,11 @@ export default function SupplierInvoiceDetailPage() {
             </p>
           )}
           <div>
-            <label className="block text-sm text-[#666666] mb-1">
-              Due Date
-            </label>
-            <input
-              type="date"
+            <label className="block text-sm text-[#666666] mb-1">Due Date</label>
+            <DatePicker
               value={editDueDate}
-              onChange={(e) => setEditDueDate(e.target.value)}
-              className="w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
+              onChange={setEditDueDate}
+              placeholder="Select due date..."
             />
           </div>
           <div>

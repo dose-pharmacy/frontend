@@ -1,26 +1,11 @@
-import { useState, useEffect } from "react";
-import { NavLink, Outlet, useNavigate, useLocation } from "react-router";
-import { useAuth } from "../features/auth/AuthContext";
+import { useState, useEffect, useRef } from "react"
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router"
+import { useAuth } from "../features/auth/AuthContext"
 import {
-  AlertTriangle,
-  Bell,
-  Boxes,
-  ChartColumn,
-  ChevronRight,
-  Cross,
-  LayoutGrid,
-  Menu,
-  Package,
-  PackageCheck,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Receipt,
-  Search,
-  Settings,
-  ShoppingCart,
-  Truck,
-  X,
-} from "lucide-react";
+  IconBox as SharedIconBox,
+  IconCheckCircle,
+  IconWarningTriangle,
+} from "../components/ui/icons"
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -36,9 +21,6 @@ function IconCart() {
 function IconTruck() {
   return <Truck className="h-5 w-5" />;
 }
-function IconChart() {
-  return <ChartColumn className="h-5 w-5" />;
-}
 function IconCog() {
   return <Settings className="h-5 w-5" />;
 }
@@ -52,14 +34,8 @@ function IconChevron({ open }: { open: boolean }) {
 function IconMenu() {
   return <Menu className="h-5 w-5" />;
 }
-function IconReceipt() {
-  return <Receipt className="h-5 w-5" />;
-}
 function IconBell() {
   return <Bell className="h-5 w-5" />;
-}
-function IconSearch() {
-  return <Search className="h-4 w-4" />;
 }
 function IconX() {
   return <X className="h-5 w-5" />;
@@ -91,11 +67,10 @@ const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: <IconGrid /> },
   { to: "/pos", label: "Point of Sale", icon: <IconCart /> },
   {
-    to: "/inventory",
+    to: "/inventory/products",
     label: "Inventory",
     icon: <IconBox />,
     children: [
-      { to: "/inventory", label: "Overview" },
       { to: "/inventory/products", label: "Products" },
       { to: "/inventory/stock", label: "Stock" },
       { to: "/inventory/batches-expiry", label: "Batches & Expiry" },
@@ -103,7 +78,6 @@ const NAV: NavItem[] = [
       { to: "/inventory/reorder", label: "Reorder" },
     ],
   },
-  { to: "/sales", label: "Sales", icon: <IconReceipt /> },
   {
     to: "/purchasing",
     label: "Purchasing",
@@ -115,18 +89,6 @@ const NAV: NavItem[] = [
       { to: "/purchasing/invoices", label: "Supplier Invoices" },
       { to: "/purchasing/payables", label: "Supplier Payables" },
       { to: "/purchasing/returns", label: "Returns" },
-    ],
-  },
-  {
-    to: "/reports",
-    label: "Reports",
-    icon: <IconChart />,
-    children: [
-      { to: "/reports", label: "Overview" },
-      { to: "/reports/sales", label: "Sales" },
-      { to: "/reports/profitability", label: "Profitability" },
-      { to: "/reports/slow-moving", label: "Slow Moving" },
-      { to: "/reports/narcotics", label: "Narcotics" },
     ],
   },
   {
@@ -160,9 +122,7 @@ function Sidebar({
   const navigate = useNavigate()
 
   function isPathActive(path: string) {
-    if (path === "/dashboard") return location.pathname === "/dashboard"
-    if (path === "/inventory") return location.pathname === "/inventory"
-    if (path === "/sales") return location.pathname === "/sales"
+    if (path === "/dashboard") return location.pathname.startsWith("/dashboard")
     return location.pathname.startsWith(path)
   }
 
@@ -171,7 +131,7 @@ function Sidebar({
       return item.children.some(
         (c) =>
           location.pathname === c.to ||
-          (c.to !== "/inventory" && location.pathname.startsWith(c.to)),
+          location.pathname.startsWith(c.to),
       )
     return isPathActive(item.to)
   }
@@ -199,8 +159,12 @@ function Sidebar({
               <Cross className="h-4 w-4 text-[#333333]" strokeWidth={2.5} aria-hidden />
             </div>
             <div>
-              <p className="text-sm font-bold text-[#333333] leading-none tracking-wide">PharmaCare</p>
-              <p className="text-[10px] text-[#333333]/60 mt-0.5">Management System</p>
+              <p className="text-sm font-bold text-[#333333] leading-none tracking-wide">
+                DOSE PHARMACY
+              </p>
+              <p className="text-[10px] text-[#999999] mt-0.5">
+                Management System
+              </p>
             </div>
           </div>
         )}
@@ -310,9 +274,7 @@ function Sidebar({
                   {item.children!.map((child) => {
                     const exactActive =
                       location.pathname === child.to ||
-                      (child.to !== "/inventory" &&
-                        child.to !== "/reports/sales" &&
-                        location.pathname.startsWith(child.to) &&
+                      (location.pathname.startsWith(child.to) &&
                         !item.children!.some(
                           (other) =>
                             other.to !== child.to &&
@@ -348,13 +310,8 @@ function Sidebar({
         })}
       </nav>
 
-      {/* Bottom: version tag */}
-      {!collapsed && (
-        <div className="px-4 py-3 border-t border-[#E6ECE2] flex-shrink-0 bg-[#FAF9F4]">
-          <p className="text-[10px] text-[#333333]/70 font-medium">PharmaCare v2.0</p>
-          <p className="text-[10px] text-[#333333]/50 mt-0.5">© 2026 All rights reserved</p>
-        </div>
-      )}
+      {/* Bottom: user actions (search / notifications / profile) */}
+      <SidebarFooter collapsed={collapsed} />
     </div>
   )
 
@@ -362,8 +319,10 @@ function Sidebar({
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`hidden md:flex flex-col bg-white flex-shrink-0 transition-all duration-300 border-r border-[#E6ECE2] ${collapsed ? "w-16" : "w-60"}`}
-        style={{ minHeight: "100vh" }}
+        className={`hidden md:flex flex-col bg-white flex-shrink-0 transition-all duration-300 border-r border-[#E6ECE2] shadow-sm ${
+          collapsed ? "w-16" : "w-60"
+        }`}
+        style={{ minHeight: "100dvh" }}
       >
         {sidebarContent}
       </aside>
@@ -391,19 +350,28 @@ function Sidebar({
   )
 }
 
-// ── Top bar ───────────────────────────────────────────────────────────────────
+// ── Sidebar footer (search / notifications / profile) ─────────────────────────
 
-function TopBar({
-  onToggleMobile,
-  onToggleCollapse,
+function SidebarFooter({
+  collapsed,
 }: {
-  onToggleMobile: () => void
-  onToggleCollapse: () => void
+  collapsed: boolean
 }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [searchFocused, setSearchFocused] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!notifOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", onDown)
+    return () => document.removeEventListener("mousedown", onDown)
+  }, [notifOpen])
 
   async function handleLogout() {
     navigate("/login", { replace: true })
@@ -412,103 +380,117 @@ function TopBar({
   }
 
   return (
-    <header className="h-14 bg-white border-b border-[#E6ECE2] flex items-center gap-3 px-4 flex-shrink-0 sticky top-0 z-30 shadow-sm">
-      {/* Mobile menu toggle */}
-      <button
-        onClick={onToggleMobile}
-        className="md:hidden rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors"
-        aria-label="Open navigation"
-      >
-        <IconMenu />
-      </button>
-
-      {/* Desktop collapse toggle */}
-      <button
-        onClick={onToggleCollapse}
-        className="hidden md:flex rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors"
-        aria-label="Toggle sidebar"
-      >
-        <IconMenu />
-      </button>
-
-      {/* Search */}
-      <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-all ${searchFocused ? "border-[#B6C8AF] bg-[#E6ECE2]/40 w-72" : "border-[#E6ECE2] bg-[#E6ECE2]/40 w-52"} hidden sm:flex`}>
-        <span className="text-[#666666]"><IconSearch /></span>
-        <input
-          type="text"
-          placeholder="Search anything…"
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setSearchFocused(false)}
-          className="bg-transparent text-sm text-[#333333] placeholder-[#999] outline-none w-full"
-        />
-      </div>
-
-      <div className="flex-1" />
-
+    <div className="border-t border-[#E6ECE2] px-3 py-3 flex flex-col gap-3 flex-shrink-0">
       {/* Notifications */}
-      <div className="relative">
+      <div className="relative" ref={notifRef}>
         <button
           onClick={() => setNotifOpen((v) => !v)}
-          className="relative rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors"
+          className={`relative flex items-center gap-2 rounded-lg p-2 text-[#666666] hover:bg-[#E6ECE2] transition-colors w-full ${
+            collapsed ? "justify-center" : "justify-start"
+          }`}
           aria-label="Notifications"
         >
-          <IconBell />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+          <span className="relative flex-shrink-0">
+            <IconBell />
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+          </span>
+          {!collapsed && (
+            <span className="text-sm font-medium text-[#333333]">
+              Notifications
+            </span>
+          )}
         </button>
 
         {notifOpen && (
-          <div className="absolute right-0 top-12 w-80 bg-white rounded-xl border border-[#E6ECE2] shadow-xl z-50 overflow-hidden">
-            <div className="bg-white border-b border-[#E6ECE2] px-4 py-3 flex items-center justify-between">
-              <p className="text-sm font-bold text-[#333333]">Notifications</p>
-              <button onClick={() => setNotifOpen(false)} className="text-[#333333]/60 hover:text-[#333333]"><IconX /></button>
-            </div>
+          <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-lg border border-[#E6ECE2] shadow-lg z-50 overflow-hidden">
             <div className="divide-y divide-[#E6ECE2]">
               {[
-                { icon: <IconAlertTriangle className="h-4 w-4 text-yellow-600" />, text: "5 products near expiry date", time: "10 min ago", color: "bg-yellow-50" },
-                { icon: <IconPackage className="h-4 w-4 text-blue-600" />, text: "Stock reorder alert: Panadol 500mg", time: "1 hr ago", color: "bg-blue-50" },
-                { icon: <IconCheckCircle className="h-4 w-4 text-green-600" />, text: "PO-2026-0018 delivery confirmed", time: "3 hr ago", color: "bg-green-50" },
+                {
+                  icon: <IconWarningTriangle className="h-4 w-4" />,
+                  iconColor: "text-yellow-500",
+                  text: "5 products near expiry date",
+                  time: "10m",
+                },
+                {
+                  icon: <SharedIconBox className="h-4 w-4" />,
+                  iconColor: "text-blue-500",
+                  text: "Reorder: Panadol 500mg",
+                  time: "1h",
+                },
+                {
+                  icon: <IconCheckCircle className="h-4 w-4" />,
+                  iconColor: "text-green-600",
+                  text: "PO-2026-0018 delivered",
+                  time: "3h",
+                },
               ].map((n) => (
-                <div key={n.text} className={`flex items-start gap-3 px-4 py-3 hover:bg-[#E6ECE2]/40 cursor-pointer ${n.color}`}>
-                  <span className="flex-shrink-0 mt-0.5">{n.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#333333] leading-snug">
+                <button
+                  key={n.text}
+                  className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#F5F5F0] text-left"
+                >
+                  <span className={`flex-shrink-0 mt-0.5 ${n.iconColor}`}>
+                    {n.icon}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm text-[#333333] leading-snug">
                       {n.text}
-                    </p>
-                    <p className="text-[11px] text-[#666666] mt-0.5">
+                    </span>
+                    <span className="block text-[10px] text-[#999999] mt-0.5">
                       {n.time}
-                    </p>
-                  </div>
-                </div>
+                    </span>
+                  </span>
+                </button>
               ))}
-            </div>
-            <div className="px-4 py-2.5 bg-[#E6ECE2]/40 border-t border-[#E6ECE2]">
-              <button className="inline-flex items-center gap-0.5 text-xs text-[#7A9076] hover:underline font-medium">View all notifications <ChevronRight className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         )}
       </div>
 
       {/* Profile */}
-      <div className="flex items-center gap-2.5 pl-2 border-l border-[#E6ECE2]">
+      <div
+        className={`flex items-center gap-2.5 pt-2 border-t border-[#E6ECE2] ${
+          collapsed ? "justify-center" : ""
+        }`}
+      >
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E6ECE2] text-[#4F6B4A] text-sm font-bold flex-shrink-0">
           {user?.name?.charAt(0).toUpperCase() ?? "U"}
         </div>
-        <div className="hidden sm:block text-right">
-          <p className="text-xs font-semibold text-[#333333] leading-none">
-            {user?.name}
-          </p>
-          <p className="text-[10px] text-[#666666] capitalize mt-0.5">
-            {user?.role?.replace("_", " ")}
-          </p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="ml-1 rounded-lg bg-[#E6ECE2] hover:bg-[#C6D4BF] transition-colors px-3 py-1.5 text-xs font-semibold text-[#333333]"
-        >
-          Logout
-        </button>
+        {!collapsed && (
+          <>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-semibold text-[#333333] leading-none truncate">
+                {user?.name}
+              </p>
+              <p className="text-[10px] text-[#666666] capitalize mt-0.5 truncate">
+                {user?.role?.replace("_", " ")}
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex-shrink-0 rounded-lg bg-[#E6ECE2] hover:bg-[#C6D4BF] transition-colors px-3 py-1.5 text-xs font-semibold text-[#333333]"
+            >
+              Logout
+            </button>
+          </>
+        )}
       </div>
-    </header>
+
+      {/* Version tag */}
+      <div className="pt-1">
+        <p
+          className={`text-[10px] text-[#999999] font-medium ${
+            collapsed ? "text-center" : ""
+          }`}
+        >
+          DOSE PHARMACY v2.0
+        </p>
+        {!collapsed && (
+          <p className="text-[10px] text-[#999999] mt-0.5">
+            © 2026 All rights reserved
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -533,7 +515,7 @@ export default function AppLayout() {
   }, [])
 
   return (
-    <div className="flex h-full bg-[#FAF9F4]">
+    <div className="flex h-dvh overflow-hidden bg-[#FAF9F4]">
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((v) => !v)}
@@ -541,16 +523,18 @@ export default function AppLayout() {
         onCloseMobile={() => setMobileOpen(false)}
       />
 
-      <div className="flex flex-col flex-1 min-w-0 min-h-0">
-        <TopBar
-          onToggleMobile={() => setMobileOpen(true)}
-          onToggleCollapse={() => setCollapsed((v) => !v)}
-        />
+      {/* Mobile nav trigger (header removed) */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open navigation"
+        className="md:hidden fixed top-3 left-3 z-40 rounded-lg p-2 bg-white border border-[#E6ECE2] text-[#666666] shadow-sm hover:bg-[#E6ECE2] transition-colors"
+      >
+        <IconMenu />
+      </button>
 
-        <main className="flex-1 flex flex-col min-h-0">
-          <Outlet />
-        </main>
-      </div>
+      <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+        <Outlet />
+      </main>
     </div>
   )
 }

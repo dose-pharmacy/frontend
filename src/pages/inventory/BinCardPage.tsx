@@ -1,24 +1,18 @@
-import { useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "react-router"
-import {
-  getBinCard,
-  type BinCardResult,
-  type StockTransactionDto,
-} from "../../features/inventory/stockApi"
-import {
-  fetchProductOptions,
-  type ProductOption,
-} from "../../features/inventory/inventoryService"
-import { listLocations } from "../../features/inventory/locationsApi"
-import {
-  listProductBatches,
-  type BatchDto,
-} from "../../features/inventory/batchesApi"
-import PageHeader from "../../components/ui/PageHeader"
-import Select from "../../components/ui/Select"
-import Button from "../../components/ui/Button"
-import EmptyState from "../../components/ui/EmptyState"
-import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router";
+import { getBinCard, type BinCardResult } from "../../features/inventory/stockApi";
+import { listLocations } from "../../features/inventory/locationsApi";
+import { listProductBatches, type BatchDto } from "../../features/inventory/batchesApi";
+import { searchProducts, searchLocations } from "../../features/inventory/searchSelectors";
+import { useProductUnits } from "../../features/inventory/useProductUnits";
+import { useSearchableResource } from "../../hooks/useSearchableResource";
+import SearchableSelect from "../../components/ui/SearchableSelect";
+import type { SearchableOption } from "../../components/ui/SearchableSelect";
+import PageHeader from "../../components/ui/PageHeader";
+import Select from "../../components/ui/Select";
+import Button from "../../components/ui/Button";
+import EmptyState from "../../components/ui/EmptyState";
+import DatePicker from "../../components/ui/DatePicker";
 
 function fmtDate(d: string) {
   if (!d) return "—"
@@ -55,14 +49,14 @@ function TxTypeBadge({ type }: { type: string }) {
 }
 
 export default function BinCardPage() {
-  const [params, setParams] = useSearchParams()
-  const initProductId = params.get("productId") || ""
-  const initBatchId = params.get("batchId") || ""
-  const initLocationId = params.get("locationId") || ""
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const initProductId = params.get("productId") || "";
+  const initBatchId = params.get("batchId") || "";
+  const initLocationId = params.get("locationId") || "";
 
-  const [products, setProducts] = useState<ProductOption[]>([])
-  const [locations, setLocations] = useState<{ id: string, name: string }[]>([])
-  const [batches, setBatches] = useState<BatchDto[]>([])
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
+  const [batches, setBatches] = useState<BatchDto[]>([]);
 
   const [productId, setProductId] = useState(initProductId)
   const [batchId, setBatchId] = useState(initBatchId)
@@ -169,6 +163,19 @@ export default function BinCardPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex items-center px-6 py-3 border-b border-[#C6D4BF] bg-white">
+        <button
+          type="button"
+          onClick={() =>
+            navigate(productId ? `/inventory/products/${productId}` : "/inventory/products")
+          }
+          aria-label="Back to product details"
+          className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-[#C6D4BF] bg-white text-lg text-[#4F6B4A] hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
+        >
+          ←
+        </button>
+      </div>
+
       <PageHeader
         title={
           selectedProduct ? `Bin Card — ${selectedProduct.name}` : "Bin Card"
@@ -248,11 +255,19 @@ export default function BinCardPage() {
             </Select>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#666666]">From Date</label>
-              <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+              <DatePicker
+                value={fromDate}
+                onChange={(v) => { setFromDate(v); setPage(1); }}
+                placeholder="From date"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-[#666666]">To Date</label>
-              <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="w-full rounded-xl border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+              <DatePicker
+                value={toDate}
+                onChange={(v) => { setToDate(v); setPage(1); }}
+                placeholder="To date"
+              />
             </div>
           </div>
           {(fromDate || toDate) && (
@@ -377,8 +392,9 @@ export default function BinCardPage() {
               )}
             </div>
 
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
-              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+            {/* Ledger */}
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-[#E6ECE2] text-left">

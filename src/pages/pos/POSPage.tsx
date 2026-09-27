@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react"
-import { CheckCircle2, Minus, Plus, Search, X, XCircle } from "lucide-react"
 import type { POSProduct } from "../../features/pos/posMock"
 import {
   getPosProducts,
@@ -13,12 +12,13 @@ import { listLocations } from "../../features/inventory/locationsApi"
 import { completeSale } from "../../features/sales/salesApi"
 import { fmt } from "../../features/pos/posService"
 import { useCart, type BillDiscount } from "../../features/pos/useCart"
+import { useAuth } from "../../features/auth/AuthContext"
 import type { POSUnit } from "../../features/pos/posMock"
-import ProductSelectionModal, {
-  ProductIcon,
-} from "./components/ProductSelectionModal"
+import ProductSelectionModal from "./components/ProductSelectionModal"
 import PaymentModal from "./components/PaymentModal"
-import Pagination from "../../components/ui/Pagination"
+import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import SearchableSelect from "../../components/ui/SearchableSelect"
+import { IconCheck, IconX } from "../../components/ui/icons"
 
 type Modal = "none" | "product" | "payment"
 
@@ -42,15 +42,15 @@ function Toast({
 
   return (
     <div
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-xl text-white text-sm font-semibold animate-in fade-in slide-in-from-bottom-4 duration-300 ${
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-xl text-white text-sm font-semibold ${
         type === "success" ? "bg-green-600" : "bg-red-600"
       }`}
     >
-      <span aria-hidden>
+      <span aria-hidden className="flex-shrink-0">
         {type === "success" ? (
-          <CheckCircle2 className="h-5 w-5" />
+          <IconCheck className="h-5 w-5" />
         ) : (
-          <XCircle className="h-5 w-5" />
+          <IconX className="h-5 w-5" />
         )}
       </span>
       {message}
@@ -59,13 +59,15 @@ function Toast({
         className="ml-2 opacity-70 hover:opacity-100"
         aria-label="Dismiss"
       >
-        <X className="h-4 w-4" />
+        <IconX className="h-5 w-5" />
       </button>
     </div>
   )
 }
 
 export default function POSPage() {
+  const { user } = useAuth()
+
   // Products
   const [products, setProducts] = useState<POSProduct[]>([])
   const [meta, setMeta] = useState<PosProductsMeta>({
@@ -98,6 +100,7 @@ export default function POSPage() {
     message: string
     type: "success" | "error"
   } | null>(null)
+  const [now, setNow] = useState(new Date())
 
   const cart = useCart()
 
@@ -105,6 +108,12 @@ export default function POSPage() {
   const [discountType, setDiscountType] =
     useState<"PERCENTAGE" | "FIXED_AMOUNT">("PERCENTAGE")
   const [discountValue, setDiscountValue] = useState("")
+
+  // Clock
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   // Load groups and locations once
   useEffect(() => {
@@ -247,39 +256,44 @@ export default function POSPage() {
         />
       )}
 
-      {/* POS header */}
-      <div className="bg-white border-b border-[#E6ECE2] px-6 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-[#333333]">
-            Point of Sale
+      {/* POS sub-header */}
+      <div className="bg-[#E6ECE2] px-6 py-2.5 flex items-center justify-between border-t border-[#C6D4BF]">
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-semibold text-[#4F6B4A]">
+            Pharmacy POS
           </span>
-          <div className="h-4 w-px bg-[#E6ECE2]" />
-          <select
-            value={selectedLocation}
-            onChange={(e) => {
-              setSelectedLocation(e.target.value)
+          <SearchableSelect
+            value={selectedLocation || null}
+            onChange={(v) => {
+              setSelectedLocation(v)
               setPage(1)
             }}
-            className="text-xs text-[#333333] border border-[#E6ECE2] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#B6C8AF] transition-colors"
-            aria-label="Select location"
-          >
-            {locations.length === 0 && (
-              <option value="">Loading locations...</option>
-            )}
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.name}
-              </option>
-            ))}
-          </select>
+            options={locations.map((loc) => ({
+              value: loc.id,
+              label: loc.name,
+            }))}
+            placeholder={
+              locations.length === 0
+                ? "Loading locations..."
+                : "Select location..."
+            }
+            searchPlaceholder="Search locations..."
+            emptyMessage="No locations found"
+            noResultsMessage="No locations matching your search"
+          />
         </div>
+        <span className="text-xs text-[#666666]">
+          {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
+          {now.toLocaleDateString()}
+        </span>
+        <span className="text-xs text-[#666666]">Cashier: {user?.name}</span>
       </div>
 
       {/* Two-panel layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ─── LEFT: Product browser ──────────────────────── */}
         <div
-          className={`flex flex-col flex-1 min-w-0 ${
+          className={`flex flex-col bg-white flex-1 min-w-0 ${
             cartOpen ? "hidden lg:flex" : "flex"
           }`}
         >
@@ -287,10 +301,18 @@ export default function POSPage() {
           <div className="px-6 pt-5 pb-3 flex flex-col gap-3 flex-shrink-0">
             {/* Search */}
             <div className="relative">
-              <Search
+              <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]"
+                viewBox="0 0 20 20"
+                fill="currentColor"
                 aria-hidden
-              />
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                  clipRule="evenodd"
+                />
+              </svg>
               <input
                 type="search"
                 value={search}
@@ -304,7 +326,7 @@ export default function POSPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] hover:text-[#333333]"
                   aria-label="Clear search"
                 >
-                  <X className="h-4 w-4" />
+                  <IconX className="h-4 w-4" />
                 </button>
               )}
             </div>
@@ -313,10 +335,10 @@ export default function POSPage() {
             <div className="flex gap-1 overflow-x-auto pb-0.5">
               <button
                 onClick={() => setSelectedGroupId("")}
-                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition-colors ${
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                   selectedGroupId === ""
-                    ? "bg-[#E6ECE2] text-[#4F6B4A] font-semibold"
-                    : "text-[#666666] font-medium hover:bg-[#E6ECE2]/60 hover:text-[#333333]"
+                    ? "bg-[#B6C8AF] text-[#333333] shadow-sm"
+                    : "bg-[#E6ECE2] text-[#4A4A4A] hover:bg-[#D8E0D3]"
                 }`}
               >
                 All
@@ -325,10 +347,10 @@ export default function POSPage() {
                 <button
                   key={g.id}
                   onClick={() => setSelectedGroupId(g.id)}
-                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition-colors ${
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                     selectedGroupId === g.id
-                      ? "bg-[#E6ECE2] text-[#4F6B4A] font-semibold"
-                      : "text-[#666666] font-medium hover:bg-[#E6ECE2]/60 hover:text-[#333333]"
+                      ? "bg-[#B6C8AF] text-[#333333] shadow-sm"
+                      : "bg-[#E6ECE2] text-[#4A4A4A] hover:bg-[#D8E0D3]"
                   }`}
                 >
                   {g.name}
@@ -355,11 +377,11 @@ export default function POSPage() {
                 </button>
               </div>
             ) : loading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {[...Array(10)].map((_, i) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {[...Array(8)].map((_, i) => (
                   <div
                     key={i}
-                    className="h-32 rounded-xl bg-white border border-[#E6ECE2] animate-pulse"
+                    className="h-40 rounded-xl bg-[#E6ECE2] animate-pulse"
                   />
                 ))}
               </div>
@@ -376,7 +398,7 @@ export default function POSPage() {
                     setSearch("")
                     setSelectedGroupId("")
                   }}
-                  className="mt-4 rounded-lg bg-[#B6C8AF] text-[#333333] px-5 py-2 text-sm font-semibold hover:bg-[#A0B59C] transition-colors"
+                  className="mt-4 rounded-lg bg-[#B6C8AF] text-[#333333] px-5 py-2 text-sm font-semibold hover:bg-[#A5B89E] transition-colors"
                 >
                   Clear Filters
                 </button>
@@ -395,42 +417,66 @@ export default function POSPage() {
                           : "border-[#E6ECE2] hover:border-[#C6D4BF] hover:shadow-sm"
                       }`}
                     >
-                      <div className="mb-2.5 text-[#7A9076]">
-                        <ProductIcon type={p.icon} size={24} />
-                      </div>
-                      <p className="text-sm font-semibold text-[#333333] leading-snug line-clamp-2">
+                      {p.isNarcotic && (
+                        <NarcoticBadge className="absolute top-2 right-2" />
+                      )}
+                      <p className="text-sm font-bold text-[#333333] leading-tight line-clamp-2 mt-1">
                         {p.name}
                       </p>
-                      {p.status === "out_of_stock" && (
-                        <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-[#999]">
-                          Out of stock
+                      {p.brand !== "—" && (
+                        <p className="text-xs text-[#666666] mt-0.5">
+                          {p.brand}
                         </p>
                       )}
-                      <div className="mt-1.5 flex w-full items-center justify-between gap-2">
-                        <span className="text-base font-bold text-[#4F6B4A]">
-                          {fmt(p.units[0]?.price ?? 0)}
+                      <div className="mt-2 flex items-center justify-between w-full gap-1">
+                        <POSStatusBadge status={p.status} />
+                        <span className="text-xs text-[#999]">
+                          {p.availableStock} avail.
                         </span>
-                        {p.status === "low_stock" && (
-                          <span
-                            className="h-1.5 w-1.5 rounded-full bg-amber-400"
-                            title="Low stock"
-                            aria-label="Low stock"
-                          />
-                        )}
                       </div>
+                      <p className="text-sm font-bold text-[#7A9076] mt-1">
+                        {fmt(
+                          p.units.find((u) => u.isBaseUnit)?.price ??
+                            p.units[0]?.price ??
+                            0,
+                        )}
+                      </p>
+                      {p.status !== "out_of_stock" && (
+                        <div className="absolute bottom-3 right-3 h-6 w-6 rounded-full bg-[#B6C8AF] text-[#333333] flex items-center justify-center text-base leading-none shadow-sm group-hover:scale-110 transition-transform">
+                          +
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
 
                 {/* Pagination */}
-                <Pagination
-                  page={page}
-                  totalPages={meta.totalPages}
-                  onPageChange={setPage}
-                  total={meta.total}
-                  pageSize={PAGE_SIZE}
-                  itemLabel="products"
-                />
+                {meta.totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className="rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#333333] hover:bg-[#E6ECE2] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-xs text-[#666666]">
+                      Page {meta.page} of {meta.totalPages}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setPage((p) => Math.min(meta.totalPages, p + 1))
+                      }
+                      disabled={page >= meta.totalPages}
+                      className="rounded-lg border border-[#C6D4BF] px-3 py-1.5 text-xs font-semibold text-[#333333] hover:bg-[#E6ECE2] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next
+                    </button>
+                    <span className="text-xs text-[#999]">
+                      {meta.total} products
+                    </span>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -438,17 +484,15 @@ export default function POSPage() {
 
         {/* ─── RIGHT: Cart ──────────────────────────────── */}
         <div
-          className={`flex flex-col bg-white border-l border-[#E6ECE2] w-full lg:w-80 xl:w-96 flex-shrink-0 ${
+          className={`flex flex-col bg-[#E6ECE2] border-l border-[#C6D4BF] w-full lg:w-80 xl:w-96 flex-shrink-0 ${
             !cartOpen ? "hidden lg:flex" : "flex"
           }`}
         >
           {/* Cart header */}
-          <div className="border-b border-[#E6ECE2] px-4 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="bg-[#E6ECE2] px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-[#333333]">
-                Current Sale
-              </p>
-              <p className="text-xs text-[#666666]">
+              <p className="text-sm font-bold text-black">Current Sale</p>
+              <p className="text-xs text-black/70">
                 {cart.cart.items.length} item
                 {cart.cart.items.length !== 1 ? "s" : ""}
               </p>
@@ -458,16 +502,16 @@ export default function POSPage() {
               className="lg:hidden text-[#333333]/70 hover:text-[#333333]"
               aria-label="Close cart"
             >
-              <X className="h-4 w-4" />
+              <IconX className="h-5 w-5" />
             </button>
           </div>
 
           {/* Cart items */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto bg-[#FAF9F4]">
             {cart.cart.items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-12 text-center">
                 <svg
-                  className="h-9 w-9 text-[#C6D4BF] mb-3"
+                  className="h-10 w-10 text-[#C6D4BF] mb-3"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -489,64 +533,72 @@ export default function POSPage() {
               </div>
             ) : (
               <div>
-                {cart.cart.items.map((item) => (
+                {cart.cart.items.map((item, i) => (
                   <div
                     key={item.id}
-                    className="px-4 py-3 border-b border-[#E6ECE2]"
+                    className={`px-4 py-3 border-b border-[#E6ECE2] ${
+                      i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/60"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-medium text-[#333333] leading-tight truncate">
-                        {item.product.name}
-                      </p>
-                      <button
-                        onClick={() => cart.removeItem(item.id)}
-                        className="text-[#C6D4BF] hover:text-red-500 transition-colors flex-shrink-0"
-                        aria-label={`Remove ${item.product.name}`}
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          aria-hidden
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                    <p className="text-xs text-[#666666] mt-0.5">
-                      {item.unit.name} · {fmt(item.unitPrice)}/unit
-                    </p>
-                    <div className="mt-2 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
+                    <div className="flex gap-3">
+                      {/* Left: info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#333333] leading-tight truncate">
+                          {item.product.name}
+                          {item.product.isNarcotic && (
+                            <NarcoticBadge className="ml-1 align-middle" />
+                          )}
+                        </p>
+                        <p className="text-xs text-[#666666] mt-0.5">
+                          {item.unit.name} · {fmt(item.unitPrice)}/unit
+                        </p>
+                      </div>
+                      {/* Right: total + remove */}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <p className="text-sm font-bold text-[#333333]">
+                          {fmt(cart.lineTotal(item))}
+                        </p>
                         <button
-                          onClick={() =>
-                            cart.updateQuantity(item.id, item.quantity - 1)
-                          }
-                          className="h-6 w-6 rounded-md border border-[#E6ECE2] text-[#666666] flex items-center justify-center hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
-                          aria-label="Decrease quantity"
+                          onClick={() => cart.removeItem(item.id)}
+                          className="text-[#C6D4BF] hover:text-red-500 transition-colors"
+                          aria-label="Remove item"
                         >
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <span className="w-7 text-center text-xs font-semibold text-[#333333]">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() =>
-                            cart.updateQuantity(item.id, item.quantity + 1)
-                          }
-                          className="h-6 w-6 rounded-md border border-[#E6ECE2] text-[#666666] flex items-center justify-center hover:bg-[#E6ECE2] hover:text-[#333333] transition-colors"
-                          aria-label="Increase quantity"
-                        >
-                          <Plus className="h-3 w-3" />
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            aria-hidden
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
                         </button>
                       </div>
-                      <span className="text-sm font-semibold text-[#333333]">
-                        {fmt(cart.lineTotal(item))}
+                    </div>
+                    {/* Qty controls */}
+                    <div className="flex items-center gap-1 mt-2">
+                      <button
+                        onClick={() =>
+                          cart.updateQuantity(item.id, item.quantity - 1)
+                        }
+                        className="h-6 w-6 rounded bg-[#C6D4BF] text-xs font-bold hover:bg-[#B5C6AE] transition-colors"
+                      >
+                        −
+                      </button>
+                      <span className="text-xs w-8 text-center font-semibold">
+                        {item.quantity}
                       </span>
+                      <button
+                        onClick={() =>
+                          cart.updateQuantity(item.id, item.quantity + 1)
+                        }
+                        className="h-6 w-6 rounded bg-[#B6C8AF] text-[#333333] text-xs font-bold hover:bg-[#A5B89E] transition-colors"
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -560,53 +612,58 @@ export default function POSPage() {
               {/* Subtotal */}
               <div className="flex items-center justify-between">
                 <span className="text-[#666666]">Subtotal</span>
-                <span className="font-medium text-[#333333]">
+                <span className="font-semibold text-[#333333]">
                   {fmt(cart.subtotal)}
                 </span>
               </div>
 
               {/* Inline discount control */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-[#666666]">
-                  Discount
-                </span>
-                <select
-                  value={discountType}
-                  onChange={(e) =>
-                    setDiscountType(
-                      e.target.value as "PERCENTAGE" | "FIXED_AMOUNT",
-                    )
-                  }
-                  className="flex-shrink-0 rounded-md border border-[#E6ECE2] px-1.5 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none"
-                  aria-label="Discount type"
-                >
-                  <option value="PERCENTAGE">%</option>
-                  <option value="FIXED_AMOUNT">Fixed</option>
-                </select>
-                <input
-                  type="number"
-                  min={0}
-                  max={discountType === "PERCENTAGE" ? 100 : undefined}
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  placeholder="0"
-                  className="w-16 rounded-md border border-[#E6ECE2] px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none"
-                />
-                <button
-                  onClick={applyDiscount}
-                  disabled={cart.cart.items.length === 0}
-                  className="rounded-md border border-[#B6C8AF] px-2.5 py-1 text-xs font-semibold text-[#4F6B4A] hover:bg-[#B6C8AF] hover:text-[#333333] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Apply
-                </button>
-                {cart.cart.billDiscount && (
-                  <button
-                    onClick={clearDiscount}
-                    className="rounded-md p-1 text-[#666666] hover:text-red-500 transition-colors"
-                    aria-label="Clear discount"
+              <div className="rounded-lg border border-[#C6D4BF] p-2.5 flex flex-col gap-2">
+                <p className="text-xs font-semibold text-[#666666]">
+                  Bill Discount
+                </p>
+                <div className="flex gap-2">
+                  <select
+                    value={discountType}
+                    onChange={(e) =>
+                      setDiscountType(
+                        e.target.value as "PERCENTAGE" | "FIXED_AMOUNT",
+                      )
+                    }
+                    className="flex-shrink-0 rounded border border-[#C6D4BF] px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <option value="PERCENTAGE">%</option>
+                    <option value="FIXED_AMOUNT">Fixed</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    max={discountType === "PERCENTAGE" ? 100 : undefined}
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    placeholder="0"
+                    className="flex-1 min-w-0 rounded border border-[#C6D4BF] px-2 py-1 text-xs focus:border-[#B6C8AF] focus:outline-none"
+                  />
+                  <button
+                    onClick={applyDiscount}
+                    disabled={cart.cart.items.length === 0}
+                    className="rounded bg-[#B6C8AF] text-[#333333] px-2.5 py-1 text-xs font-semibold hover:bg-[#A5B89E] disabled:opacity-40 transition-colors"
+                  >
+                    Apply
                   </button>
+                  {cart.cart.billDiscount && (
+                    <button
+                      onClick={clearDiscount}
+                      className="rounded bg-[#C6D4BF] text-[#333333] px-2 py-1 text-xs font-semibold hover:bg-[#B5C6AE] transition-colors"
+                    >
+                      <IconX className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {cart.cart.billDiscount && cart.discountAmount > 0 && (
+                  <p className="text-xs text-green-600">
+                    − {fmt(cart.discountAmount)} discount applied
+                  </p>
                 )}
               </div>
 
@@ -625,11 +682,11 @@ export default function POSPage() {
               )}
 
               {/* Total */}
-              <div className="flex items-center justify-between border-t border-[#E6ECE2] pt-2.5 mt-0.5">
-                <span className="text-sm font-semibold text-[#333333]">
-                  Total
+              <div className="flex items-center justify-between rounded-lg bg-[#E6ECE2] px-3 py-2 mt-1">
+                <span className="text-base font-bold text-[#333333]">
+                  TOTAL
                 </span>
-                <span className="text-2xl font-bold text-[#4F6B4A]">
+                <span className="text-2xl font-bold text-[#7A9076]">
                   {fmt(cart.total)}
                 </span>
               </div>
@@ -697,4 +754,14 @@ export default function POSPage() {
       )}
     </div>
   )
+}
+
+function POSStatusBadge({ status }: { status: string }) {
+  if (status === "in_stock")
+    return <span className="text-xs font-medium text-green-700">In Stock</span>
+  if (status === "low_stock")
+    return (
+      <span className="text-xs font-medium text-yellow-600">Low Stock</span>
+    )
+  return <span className="text-xs font-medium text-gray-400">Out of Stock</span>
 }

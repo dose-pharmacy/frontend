@@ -5,7 +5,6 @@ import AppLayout from "../layouts/AppLayout";
 import LoginPage from "../pages/LoginPage";
 import SignupPage from "../pages/SignupPage";
 import DashboardPage from "../pages/DashboardPage";
-import InventoryDashboardPage from "../pages/inventory/InventoryDashboardPage";
 import ProductsPage from "../pages/inventory/ProductsPage";
 import ProductDetailPage from "../pages/inventory/ProductDetailPage";
 import ProductGroupsPage from "../pages/inventory/ProductGroupsPage";
@@ -36,9 +35,8 @@ import PurchaseReturnDetailPage from "../pages/purchasing/PurchaseReturnDetailPa
 import PurchaseOrdersPage from "../pages/purchasing/PurchaseOrdersPage";
 import CreatePurchaseOrderPage from "../pages/purchasing/CreatePurchaseOrderPage";
 import DeliveryRegistrationPage from "../pages/purchasing/DeliveryRegistrationPage";
-import ReportsDashboardPage from "../pages/reports/ReportsDashboardPage";
-import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardPage";
 import SalesReportPage from "../pages/reports/SalesReportPage";
+import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardPage";
 import SlowMovingPage from "../pages/reports/SlowMovingPage";
 import NarcoticReportPage from "../pages/reports/NarcoticReportPage";
 import AuditTrailPage from "../pages/admin/AuditTrailPage";
@@ -61,9 +59,12 @@ export const router = createBrowserRouter([
       {
         Component: AppLayout,
         children: [
+          // Dashboard
           { path: "/dashboard", Component: DashboardPage },
+          { path: "/dashboard/sales", Component: SalesReportPage },
+          { path: "/dashboard/profitability", Component: ProfitabilityDashboardPage },
           // Inventory
-          { path: "/inventory", Component: InventoryDashboardPage },
+          { path: "/inventory", loader: () => redirect("/inventory/products") },
           { path: "/inventory/products", Component: ProductsPage },
           { path: "/inventory/products/:productId", Component: ProductDetailPage },
           { path: "/inventory/stock", Component: StockPage },
@@ -106,9 +107,9 @@ export const router = createBrowserRouter([
           { path: "/purchasing/returns", Component: PurchaseReturnPage },
           { path: "/purchasing/returns/:id", Component: PurchaseReturnDetailPage },
           // Reports
-          { path: "/reports", Component: ReportsDashboardPage },
-          { path: "/reports/sales", Component: SalesReportPage },
-          { path: "/reports/profitability", Component: ProfitabilityDashboardPage },
+          { path: "/reports", loader: () => redirect("/dashboard") },
+          { path: "/reports/sales", loader: () => redirect("/dashboard/sales") },
+          { path: "/reports/profitability", loader: () => redirect("/dashboard/profitability") },
           { path: "/reports/slow-moving", Component: SlowMovingPage },
           { path: "/reports/narcotics", Component: NarcoticReportPage },
           // Settings / admin

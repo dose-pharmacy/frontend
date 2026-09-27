@@ -1,18 +1,11 @@
-import { useState, useEffect, useCallback } from "react"
-import { ArrowUp, ArrowDown, ArrowUpDown, ChevronRight } from "lucide-react"
-import ReportsSubNav from "./ReportsSubNav"
-import PageHeader from "../../components/ui/PageHeader"
-import Button from "../../components/ui/Button"
-import Modal from "../../components/ui/Modal"
-import Pagination from "../../components/ui/Pagination"
-import ReportFilterBar from "./ReportFilterBar"
-import {
-  fmtMoney,
-  fmtNumber,
-  fmtDateTime,
-  defaultDateRange,
-} from "./reportHelpers"
-import { listLocations } from "../../features/inventory/locationsApi"
+import { useState, useEffect, useCallback } from "react";
+import ReportsSubNav from "./ReportsSubNav";
+import PageHeader from "../../components/ui/PageHeader";
+import Button from "../../components/ui/Button";
+import Modal from "../../components/ui/Modal";
+import ReportFilterBar from "./ReportFilterBar";
+import { fmtMoney, fmtNumber, fmtDateTime, defaultDateRange } from "./reportHelpers";
+import { listLocations } from "../../features/inventory/locationsApi";
 import {
   getSalesReport,
   getSalesDetail,
@@ -162,11 +155,11 @@ export default function SalesReportPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
-        breadcrumb="Reports / Sales"
-        title="Sales Report"
+        breadcrumb="Dashboard / Sales"
+        title="Sales"
         subtitle="Completed sales transactions for the selected period."
       />
-      <ReportsSubNav />
+      <DashboardSubNav />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         <ReportFilterBar
@@ -189,7 +182,7 @@ export default function SalesReportPage() {
           }}
         />
 
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />

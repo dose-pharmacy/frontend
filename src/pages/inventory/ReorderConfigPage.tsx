@@ -44,16 +44,20 @@ function validate(c: Config): Partial<Record<keyof Config, string>> {
 export default function ReorderConfigPage() {
   const navigate = useNavigate();
   const productSearch = useSearchableResource(searchProducts, true);
-  const selectedProductOption = productSearch.options.find((o) => o.value === selectedProduct) ?? null;
-  const productOptions = selectedProductOption
-    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== selectedProduct)]
-    : productSearch.options;
+
+  // ── State first ──
   const [selectedProduct, setSelectedProduct] = useState("");
   const [config, setConfig] = useState<Config>(empty());
   const [errors, setErrors] = useState<Partial<Record<keyof Config, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // ── Derived from state (safe now that selectedProduct exists) ──
+  const selectedProductOption = productSearch.options.find((o) => o.value === selectedProduct) ?? null;
+  const productOptions = selectedProductOption
+    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== selectedProduct)]
+    : productSearch.options;
 
   // Load the product's current reorder configuration whenever the selection changes.
   useEffect(() => {

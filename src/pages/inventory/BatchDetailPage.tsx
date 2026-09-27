@@ -6,15 +6,16 @@ import {
   updateBatch,
   deleteBatch,
   type BatchDetail,
-} from "../../features/inventory/inventoryService"
-import type { Transaction } from "../../features/inventory/inventoryMock"
-import Breadcrumb from "../../components/ui/Breadcrumb"
-import StatusBadge from "../../components/ui/StatusBadge"
-import Button from "../../components/ui/Button"
-import ConfirmationDialog from "../../components/ui/ConfirmationDialog"
-import Modal from "../../components/ui/Modal"
-import Input from "../../components/ui/Input"
-import FormError from "../../components/ui/FormError"
+} from "../../features/inventory/inventoryService";
+import { getBatchTransactions, type StockTransactionDto } from "../../features/inventory/stockApi";
+import Breadcrumb from "../../components/ui/Breadcrumb";
+import StatusBadge from "../../components/ui/StatusBadge";
+import Button from "../../components/ui/Button";
+import ConfirmationDialog from "../../components/ui/ConfirmationDialog";
+import Modal from "../../components/ui/Modal";
+import Input from "../../components/ui/Input";
+import DatePicker from "../../components/ui/DatePicker";
+import FormError from "../../components/ui/FormError";
 
 interface EditBatchForm {
   batchNumber: string
@@ -196,7 +197,7 @@ export default function BatchDetailPage() {
     <div className="flex-1 flex flex-col min-h-0">
       <Breadcrumb
         items={[
-          { label: "Inventory", to: "/inventory" },
+          { label: "Inventory", to: "/inventory/products" },
           { label: "Batches", to: "/inventory/batches" },
           { label: batch.batchNumber },
         ]}
@@ -234,10 +235,8 @@ export default function BatchDetailPage() {
 
         {/* Transaction history */}
         <section>
-          <h3 className="text-base font-bold text-[#333333] mb-3">
-            Transaction History
-          </h3>
-          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+          <h3 className="text-base font-bold text-[#333333] mb-3">Transaction History</h3>
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
             {transactions.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-[#666666]">
                 No transactions recorded for this batch.
@@ -387,16 +386,20 @@ export default function BatchDetailPage() {
             </div>
           </div>
 
-          <Input
-            label="Expiry Date *"
-            type="date"
-            value={editForm.expiryDate}
-            onChange={(e) => {
-              setEditForm((f) => ({ ...f, expiryDate: e.target.value }))
-              setEditErrors((er) => ({ ...er, expiryDate: undefined }))
-            }}
-            error={editErrors.expiryDate}
-          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">Expiry Date *</label>
+            <DatePicker
+              value={editForm.expiryDate}
+              onChange={(v) => {
+                setEditForm((f) => ({ ...f, expiryDate: v }));
+                setEditErrors((er) => ({ ...er, expiryDate: undefined }));
+              }}
+              placeholder="Select expiry date..."
+            />
+            {editErrors.expiryDate && (
+              <p className="text-xs text-red-600">{editErrors.expiryDate}</p>
+            )}
+          </div>
 
           <Input
             label="Purchase Cost"

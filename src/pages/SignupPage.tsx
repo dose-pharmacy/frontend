@@ -95,7 +95,7 @@ export default function SignupPage() {
     <div>
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-[#333333]">Create your account</h2>
-        <p className="mt-1 text-sm text-[#666666]">Register to start using PharmaCare</p>
+        <p className="mt-1 text-sm text-[#666666]">Register to start using DOSE PHARMACY</p>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">

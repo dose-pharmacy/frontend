@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Search } from "lucide-react"
 import {
-  createProductGroup,
   deactivateProductGroup,
   getProductGroup,
   listProductGroups,
@@ -9,83 +8,18 @@ import {
   ProductGroupsApiError,
   type ProductGroupDto,
   type ProductGroupListMeta,
-} from "../../features/inventory/productGroupsApi"
-import PageHeader from "../../components/ui/PageHeader"
-import Button from "../../components/ui/Button"
-import Pagination from "../../components/ui/Pagination"
-import EmptyState from "../../components/ui/EmptyState"
-import StatusChip from "../../components/ui/StatusChip"
-import Modal from "../../components/ui/Modal"
-import Input from "../../components/ui/Input"
-import FormError from "../../components/ui/FormError"
-import MetricCard from "../../components/ui/MetricCard"
+} from "../../features/inventory/productGroupsApi";
+import PageHeader from "../../components/ui/PageHeader";
+import Button from "../../components/ui/Button";
+import ProductGroupFormModal from "../../components/ui/ProductGroupFormModal";
+import { IconPencil, IconRefresh, IconTrash } from "../../components/ui/icons";
+import EmptyState from "../../components/ui/EmptyState";
+import Modal from "../../components/ui/Modal";
 
-const PAGE_LIMIT = 20
-
-interface GroupForm {
-  name: string
-  description: string
-  margin: string
-  isActive: boolean
-}
-
-function emptyForm(): GroupForm {
-  return { name: "", description: "", margin: "", isActive: true }
-}
-
-function formErrors(f: GroupForm) {
-  const e: Partial<Record<keyof GroupForm, string>> = {}
-  if (!f.name.trim()) e.name = "Name is required."
-  if (
-    !f.margin ||
-    isNaN(Number(f.margin)) ||
-    Number(f.margin) < 0 ||
-    Number(f.margin) > 100
-  )
-    e.margin = "Enter a valid margin (0–100)."
-  return e
-}
+const PAGE_LIMIT = 20;
 
 function apiErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ProductGroupsApiError ? err.message : fallback
-}
-
-// ─────────────────────────────────────────────────────────────
-// Toggle Switch
-// ─────────────────────────────────────────────────────────────
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  label?: string
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#B6C8AF] focus:ring-offset-2 ${
-          checked ? "bg-[#B6C8AF]" : "bg-gray-300"
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            checked ? "translate-x-6" : "translate-x-1"
-          }`}
-        />
-      </button>
-      {label && (
-        <span className="text-sm font-medium text-[#333333]">
-          {checked ? "Active" : "Inactive"}
-        </span>
-      )}
-    </div>
-  )
 }
 
 export default function ProductGroupsPage() {
@@ -108,14 +42,7 @@ export default function ProductGroupsPage() {
   // Confirm activate/deactivate target
   const [confirmTarget, setConfirmTarget] = useState<ProductGroupDto | null>(
     null,
-  )
-
-  // ── Form state ──
-  const [form, setForm] = useState<GroupForm>(emptyForm())
-  const [errors, setErrors] =
-    useState<Partial<Record<keyof GroupForm, string>>>({})
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
+  );
 
   // ── Row action state ──
   const [togglingId, setTogglingId] = useState<string | null>(null)
@@ -158,24 +85,13 @@ export default function ProductGroupsPage() {
   }, [search])
 
   function openAdd() {
-    setEditTarget(null)
-    setForm(emptyForm())
-    setErrors({})
-    setFormError(null)
-    setModalOpen(true)
+    setEditTarget(null);
+    setModalOpen(true);
   }
 
   function openEdit(g: ProductGroupDto) {
-    setEditTarget(g)
-    setForm({
-      name: g.name,
-      description: g.description ?? "",
-      margin: String(g.defaultProfitMargin ?? 0),
-      isActive: g.isActive,
-    })
-    setErrors({})
-    setFormError(null)
-    setModalOpen(true)
+    setEditTarget(g);
+    setModalOpen(true);
   }
 
   // ── Detail: open with row data, then refetch the full record ──
@@ -190,46 +106,6 @@ export default function ProductGroupsPage() {
         /* keep the row data if the refetch fails */
       })
       .finally(() => setDetailLoading(false))
-  }
-
-  async function handleSave() {
-    const e = formErrors(form)
-    if (Object.keys(e).length) {
-      setErrors(e)
-      return
-    }
-    setSaving(true)
-    setFormError(null)
-    try {
-      if (editTarget) {
-        await updateProductGroup(editTarget.id, {
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          defaultProfitMargin: Number(form.margin),
-          isActive: form.isActive,
-        })
-      } else {
-        await createProductGroup({
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          defaultProfitMargin: Number(form.margin),
-          isActive: form.isActive,
-        })
-      }
-      setModalOpen(false)
-      await reload(search, page)
-    } catch (err) {
-      setFormError(
-        apiErrorMessage(
-          err,
-          editTarget
-            ? "Could not save the group. Please try again."
-            : "Could not create the group. Please try again.",
-        ),
-      )
-    } finally {
-      setSaving(false)
-    }
   }
 
   // ── Ask for confirmation (opens custom modal) ──
@@ -264,15 +140,8 @@ export default function ProductGroupsPage() {
     }
   }
 
-  const avgMargin = groups.length
-    ? (
-        groups.reduce((s, g) => s + (g.defaultProfitMargin ?? 0), 0) /
-        groups.length
-      ).toFixed(1)
-    : "—"
-
-  const totalGroups = meta?.total ?? groups.length
-  const totalPages = meta?.totalPages ?? 1
+  const totalGroups = meta?.total ?? groups.length;
+  const totalPages = meta?.totalPages ?? 1;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -283,21 +152,7 @@ export default function ProductGroupsPage() {
         actions={<Button onClick={openAdd}>+ Add New Group</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <MetricCard
-            title="Total Groups"
-            value={loading ? "—" : totalGroups}
-            icon={<GroupIcon />}
-          />
-          <MetricCard
-            title="Average Margin"
-            value={loading ? "—" : `${avgMargin}%`}
-            icon={<PercentIcon />}
-          />
-        </div>
-
+      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {/* Error banner */}
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between gap-3">
@@ -312,7 +167,7 @@ export default function ProductGroupsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {/* Toolbar: search + pagination info */}
           <div className="px-4 py-3 border-b border-[#E6ECE2] flex flex-wrap items-center justify-between gap-3">
             <div className="relative max-w-sm flex-1 min-w-[200px]">
@@ -430,15 +285,10 @@ export default function ProductGroupsPage() {
                               className="inline-flex items-center gap-1 text-xs font-semibold text-[#7A9076] hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Edit"
                             >
-                              <svg
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                                className="h-3.5 w-3.5"
-                                aria-hidden
-                              >
-                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                              </svg>
-                              Edit
+                              <span className="inline-flex items-center gap-1">
+                                <IconPencil className="h-3.5 w-3.5" />
+                                Edit
+                              </span>
                             </button>
                             <button
                               onClick={() => requestToggleActive(g)}
@@ -448,41 +298,11 @@ export default function ProductGroupsPage() {
                               }`}
                               title={g.isActive ? "Deactivate" : "Activate"}
                             >
-                              {togglingId === g.id ? (
-                                "Saving…"
-                              ) : g.isActive ? (
-                                <>
-                                  <svg
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                    className="h-3.5 w-3.5"
-                                    aria-hidden
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM8 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm3-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>{" "}
-                                  Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <svg
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                    className="h-3.5 w-3.5"
-                                    aria-hidden
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>{" "}
-                                  Activate
-                                </>
-                              )}
+                              {togglingId === g.id
+                                ? "Saving…"
+                                : g.isActive
+                                  ? <span className="inline-flex items-center gap-1"><IconTrash className="h-3.5 w-3.5" />Deactivate</span>
+                                  : <span className="inline-flex items-center gap-1"><IconRefresh className="h-3.5 w-3.5" />Activate</span>}
                             </button>
                           </div>
                         </td>
@@ -506,73 +326,15 @@ export default function ProductGroupsPage() {
         </div>
       </div>
 
-      {/* ─────────── Add / Edit Modal ─────────── */}
-      <Modal
+      {/* ─────────── Add / Edit Group Modal (shared) ─────────── */}
+      <ProductGroupFormModal
         open={modalOpen}
-        title={editTarget ? "Edit Group" : "Add New Group"}
+        group={editTarget}
         onClose={() => setModalOpen(false)}
-        size="md"
-      >
-        <div className="flex flex-col gap-4">
-          <FormError message={formError} />
-
-          <Input
-            label="Group Name"
-            value={form.name}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, name: e.target.value }))
-              setErrors((er) => ({ ...er, name: undefined }))
-            }}
-            error={errors.name}
-          />
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#333333]">
-              Description
-            </label>
-            <textarea
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 resize-none"
-            />
-          </div>
-
-          <Input
-            label="Profit Margin (%)"
-            type="number"
-            min={0}
-            max={100}
-            value={form.margin}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, margin: e.target.value }))
-              setErrors((er) => ({ ...er, margin: undefined }))
-            }}
-            error={errors.margin}
-          />
-
-          {/* Status toggle */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[#333333]">Status</label>
-            <ToggleSwitch
-              checked={form.isActive}
-              onChange={(v) => setForm((f) => ({ ...f, isActive: v }))}
-              label="Status"
-            />
-          </div>
-
-          <div className="flex gap-3 justify-end mt-2">
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} loading={saving}>
-              {editTarget ? "Save Changes" : "Create Group"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onSaved={async () => {
+          await reload(search, page);
+        }}
+      />
 
       {/* ─────────── Detail Modal ─────────── */}
       <Modal
@@ -802,40 +564,3 @@ export default function ProductGroupsPage() {
   )
 }
 
-function GroupIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"
-      />
-    </svg>
-  )
-}
-
-function PercentIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"
-      />
-    </svg>
-  )
-}

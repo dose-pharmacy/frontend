@@ -24,18 +24,10 @@ import {
   type CreatePurchaseOrderFromRequirementInput,
   type UpdatePurchaseOrderItemInput,
 } from "../../features/purchasing/purchaseOrdersApi"
-import {
-  listSuppliers,
-  type SupplierDto,
-} from "../../features/purchasing/suppliersApi"
-import {
-  listProducts,
-  type ProductDto,
-} from "../../features/inventory/productsApi"
-import {
-  listRequirements,
-  type RequirementLineDto,
-} from "../../features/purchasing/requirementsApi"
+import { listSuppliers, getSupplierById, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import AddSupplier from "./AddSupplier"
+import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
+import { listRequirements, type RequirementLineDto } from "../../features/purchasing/requirementsApi"
 import type { POItem, POStatus } from "./PurchaseOrdersPage"
 import SearchableSelect, { type SearchableOption } from "../../components/ui/SearchableSelect"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
@@ -55,11 +47,233 @@ function fmtMoney(n: number) {
   return `${n.toLocaleString("en-ET")} ETB`
 }
 
-function itemTotal(item: POItem) {
-  return item.quantity * item.unitCost
+function itemTotal(item: POItem) { return item.quantity * item.unitCost }
+function orderTotal(items: POItem[]) { return items.reduce((s, i) => s + itemTotal(i), 0) }
+
+// ─── Custom DatePicker (branded popup calendar) ───────────────────────────────
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+const WEEKDAYS = ["Mo","Tu","We","Th","Fr","Sa","Su"]
+
+function toISO(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
-function orderTotal(items: POItem[]) {
-  return items.reduce((s, i) => s + itemTotal(i), 0)
+
+function fromISO(s: string): Date | null {
+  if (!s) return null
+  const d = new Date(s + "T00:00:00")
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function fmtDisplay(s: string): string {
+  const d = fromISO(s)
+  if (!d) return ""
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+/** Build a 6x7 grid (Monday-first) for the given month. */
+function buildGrid(viewDate: Date): Date[] {
+  const year = viewDate.getFullYear()
+  const month = viewDate.getMonth()
+  const first = new Date(year, month, 1)
+  // Monday = 0 ... Sunday = 6
+  const startOffset = (first.getDay() + 6) % 7
+  const gridStart = new Date(year, month, 1 - startOffset)
+  const cells: Date[] = []
+  for (let i = 0; i < 42; i++) {
+    cells.push(new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i))
+  }
+  return cells
+}
+
+function DatePicker({
+  value,
+  onChange,
+  disabled,
+  placeholder = "Select a date...",
+}: {
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = fromISO(value)
+  const [viewDate, setViewDate] = useState<Date>(selected ?? new Date())
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Keep the popup month in sync when the value changes externally.
+  useEffect(() => {
+    const d = fromISO(value)
+    if (d) setViewDate(d)
+  }, [value])
+
+  // Close on outside click / Escape.
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDoc)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const today = new Date()
+  const todayISO = toISO(today)
+  const selectedISO = selected ? toISO(selected) : ""
+  const viewYear = viewDate.getFullYear()
+  const viewMonth = viewDate.getMonth()
+  const grid = buildGrid(viewDate)
+
+  function prevMonth() {
+    setViewDate(new Date(viewYear, viewMonth - 1, 1))
+  }
+  function nextMonth() {
+    setViewDate(new Date(viewYear, viewMonth + 1, 1))
+  }
+  function pick(d: Date) {
+    onChange(toISO(d))
+    setOpen(false)
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      {/* Trigger — matches the other inputs */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="w-full rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-left text-[#4A4A4A] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between gap-2 transition-colors hover:border-[#B6C8AF]"
+      >
+        <span className={value ? "text-[#4A4A4A]" : "text-[#9A9A9A]"}>
+          {value ? fmtDisplay(value) : placeholder}
+        </span>
+        <svg
+          className="h-4 w-4 text-[#7A9076] shrink-0"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {/* Popup calendar */}
+      {open && (
+        <div className="absolute z-50 mt-2 rounded-xl border border-[#E6ECE2] bg-white shadow-lg p-3 w-[19rem]">
+          {/* Header: prev / month-year / next */}
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={prevMonth}
+              aria-label="Previous month"
+              className="h-8 w-8 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            <div className="text-sm font-bold text-[#4A4A4A]">
+              {MONTHS[viewMonth]} {viewYear}
+            </div>
+
+            <button
+              type="button"
+              onClick={nextMonth}
+              aria-label="Next month"
+              className="h-8 w-8 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Weekday header */}
+          <div className="grid grid-cols-7 mb-1">
+            {WEEKDAYS.map((d) => (
+              <div
+                key={d}
+                className="h-8 flex items-center justify-center text-[0.7rem] uppercase tracking-wide text-[#8A8A8A] font-semibold"
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Day grid */}
+          <div className="grid grid-cols-7">
+            {grid.map((d, i) => {
+              const iso = toISO(d)
+              const inMonth = d.getMonth() === viewMonth
+              const isSelected = iso === selectedISO
+              const isToday = iso === todayISO
+
+              let cls =
+                "h-9 w-9 mx-auto rounded-lg text-sm inline-flex items-center justify-center transition-colors "
+
+              if (isSelected) {
+                cls += "bg-[#B6C8AF] text-[#333333] font-bold hover:bg-[#A5B89E]"
+              } else if (!inMonth) {
+                cls += "text-[#C8C8C8] hover:bg-[#F3F5F0]"
+              } else if (isToday) {
+                cls += "text-[#4A4A4A] ring-1 ring-inset ring-[#B6C8AF] hover:bg-[#E6ECE2]"
+              } else {
+                cls += "text-[#4A4A4A] hover:bg-[#E6ECE2]"
+              }
+
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => pick(d)}
+                  className={cls}
+                >
+                  {d.getDate()}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Quick actions */}
+          <div className="mt-3 pt-3 border-t border-[#E6ECE2] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                onChange("")
+                setOpen(false)
+              }}
+              className="text-xs font-semibold text-[#7A7A7A] hover:text-[#4A4A4A] transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => pick(today)}
+              className="text-xs font-semibold text-[#7A9076] hover:text-[#5F7359] transition-colors"
+            >
+              Today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
@@ -240,9 +454,6 @@ function AddProductModal({
     setReqLineId("")
   }
 
-  const SC =
-    "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
-
   return (
     <Modal
       open={open}
@@ -373,8 +584,6 @@ function EditItemModal({ item, error, onClose, onSave }: {
     )
   }
 
-  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
-
   return (
     <Modal open={!!item} title="Edit Order Item" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -414,7 +623,6 @@ function AcceptShortageModal({ target, quantity, reason, error, setQuantity, set
   onClose: () => void
   onConfirm: () => void
 }) {
-  const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
   return (
     <Modal open={!!target} title="Accept Shortage" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
@@ -496,6 +704,120 @@ function ConfirmModal({
   )
 }
 
+// ─── Shared input class ───────────────────────────────────────────────────────
+
+const SC = "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 bg-white"
+const ROC = "w-full rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-3.5 py-2.5 text-sm text-[#666666]"
+
+// ─── PO Detail skeleton ───────────────────────────────────────────────────────
+// Shimmer placeholder shown while a purchase order is loading — mirrors the
+// loaded detail layout (header, back nav, left cards + order summary) so the
+// page doesn't jump once the real data arrives.
+
+function PurchaseOrderDetailSkeleton() {
+  return (
+    <div className="flex-1 flex flex-col min-h-0 animate-pulse">
+      {/* Header (mirrors PageHeader for a loaded PO) */}
+      <div className="px-6 pt-5 pb-4 border-b border-[#E6ECE2] bg-white flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div className="h-3 w-48 rounded bg-[#E6ECE2] mb-1.5" />
+          <div className="h-6 w-56 rounded-lg bg-[#E6ECE2]" />
+          <div className="h-3 w-28 rounded bg-[#E6ECE2] mt-1.5" />
+        </div>
+        <div className="h-6 w-24 rounded-full bg-[#E6ECE2]" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6">
+        {/* Back nav */}
+        <div className="h-4 w-32 rounded bg-[#E6ECE2] mb-5" />
+
+        <div className="grid lg:grid-cols-3 gap-5">
+          {/* ── LEFT COLUMN ── */}
+          <div className="lg:col-span-2 flex flex-col gap-5">
+            {/* Order Status */}
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+              <div className="h-3 w-28 rounded bg-[#E6ECE2] mb-4" />
+              <div className="h-8 w-full rounded-lg bg-[#E6ECE2] mb-2" />
+              <div className="h-8 w-full rounded-lg bg-[#E6ECE2] mb-2" />
+              <div className="h-8 w-2/3 rounded-lg bg-[#E6ECE2]" />
+            </div>
+
+            {/* Order Information */}
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+              <div className="h-3 w-36 rounded bg-[#E6ECE2] mb-4" />
+              <div className="grid sm:grid-cols-2 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i}>
+                    <div className="h-3 w-24 rounded bg-[#E6ECE2] mb-2" />
+                    <div className="h-9 w-full rounded-lg bg-[#E6ECE2]" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Supplier */}
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+              <div className="h-3 w-20 rounded bg-[#E6ECE2] mb-4" />
+              <div className="h-9 w-full rounded-lg bg-[#E6ECE2]" />
+              <div className="mt-4 grid sm:grid-cols-2 gap-3">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i}>
+                    <div className="h-2.5 w-20 rounded bg-[#E6ECE2] mb-1.5" />
+                    <div className="h-4 w-32 rounded bg-[#E6ECE2]" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Order Items */}
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+              <div className="px-5 py-3 border-b border-[#E6ECE2]">
+                <div className="h-3 w-24 rounded bg-[#E6ECE2]" />
+              </div>
+              <div>
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="px-5 py-3.5 flex items-center gap-4 border-b border-[#E6ECE2]/60 last:border-b-0"
+                  >
+                    <div className="flex-1">
+                      <div className="h-4 w-2/3 rounded bg-[#E6ECE2]" />
+                      <div className="h-3 w-1/3 rounded bg-[#E6ECE2] mt-1.5" />
+                    </div>
+                    <div className="h-4 w-16 rounded bg-[#E6ECE2]" />
+                    <div className="h-4 w-20 rounded bg-[#E6ECE2]" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+              <div className="h-3 w-36 rounded bg-[#E6ECE2] mb-3" />
+              <div className="h-16 w-full rounded-xl bg-[#E6ECE2]" />
+            </div>
+          </div>
+
+          {/* ── RIGHT COLUMN ── */}
+          <div className="flex flex-col gap-5">
+            {/* Order Summary */}
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+              <div className="h-3 w-28 rounded bg-[#E6ECE2] mb-4" />
+              <div className="space-y-3">
+                <div className="h-4 w-full rounded bg-[#E6ECE2]" />
+                <div className="h-4 w-full rounded bg-[#E6ECE2]" />
+                <div className="h-6 w-3/4 rounded bg-[#E6ECE2]" />
+              </div>
+              <div className="h-10 w-full rounded-lg bg-[#E6ECE2] mt-5" />
+              <div className="h-10 w-full rounded-lg bg-[#E6ECE2] mt-2" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CreatePurchaseOrderPage() {
@@ -515,6 +837,12 @@ export default function CreatePurchaseOrderPage() {
   const requirementReference = searchParams.get("requirementReference")
   const productName = searchParams.get("productName")
   const productSku = searchParams.get("productSku")
+
+  // Reorder → Create PO prefill: the reorder row carries the product id and
+  // its base unit, which the requirement prefill above doesn't have.
+  const reorderProductId = searchParams.get("productId")
+  const prefilledUnitId = searchParams.get("unitId")
+  const prefilledUnitName = searchParams.get("unitName")
 
   // Track if we're in from-requirement mode
   const isFromRequirement = isNew && !!requirementLineId
@@ -543,6 +871,7 @@ export default function CreatePurchaseOrderPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
   const [addProductOpen, setAddProductOpen] = useState(false)
+  const [addSupplierOpen, setAddSupplierOpen] = useState(false)
 
   // Status action modals
   const [markDeliveryOpen, setMarkDeliveryOpen] = useState(false)
@@ -616,17 +945,27 @@ export default function CreatePurchaseOrderPage() {
       if (prefilledDelivDate) setDelivDate(prefilledDelivDate)
       if (prefilledNotes) setNotes(prefilledNotes)
     }
-  }, [
-    isFromRequirement,
-    requirementLineId,
-    prefilledQuantity,
-    prefilledUnitCost,
-    prefilledDelivDate,
-    prefilledNotes,
-    productName,
-    products,
-    items.length,
-  ])
+  }, [isFromRequirement, requirementLineId, prefilledQuantity, prefilledUnitCost, prefilledDelivDate, prefilledNotes, productName, products, items.length])
+
+  // Handle reorder prefill: open with the selected reorder product already
+  // added as a line item (no requirement link). The suggested reorder
+  // quantity comes through `quantity`; the user still reviews and edits
+  // everything before explicitly creating the purchase order.
+  useEffect(() => {
+    if (!isNew || !reorderProductId || items.length > 0) return
+    const qty = Number(prefilledQuantity)
+    if (!Number.isFinite(qty) || qty <= 0) return
+    setItems([{
+      id: `draft-reorder-${reorderProductId}`,
+      productId: reorderProductId,
+      product: productName ?? "",
+      unitId: prefilledUnitId || null,
+      unitLabel: prefilledUnitName ?? "",
+      requirementLineId: null,
+      quantity: qty,
+      unitCost: parseFloat(prefilledUnitCost ?? "0") || 0,
+    }])
+  }, [isNew, reorderProductId, prefilledQuantity, prefilledUnitCost, productName, prefilledUnitId, prefilledUnitName, items.length])
 
   // Load the PO from the real endpoint when editing/viewing.
   useEffect(() => {
@@ -689,6 +1028,16 @@ export default function CreatePurchaseOrderPage() {
       : null)
   const total = orderTotal(items)
   const isReadOnly = !editMode || status === "CLOSED" || status === "CANCELLED"
+
+  /** Supplier created in the shared Add Supplier modal — add it to the local
+   * supplier options (so it's immediately selectable) and auto-select it as
+   * the purchase order's supplier. The modal closes itself after saving. */
+  function handleSupplierCreated(created: SupplierDto) {
+    setSuppliers((prev) =>
+      prev.some((s) => s.id === created.id) ? prev : [created, ...prev],
+    )
+    setSuppId(created.id)
+  }
 
   /**
    * Build the create/update items payload. `requirementLineId` is omitted
@@ -908,27 +1257,10 @@ export default function CreatePurchaseOrderPage() {
     }
   }
 
-  const SC =
-    "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"
-  const ROC =
-    "w-full rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-3.5 py-2.5 text-sm text-[#666666]"
-
   const reference = poState?.poNumber ?? (isNew ? "New Purchase Order" : "")
 
   if (loadingPO) {
-    return (
-      <div className="flex-1 flex flex-col min-h-0">
-        <PageHeader
-          breadcrumb="Purchasing / Orders"
-          title="Purchase Order"
-          subtitle="Loading..."
-        />
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
-          <p className="text-sm text-[#666666]">Loading purchase order...</p>
-        </div>
-      </div>
-    )
+    return <PurchaseOrderDetailSkeleton />
   }
 
   if (!isNew && pageError) {
@@ -1070,11 +1402,10 @@ export default function CreatePurchaseOrderPage() {
                       {fmtDate(poState?.orderDate ?? orderDate)}
                     </div>
                   ) : (
-                    <input
-                      type="date"
+                    <DatePicker
                       value={orderDate}
-                      onChange={(e) => setOrderDate(e.target.value)}
-                      className={SC}
+                      onChange={setOrderDate}
+                      placeholder="Select order date..."
                     />
                   )}
                 </div>
@@ -1085,11 +1416,10 @@ export default function CreatePurchaseOrderPage() {
                   {isReadOnly ? (
                     <div className={ROC}>{fmtDate(delivDate) || "—"}</div>
                   ) : (
-                    <input
-                      type="date"
+                    <DatePicker
                       value={delivDate}
-                      onChange={(e) => setDelivDate(e.target.value)}
-                      className={SC}
+                      onChange={setDelivDate}
+                      placeholder="Select delivery date..."
                     />
                   )}
                 </div>
@@ -1098,9 +1428,20 @@ export default function CreatePurchaseOrderPage() {
 
             {/* Supplier selection */}
             <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-              <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">
-                Supplier <span className="text-red-400">*</span>
-              </p>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
+                  Supplier <span className="text-red-400">*</span>
+                </p>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setAddSupplierOpen(true)}
+                    className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                  >
+                    + Add New Supplier
+                  </button>
+                )}
+              </div>
               {isReadOnly ? (
                 <div className={ROC}>{supplierView?.name ?? "—"}</div>
               ) : (
@@ -1137,7 +1478,7 @@ export default function CreatePurchaseOrderPage() {
             </div>
 
             {/* Order items */}
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
@@ -1607,6 +1948,13 @@ export default function CreatePurchaseOrderPage() {
         error={actionError}
         onClose={() => setCancelOpen(false)}
         onConfirm={() => handleStatusAction("cancel")}
+      />
+
+      {/* Shared Add Supplier modal — same UI as Purchasing → Accounts Payable → + Add Supplier */}
+      <AddSupplier
+        open={addSupplierOpen}
+        onClose={() => setAddSupplierOpen(false)}
+        onCreated={handleSupplierCreated}
       />
 
       {toast && <Toast message={toast} onDone={() => setToast("")} />}

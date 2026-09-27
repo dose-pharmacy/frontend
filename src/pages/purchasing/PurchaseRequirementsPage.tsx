@@ -5,7 +5,8 @@ import Modal from "../../components/ui/Modal"
 import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
-import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
+import DatePicker from "../../components/ui/DatePicker"
+import { IconPencil, IconTrash, IconBox } from "../../components/ui/icons"
 import {
   listRequirements,
   createRequirement,
@@ -34,14 +35,19 @@ import {
   type ProductDto,
 } from "../../features/inventory/productsApi"
 import { getReorderSuggestions } from "../../features/inventory/reorderApi"
-import SearchableSelect, { type SearchableOption } from "../../components/ui/SearchableSelect"
+import SearchableSelect, {
+  type SearchableOption,
+} from "../../components/ui/SearchableSelect"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import { searchProducts } from "../../features/inventory/searchSelectors"
 import { useProductUnits } from "../../features/inventory/useProductUnits"
-import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions"
+import {
+  toBaseQuantity,
+  formatFactor,
+} from "../../features/inventory/unitOptions"
 import type { CreateRequirementLineInput } from "../../features/purchasing/requirementsApi"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type RequirementStatus = "OPEN" | "PARTIALLY_FULFILLED" | "FULFILLED" | "CLOSED" | string & {}
 type LineStatus = "OPEN" | "PARTIALLY_FULFILLED" | "FULFILLED" | "CLOSED" | string & {}
@@ -83,7 +89,7 @@ interface Requirement {
   lines: RequirementLine[]
 }
 
-// ─── API -> UI adapters ───────────────────────────────────────────────────────
+// ─── API → UI adapters ───────────────────────────────────────────────────────
 
 function reasonLabel(code: string | null | undefined): LineReason {
   switch (code) {
@@ -128,9 +134,9 @@ function mapLine(l: RequirementLineDto): RequirementLine {
     reasonCode: l.reasonCode,
     notes: l.notes ?? "",
     status: l.status,
-    activeOrderCount: l.activeOrderCount ?? l.purchaseOrderItems?.length ?? 0,
-    hasPo: (l.purchaseOrderItems?.length ?? 0) > 0,
-    purchaseOrderItems: l.purchaseOrderItems,
+    activeOrderCount: l.activeOrderCount ?? l.allocations?.length ?? 0,
+    hasPo: (l.allocations?.length ?? 0) > 0,
+    allocations: l.allocations ?? [],
   }
 }
 
@@ -153,7 +159,7 @@ function errMessage(e: unknown): string {
     : "Something went wrong. Please try again."
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtDate(d: string) {
   if (!d) return "—"
@@ -167,42 +173,44 @@ function fmtDate(d: string) {
 const PAGE_SIZE = 50
 
 function ReqBadge({ status }: { status: RequirementStatus }) {
-  const map: Record<string, StatusTone> = {
-    OPEN: "sage",
-    PARTIALLY_FULFILLED: "blue",
-    FULFILLED: "green",
-    CLOSED: "gray",
+  const map: Record<string, string> = {
+    OPEN: "bg-[#E6ECE2] text-[#7A9076] border border-[#C6D4BF]",
+    PARTIALLY_FULFILLED: "bg-blue-100 text-blue-700",
+    FULFILLED: "bg-green-100 text-green-700",
+    CLOSED: "bg-gray-100 text-gray-500",
   }
   const labelMap: Record<string, string> = {
     PARTIALLY_FULFILLED: "PARTIALLY FULFILLED",
   }
   return (
-    <StatusChip
-      label={labelMap[status] ?? status}
-      tone={map[status] ?? map.OPEN}
-    />
+    <span
+      className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? map.OPEN}`}
+    >
+      {labelMap[status] ?? status}
+    </span>
   )
 }
 
 function LineBadge({ status }: { status: LineStatus }) {
-  const map: Record<string, StatusTone> = {
-    OPEN: "sage",
-    PARTIALLY_FULFILLED: "blue",
-    FULFILLED: "green",
-    CLOSED: "gray",
+  const map: Record<string, string> = {
+    OPEN: "bg-[#E6ECE2] text-[#7A9076] border border-[#C6D4BF]",
+    PARTIALLY_FULFILLED: "bg-blue-100 text-blue-700",
+    FULFILLED: "bg-green-100 text-green-700",
+    CLOSED: "bg-gray-100 text-gray-500",
   }
   const labelMap: Record<string, string> = {
     PARTIALLY_FULFILLED: "PARTIALLY FULFILLED",
   }
   return (
-    <StatusChip
-      label={labelMap[status] ?? status}
-      tone={map[status] ?? map.OPEN}
-    />
+    <span
+      className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? map.OPEN}`}
+    >
+      {labelMap[status] ?? status}
+    </span>
   )
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
+// ─── Toast ───────────────────────────────────────────────────────────────────
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   useEffect(() => {
@@ -228,12 +236,12 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   )
 }
 
-// ─── OverflowMenu ─────────────────────────────────────────────────────────────
+// ─── OverflowMenu ────────────────────────────────────────────────────────────
 
 function OverflowMenu({
   items,
 }: {
-  items: { label: string, danger?: boolean, onClick: () => void }[]
+  items: { label: string; danger?: boolean; onClick: () => void }[]
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -282,7 +290,7 @@ function OverflowMenu({
   )
 }
 
-// ─── Root page ────────────────────────────────────────────────────────────────
+// ─── Root page ───────────────────────────────────────────────────────────────
 
 export default function PurchaseRequirementsPage() {
   const [reqs, setReqs] = useState<Requirement[]>([])
@@ -298,13 +306,6 @@ export default function PurchaseRequirementsPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [summary, setSummary] = useState({
-    open: 0,
-    partiallyFulfilled: 0,
-    fulfilled: 0,
-    closed: 0,
-    total: 0,
-  })
 
   function showToast(msg: string) {
     setToast(msg)
@@ -324,22 +325,6 @@ export default function PurchaseRequirementsPage() {
         setReqs(result.data.map(mapRequirement))
         setTotalPages(result.meta.totalPages)
         setTotalCount(result.meta.total)
-        // Calculate summary from current page data (approximation) - in a real app you'd fetch summary separately
-        const counts = {
-          open: 0,
-          partiallyFulfilled: 0,
-          fulfilled: 0,
-          closed: 0,
-          total: result.meta.total,
-        }
-        result.data.forEach((r) => {
-          if (r.status === "OPEN") counts.open++
-          else if (r.status === "PARTIALLY_FULFILLED")
-            counts.partiallyFulfilled++
-          else if (r.status === "FULFILLED") counts.fulfilled++
-          else if (r.status === "CLOSED") counts.closed++
-        })
-        setSummary(counts)
       })
       .catch((e) => {
         if (!cancelled) setLoadError(errMessage(e))
@@ -387,7 +372,6 @@ export default function PurchaseRequirementsPage() {
         setPage={setPage}
         totalPages={totalPages}
         totalCount={totalCount}
-        summary={summary}
       />
       <NewRequirementModal
         open={newOpen}
@@ -412,7 +396,7 @@ export default function PurchaseRequirementsPage() {
   )
 }
 
-// ─── Requirements List Screen ─────────────────────────────────────────────────
+// ─── Requirements List Screen ────────────────────────────────────────────────
 
 function RequirementsListScreen({
   reqs,
@@ -431,7 +415,6 @@ function RequirementsListScreen({
   setPage,
   totalPages,
   totalCount,
-  summary,
 }: {
   reqs: Requirement[]
   loading: boolean
@@ -449,13 +432,6 @@ function RequirementsListScreen({
   setPage: (v: number) => void
   totalPages: number
   totalCount: number
-  summary: {
-    open: number
-    partiallyFulfilled: number
-    fulfilled: number
-    closed: number
-    total: number
-  }
 }) {
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Requirement | null>(null)
@@ -488,13 +464,13 @@ function RequirementsListScreen({
           <div className="flex gap-2">
             <button
               onClick={onNewReq}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-white text-[#7A9076] px-3.5 py-2 text-sm font-semibold hover:bg-[#E6ECE2] transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#B6C8AF] text-[#333333] px-3.5 py-2 text-sm font-semibold hover:bg-[#E6ECE2] transition-colors"
             >
               + New Requirement
             </button>
             <button
               onClick={onGenerate}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2 text-sm font-semibold text-[#7A9076] hover:bg-[#E6ECE2] transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2 text-sm font-medium text-[#333333] hover:bg-[#E6ECE2] transition-colors"
             >
               Generate from Reorder
             </button>
@@ -505,8 +481,8 @@ function RequirementsListScreen({
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex-1 min-w-[200px]">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <div className="flex-1">
               <SearchInput
                 value={search}
                 onChange={(v) => {
@@ -537,7 +513,7 @@ function RequirementsListScreen({
                   setStatusFilter("")
                   setPage(1)
                 }}
-                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                className="text-xs font-semibold text-[#7A9076] hover:underline"
               >
                 Reset
               </button>
@@ -545,74 +521,8 @@ function RequirementsListScreen({
           </div>
         </div>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          {([
-            [
-              "Open Requirements",
-              summary.open,
-              "text-[#7A9076]",
-              "M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z",
-            ],
-            [
-              "Partially Fulfilled",
-              summary.partiallyFulfilled,
-              "text-blue-600",
-              "M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0zM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632z",
-            ],
-            [
-              "Fulfilled Requirements",
-              summary.fulfilled,
-              "text-green-600",
-              "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z",
-            ],
-            [
-              "Closed Requirements",
-              summary.closed,
-              "text-gray-500",
-              "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25-2.25v6.75a2.25 2.25 0 0 0-2.25-2.25z",
-            ],
-            [
-              "Total Requirements",
-              summary.total,
-              "text-[#333333]",
-              "M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0-1.125.504-1.125 1.125V11.25a9 9 0 0 0-9-9z",
-            ],
-          ] as [string, number, string, string][]).map(
-            ([label, value, accent, iconPath]) => (
-              <div
-                key={label}
-                className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex items-center gap-3"
-              >
-                <div
-                  className={`h-10 w-10 rounded-xl bg-[#E6ECE2] flex items-center justify-center shrink-0 ${accent}`}
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    aria-hidden
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d={iconPath}
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-xs text-[#666666]">{label}</p>
-                  <p className={`text-2xl font-bold ${accent}`}>{value}</p>
-                </div>
-              </div>
-            ),
-          )}
-        </div>
-
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="p-6 space-y-3 animate-pulse">
               {[...Array(5)].map((_, i) => (
@@ -716,34 +626,68 @@ function RequirementsListScreen({
                           {fmtDate(r.createdDate)}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => onSelect(r.id)}
-                              className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                              className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
                             >
-                              View <ChevronRight className="h-3.5 w-3.5" />
+                              View →
                             </button>
-                            <OverflowMenu
-                              items={[
-                                {
-                                  label: "View",
-                                  onClick: () => onSelect(r.id),
-                                },
-                                {
-                                  label: "Edit",
-                                  onClick: () => onSelect(r.id),
-                                },
-                                ...(r.status !== "CLOSED"
-                                  ? [
-                                      {
-                                        label: "Delete",
-                                        danger: true,
-                                        onClick: () => setDeleteTarget(r),
-                                      },
-                                    ]
-                                  : []),
-                              ]}
-                            />
+                            <button
+                              onClick={() => onSelect(r.id)}
+                              className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                              aria-label={`Edit ${r.reference}`}
+                              title="Edit requirement"
+                            >
+                              <IconPencil className="w-4 h-4" />
+                            </button>
+                            {r.status !== "CLOSED" && (
+                              <button
+                                onClick={() => setDeleteTarget(r)}
+                                className="p-1.5 rounded-lg text-[#666666] hover:bg-red-50 hover:text-red-600 transition-colors"
+                                aria-label={`Delete ${r.reference}`}
+                                title="Delete requirement"
+                              >
+                                <IconTrash className="w-4 h-4" />
+                              </button>
+                            )}
+                            {r.lines.length > 0 &&
+                              (r.status === "OPEN" ||
+                                r.status === "PARTIALLY_FULFILLED") && (
+                                <button
+                                  onClick={() => {
+                                    const line =
+                                      r.lines.find(
+                                        (l) =>
+                                          l.remainingToReceive > 0 &&
+                                          l.status !== "CLOSED",
+                                      ) ?? r.lines[0]
+                                    const params = new URLSearchParams()
+                                    params.set("requirementLineId", line.id)
+                                    params.set(
+                                      "quantity",
+                                      String(
+                                        line.remainingToReceive > 0
+                                          ? line.remainingToReceive
+                                          : line.quantityNeeded,
+                                      ),
+                                    )
+                                    params.set("unitCost", "0")
+                                    params.set(
+                                      "requirementReference",
+                                      r.reference,
+                                    )
+                                    params.set("productName", line.product)
+                                    params.set("productSku", line.sku)
+                                    window.location.href = `/purchasing/orders/new?${params.toString()}`
+                                  }}
+                                  className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                                  aria-label={`Create purchase order for ${r.reference}`}
+                                  title="Create purchase order"
+                                >
+                                  <IconBox className="w-4 h-4" />
+                                </button>
+                              )}
                           </div>
                         </td>
                       </tr>
@@ -755,9 +699,12 @@ function RequirementsListScreen({
                 page={page}
                 totalPages={totalPages}
                 onPageChange={setPage}
-                total={totalCount}
-                pageSize={20}
-                itemLabel="requirements"
+                label={
+                  <>
+                    Showing {Math.min((page - 1) * 20 + 1, totalCount)}–
+                    {Math.min(page * 20, totalCount)} of {totalCount} requirements
+                  </>
+                }
               />
             </>
           )}
@@ -780,7 +727,7 @@ function RequirementsListScreen({
   )
 }
 
-// ─── Requirement Detail Screen ────────────────────────────────────────────────
+// ─── Requirement Detail Screen ───────────────────────────────────────────────
 
 function RequirementDetailScreen({
   req,
@@ -824,6 +771,7 @@ function RequirementDetailScreen({
       () =>
         updateRequirementLine(updated.id, {
           quantityNeeded: updated.quantityNeeded,
+          unitId: updated.unitId ?? undefined,
           reasonCode: reasonCode(updated.reason),
           notes: updated.notes || null,
         }),
@@ -891,12 +839,12 @@ function RequirementDetailScreen({
       <div
         className="px-6 pt-5 pb-4"
         style={{
-          background: "linear-gradient(135deg, #B6C8AF 0%, #7A9076 100%)",
+          background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)",
         }}
       >
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-[#333333]/80 hover:text-[#333333] transition-colors mb-3"
+          className="flex items-center gap-1.5 text-sm text-white/80 hover:text-white transition-colors mb-3"
         >
           <svg
             className="h-4 w-4"
@@ -914,12 +862,10 @@ function RequirementDetailScreen({
         </button>
         <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <p className="text-xs text-[#333333]/60 font-medium mb-0.5 tracking-wide">
+            <p className="text-xs text-white/60 font-medium mb-0.5 tracking-wide">
               Purchase Requirement
             </p>
-            <h1 className="text-xl font-bold text-[#333333]">
-              {req.reference}
-            </h1>
+            <h1 className="text-xl font-bold text-white">{req.reference}</h1>
           </div>
           <ReqBadge status={reqStatus} />
         </div>
@@ -939,7 +885,7 @@ function RequirementDetailScreen({
         )}
 
         {/* Section 1: Requirement Information */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
               Requirement Information
@@ -985,7 +931,7 @@ function RequirementDetailScreen({
         </div>
 
         {/* Section 2: Requirement Items */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
               Requirement Items{" "}
@@ -1052,8 +998,8 @@ function RequirementDetailScreen({
                       <td className="px-4 py-3 font-medium text-[#333333]">
                         {line.product}
                         {line.hasPo && (
-                          <span className="ml-2 align-middle inline-block">
-                            <StatusChip label="PO Linked" tone="blue" />
+                          <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5 align-middle">
+                            PO LINKED
                           </span>
                         )}
                       </td>
@@ -1062,6 +1008,11 @@ function RequirementDetailScreen({
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-[#333333]">
                         {line.quantityNeeded}
+                        {line.unitName && (
+                          <span className="ml-1 text-xs font-normal text-[#999]">
+                            {line.unitName}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-[#333333]">
                         {line.quantityOrdered}
@@ -1130,7 +1081,7 @@ function RequirementDetailScreen({
         )}
 
         {/* Section 3: Purchase Order History */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
               Purchase Order History
@@ -1173,6 +1124,15 @@ function RequirementDetailScreen({
                           <span className="font-semibold text-[#333333]">
                             {alloc.poNumber}
                           </span>
+                          <span
+                            className={`text-xs font-medium px-2 py-1 rounded-full ${
+                              alloc.active
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            {alloc.status}
+                          </span>
                           <StatusChip
                             label={alloc.active ? "ACTIVE" : "CANCELLED"}
                             tone={alloc.active ? "blue" : "red"}
@@ -1204,7 +1164,7 @@ function RequirementDetailScreen({
                         <div>
                           <p className="text-[#999]">Unit Cost</p>
                           <p className="font-semibold text-[#333333]">
-                            {alloc.unitCost.toFixed(2)} ETB
+                            {(alloc.unitCost ?? 0).toFixed(2)} ETB
                           </p>
                         </div>
                       </div>
@@ -1301,7 +1261,7 @@ function RequirementDetailScreen({
   )
 }
 
-// ─── New Requirement Modal ────────────────────────────────────────────────────
+// ─── New Requirement Modal ───────────────────────────────────────────────────
 
 interface NewLine {
   productId: string
@@ -1431,7 +1391,7 @@ function NewRequirementModal({
       open={open}
       title="Create Purchase Requirement"
       onClose={onClose}
-      size="lg"
+      size="xl"
     >
       <div className="flex flex-col gap-5">
         {error && (
@@ -1441,11 +1401,10 @@ function NewRequirementModal({
         )}
         <div className="grid sm:grid-cols-2 gap-4">
           <Fw label="Required By">
-            <input
-              type="date"
+            <DatePicker
               value={requiredBy}
-              onChange={(e) => setRequiredBy(e.target.value)}
-              className={SC}
+              onChange={setRequiredBy}
+              placeholder="Select required-by date..."
             />
           </Fw>
           <Fw label="Notes">
@@ -1491,25 +1450,23 @@ function NewRequirementModal({
                       key={i}
                       className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}
                     >
-                      <td className="px-3 py-2">
-                        <select
-                          value={line.productId}
-                          onChange={(e) => {
-                            const p =
-                              products.find((x) => x.id === e.target.value) ??
-                              null
-                            updateLine(i, "productId", e.target.value)
+                      <td className="px-3 py-2 min-w-[320px]">
+                        <SearchableSelect
+                          value={line.productId || null}
+                          onChange={(v) => {
+                            const p = products.find((x) => x.id === v) ?? null
+                            updateLine(i, "productId", v)
                             updateLine(i, "product", p)
                           }}
-                          className={SC}
-                        >
-                          <option value="">Select product...</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
+                          options={products.map((p) => ({
+                            value: p.id,
+                            label: p.brand ? `${p.name} (${p.brand})` : p.name,
+                          }))}
+                          placeholder="Select product..."
+                          searchPlaceholder="Search products..."
+                          emptyMessage="No products found"
+                          noResultsMessage="No products matching your search"
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -1594,7 +1551,7 @@ function NewRequirementModal({
   )
 }
 
-// ─── Generate from Reorder Modal ──────────────────────────────────────────────
+// ─── Generate from Reorder Modal ─────────────────────────────────────────────
 
 function GenerateFromReorderModal({
   open,
@@ -1607,7 +1564,7 @@ function GenerateFromReorderModal({
 }) {
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<{
-    product: { id: string; name: string; sku: string; }
+    product: { id: string; name: string; sku: string }
     suggestedQuantity: number
   }[]>([])
   const [loadError, setLoadError] = useState("")
@@ -1737,7 +1694,7 @@ function GenerateFromReorderModal({
   )
 }
 
-// ─── Edit Requirement Modal ───────────────────────────────────────────────────
+// ─── Edit Requirement Modal ──────────────────────────────────────────────────
 
 function EditRequirementModal({
   open,
@@ -1779,11 +1736,10 @@ function EditRequirementModal({
     <Modal open={open} title="Edit Requirement" onClose={onClose} size="sm">
       <div className="flex flex-col gap-4">
         <Fw label="Required By">
-          <input
-            type="date"
+          <DatePicker
             value={requiredBy}
-            onChange={(e) => setRequiredBy(e.target.value)}
-            className={SC}
+            onChange={setRequiredBy}
+            placeholder="Select required-by date..."
           />
         </Fw>
         <Fw label="Notes">
@@ -1808,7 +1764,7 @@ function EditRequirementModal({
   )
 }
 
-// ─── Add Product Modal ────────────────────────────────────────────────────────
+// ─── Add Product Modal ───────────────────────────────────────────────────────
 
 function AddProductModal({
   open,
@@ -1842,22 +1798,38 @@ function AddProductModal({
   // Keep the selected product's label in the option list even when the current
   // search results don't include it (server-search results are page-scoped).
   const selectedProductOption: SearchableOption[] =
-    productId && !productSearch.options.some((o) => o.value === productId) && unitProducts.product
-      ? [{ value: unitProducts.product.id, label: unitProducts.product.name, sub: unitProducts.product.sku }]
+    productId &&
+    !productSearch.options.some((o) => o.value === productId) &&
+    unitProducts.product
+      ? [
+          {
+            value: unitProducts.product.id,
+            label: unitProducts.product.name,
+            sub: unitProducts.product.sku,
+          },
+        ]
       : []
   const productOptions = [...selectedProductOption, ...productSearch.options]
 
   const unitOptions = unitProducts.options.filter(
-    (o) => !unitSearchTerm || o.label.toLowerCase().includes(unitSearchTerm.toLowerCase()),
+    (o) =>
+      !unitSearchTerm ||
+      o.label.toLowerCase().includes(unitSearchTerm.toLowerCase()),
   )
 
   const qty = parseFloat(quantity) || 0
   const productUnit = unitProducts.units.find((u) => u.unitId === unitId)
   const baseQty = toBaseQuantity(qty, productUnit)
-  const showPreview = !!productId && !!unitId && qty > 0 && baseQty !== null && !!baseUnit
+  const showPreview =
+    !!productId && !!unitId && qty > 0 && baseQty !== null && !!baseUnit
 
   function resetForm() {
-    setProductId(""); setUnitId(""); setQuantity(""); setReason("Low Stock"); setNotes(""); setError("")
+    setProductId("")
+    setUnitId("")
+    setQuantity("")
+    setReason("Low Stock")
+    setNotes("")
+    setError("")
   }
 
   async function handleAdd() {
@@ -1865,12 +1837,16 @@ function AddProductModal({
       setError("Please select a product.")
       return
     }
-    if (!quantity || parseInt(quantity) <= 0) {
+    if (existingProductIds.includes(productId)) {
+      setError("This product is already in the requirement.")
+      return
+    }
+    if (!qty || qty <= 0) {
       setError("Quantity must be greater than zero.")
       return
     }
-    if (existingProductIds.includes(productId)) {
-      setError("This product is already in the requirement.")
+    if (!unitId) {
+      setError("Please select a unit.")
       return
     }
     setError("")
@@ -1878,14 +1854,12 @@ function AddProductModal({
     try {
       onAdd({
         productId,
-        quantityNeeded: parseInt(quantity),
+        unitId,
+        quantityNeeded: qty,
         reasonCode: reasonCode(reason),
         notes: notes || null,
       })
-      setProductId("")
-      setQuantity("")
-      setReason("Low Stock")
-      setNotes("")
+      resetForm()
     } finally {
       setLoading(false)
     }
@@ -1907,32 +1881,65 @@ function AddProductModal({
         <Fw label="Product">
           <select
             value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-            className={SC}
-          >
-            <option value="">Select product...</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => {
+              setProductId(v)
+              setUnitId("")
+            }}
+            options={productOptions}
+            onSearch={productSearch.setTerm}
+            loading={productSearch.loading}
+            error={productSearch.error}
+            onRetry={productSearch.retry}
+            placeholder="Search and select a product..."
+            searchPlaceholder="Search by name or SKU..."
+            emptyMessage="No products to choose from"
+            noResultsMessage="No products matching your search"
+          />
+        </Fw>
+        <Fw label="Unit">
+          <SearchableSelect
+            value={unitId || null}
+            onChange={(v) => setUnitId(v)}
+            options={unitOptions}
+            onSearch={setUnitSearchTerm}
+            loading={unitProducts.loading}
+            error={unitProducts.error}
+            onRetry={unitProducts.refresh}
+            allowClear
+            placeholder={
+              unitProducts.loading
+                ? "Loading units..."
+                : productId
+                  ? "Select a unit..."
+                  : "Select a product first"
+            }
+            emptyMessage={
+              productId
+                ? "No units configured for this product"
+                : "Select a product first"
+            }
+          />
         </Fw>
         <Fw label="Quantity Needed">
           <input
             type="number"
             min={1}
+            step="any"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             className={SC}
-            placeholder="0"
+            placeholder={`0${baseUnit ? ` ${baseUnit.name ?? ""}` : ""}`}
           />
         </Fw>
         {showPreview && (
           <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 text-sm text-[#333333]">
             {qty} {productUnit?.unit?.name ?? ""} ={" "}
-            <span className="font-semibold text-[#7A9076]">{baseQty} {baseUnit?.name ?? ""}</span>
-            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
+            <span className="font-semibold text-[#7A9076]">
+              {baseQty} {baseUnit?.name ?? ""}
+            </span>
+            <span className="text-[#999] text-xs ml-2">
+              (conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)
+            </span>
           </div>
         )}
         <Fw label="Reason">
@@ -1968,7 +1975,7 @@ function AddProductModal({
   )
 }
 
-// ─── Edit Line Modal ──────────────────────────────────────────────────────────
+// ─── Edit Line Modal ─────────────────────────────────────────────────────────
 
 function EditLineModal({
   open,
@@ -1984,6 +1991,7 @@ function EditLineModal({
   const [quantity, setQuantity] = useState(
     line?.quantityNeeded.toString() ?? "",
   )
+  const [unitId, setUnitId] = useState(line?.unitId ?? "")
   const [reason, setReason] = useState<LineReason>(line?.reason ?? "Low Stock")
   const [notes, setNotes] = useState(line?.notes ?? "")
   const [loading, setLoading] = useState(false)
@@ -1992,7 +2000,9 @@ function EditLineModal({
   const unitProducts = useProductUnits(line?.productId ?? null)
   const baseUnit = unitProducts.baseUnit
   const unitOptions = unitProducts.options.filter(
-    (o) => !unitSearchTerm || o.label.toLowerCase().includes(unitSearchTerm.toLowerCase()),
+    (o) =>
+      !unitSearchTerm ||
+      o.label.toLowerCase().includes(unitSearchTerm.toLowerCase()),
   )
 
   const qty = parseFloat(quantity) || 0
@@ -2015,7 +2025,8 @@ function EditLineModal({
     try {
       onSave({
         ...line,
-        quantityNeeded: parseInt(quantity) || line.quantityNeeded,
+        quantityNeeded: qty,
+        unitId: unitId || null,
         reason,
         notes,
       })
@@ -2049,23 +2060,33 @@ function EditLineModal({
             onRetry={unitProducts.refresh}
             allowClear
             placeholder="Select a unit..."
-            emptyMessage={unitProducts.loading ? "Loading units..." : "No units configured for this product"}
+            emptyMessage={
+              unitProducts.loading
+                ? "Loading units..."
+                : "No units configured for this product"
+            }
           />
         </Fw>
         <Fw label="Quantity Needed">
           <input
             type="number"
             min={1}
+            step="any"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             className={SC}
+            placeholder={`0${baseUnit ? ` ${baseUnit.name ?? ""}` : ""}`}
           />
         </Fw>
         {showPreview && (
           <div className="rounded-xl bg-[#E6ECE2]/50 px-4 py-3 text-sm text-[#333333]">
             {qty} {productUnit?.unit?.name ?? ""} ={" "}
-            <span className="font-semibold text-[#7A9076]">{baseQty} {baseUnit?.name ?? ""}</span>
-            <span className="text-[#999] text-xs ml-2">(conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)</span>
+            <span className="font-semibold text-[#7A9076]">
+              {baseQty} {baseUnit?.name ?? ""}
+            </span>
+            <span className="text-[#999] text-xs ml-2">
+              (conversion {formatFactor(productUnit?.conversionFactor ?? 1)}×)
+            </span>
           </div>
         )}
         <Fw label="Reason">
@@ -2101,7 +2122,7 @@ function EditLineModal({
   )
 }
 
-// ─── Confirm Modal ────────────────────────────────────────────────────────────
+// ─── Confirm Modal ───────────────────────────────────────────────────────────
 
 function ConfirmModal({
   open,
@@ -2144,7 +2165,7 @@ function ConfirmModal({
   )
 }
 
-// ─── Order Preview Modal ──────────────────────────────────────────────────────
+// ─── Order Preview Modal ─────────────────────────────────────────────────────
 
 function OrderPreviewModal({
   open,
@@ -2300,11 +2321,10 @@ function OrderPreviewModal({
               />
             </Fw>
             <Fw label="Expected Delivery Date">
-              <input
-                type="date"
+              <DatePicker
                 value={expectedDeliveryDate}
-                onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                className={SC}
+                onChange={setExpectedDeliveryDate}
+                placeholder="Select expected delivery date..."
               />
             </Fw>
             <Fw label="Notes (optional)">
@@ -2332,7 +2352,7 @@ function OrderPreviewModal({
   )
 }
 
-// ─── Shared atoms ─────────────────────────────────────────────────────────────
+// ─── Shared atoms ────────────────────────────────────────────────────────────
 
 const SC =
   "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none bg-white"

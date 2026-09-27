@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
+import DatePicker from "../../components/ui/DatePicker";
 import {
   listAuditTrail,
   AuditApiError,
@@ -27,14 +28,14 @@ const ACTION_BADGES: Record<string, string> = {
   CREATE: "bg-green-100 text-green-700",
   UPDATE: "bg-blue-100 text-blue-700",
   DELETE: "bg-red-100 text-red-700",
-  CONFIRM: "bg-teal-100 text-teal-700",
+  CONFIRM: "bg-cyan-100 text-cyan-700",
   CLOSE: "bg-gray-100 text-gray-600",
   CANCEL: "bg-orange-100 text-orange-700",
   COMPLETE: "bg-green-100 text-green-700",
   APPROVE: "bg-green-100 text-green-700",
   REJECT: "bg-red-100 text-red-700",
-  LOGIN: "bg-indigo-100 text-indigo-700",
-  LOGOUT: "bg-indigo-100 text-indigo-700",
+  LOGIN: "bg-purple-100 text-purple-700",
+  LOGOUT: "bg-purple-100 text-purple-700",
 };
 
 function fmtDateTime(d: string | null | undefined): string {
@@ -79,7 +80,7 @@ function jsonToRows(value: unknown, prefix = ""): { key: string; value: string }
 }
 
 const inputClass =
-  "w-full rounded-xl border border-[#ABDBE3] px-3.5 py-2.5 text-sm bg-white focus:border-[#49B0C1] focus:outline-none transition-all";
+  "w-full rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm bg-white focus:border-[#4F6B4A] focus:outline-none transition-all";
 
 export default function AuditTrailPage() {
   // Filters
@@ -209,24 +210,22 @@ export default function AuditTrailPage() {
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
               <label className="text-sm font-medium text-[#333333]">From</label>
-              <input
-                type="date"
+              <DatePicker
                 value={dateFrom}
-                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                className={inputClass}
+                onChange={(v) => { setDateFrom(v); setPage(1); }}
+                placeholder="From date..."
               />
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
               <label className="text-sm font-medium text-[#333333]">To</label>
-              <input
-                type="date"
+              <DatePicker
                 value={dateTo}
-                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                className={inputClass}
+                onChange={(v) => { setDateTo(v); setPage(1); }}
+                placeholder="To date..."
               />
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
@@ -277,7 +276,7 @@ export default function AuditTrailPage() {
             </div>
             <button
               onClick={clearFilters}
-              className="rounded-xl border border-[#ABDBE3] px-4 py-2.5 text-sm font-semibold text-[#666666] hover:bg-[#DBEFF3] transition-colors"
+              className="rounded-xl border border-[#C6D4BF] px-4 py-2.5 text-sm font-semibold text-[#666666] hover:bg-[#E6ECE2] transition-colors"
             >
               Clear
             </button>
@@ -285,10 +284,10 @@ export default function AuditTrailPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#4F6B4A] animate-spin" />
               <p className="text-sm text-[#666666]">Loading audit trail...</p>
             </div>
           ) : error ? (
@@ -306,7 +305,7 @@ export default function AuditTrailPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[900px]">
                   <thead>
-                    <tr className="bg-[#DBEFF3] text-left">
+                    <tr className="bg-[#E6ECE2] text-left">
                       {["Time", "User", "Action", "Entity", "Event", "Record ID", "IP", ""].map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
@@ -316,7 +315,7 @@ export default function AuditTrailPage() {
                     {rows.map((row, i) => (
                       <tr
                         key={row.id}
-                        className={`cursor-pointer hover:bg-[#DBEFF3]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}`}
+                        className={`cursor-pointer hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}`}
                         onClick={() => setDetail(row)}
                       >
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDateTime(row.createdAt)}</td>
@@ -327,7 +326,7 @@ export default function AuditTrailPage() {
                               <p className="text-xs text-[#666666]">{row.user.email}</p>
                             </>
                           ) : (
-                            <span className="text-xs text-[#999]">System</span>
+                            <span className="text-xs text-[#999999]">System</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -342,7 +341,7 @@ export default function AuditTrailPage() {
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={(e) => { e.stopPropagation(); setDetail(row); }}
-                            className="text-xs font-semibold text-[#49B0C1] hover:underline whitespace-nowrap"
+                            className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
                           >
                             View →
                           </button>
@@ -353,17 +352,17 @@ export default function AuditTrailPage() {
                 </table>
               </div>
 
-              <div className="px-5 py-3 border-t border-[#DBEFF3] flex items-center justify-between flex-wrap gap-2">
+              <div className="px-5 py-3 border-t border-[#E6ECE2] flex items-center justify-between flex-wrap gap-2">
                 <p className="text-xs text-[#666666]">
                   Showing {total === 0 ? 0 : Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} of {total} events
                 </p>
                 {totalPages > 1 && (
                   <div className="flex gap-1">
-                    <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
+                    <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+                      <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#4F6B4A] text-white" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
                     ))}
-                    <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+                    <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
                   </div>
                 )}
               </div>
@@ -385,7 +384,7 @@ export default function AuditTrailPage() {
                 ["IP Address", detail.ipAddress ?? "—"],
                 ["User Agent", detail.userAgent ?? "—"],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-[#DBEFF3]/40 border border-[#DBEFF3] px-4 py-3">
+                <div key={label} className="rounded-xl bg-[#E6ECE2]/40 border border-[#E6ECE2] px-4 py-3">
                   <p className="text-xs text-[#666666]">{label}</p>
                   <p className="text-sm font-semibold text-[#333333] mt-0.5 break-all">{value}</p>
                 </div>
@@ -398,11 +397,11 @@ export default function AuditTrailPage() {
                 {oldRows.length === 0 ? (
                   <p className="text-sm text-[#666666]">No previous values recorded.</p>
                 ) : (
-                  <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+                  <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
                     <table className="w-full text-xs">
                       <tbody>
                         {oldRows.map((r, i) => (
-                          <tr key={`${r.key}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
+                          <tr key={`${r.key}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}>
                             <td className="px-3 py-2 font-mono text-[#666666] w-1/2 break-all">{r.key}</td>
                             <td className="px-3 py-2 text-[#333333] break-all">{r.value}</td>
                           </tr>
@@ -417,11 +416,11 @@ export default function AuditTrailPage() {
                 {newRows.length === 0 ? (
                   <p className="text-sm text-[#666666]">No new values recorded.</p>
                 ) : (
-                  <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+                  <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
                     <table className="w-full text-xs">
                       <tbody>
                         {newRows.map((r, i) => (
-                          <tr key={`${r.key}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
+                          <tr key={`${r.key}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}>
                             <td className="px-3 py-2 font-mono text-[#666666] w-1/2 break-all">{r.key}</td>
                             <td className="px-3 py-2 text-[#333333] break-all">{r.value}</td>
                           </tr>

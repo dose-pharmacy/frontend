@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import ReportsSubNav from "./ReportsSubNav";
+import DashboardSubNav from "../dashboard/DashboardSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import NarcoticBadge from "../../components/ui/NarcoticBadge";
@@ -119,11 +119,11 @@ export default function NarcoticReportPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
-        breadcrumb="Reports / Narcotics"
+        breadcrumb="Dashboard / Narcotics"
         title="Narcotics Report"
         subtitle="Narcotic/controlled product balances and movement for the selected period."
       />
-      <ReportsSubNav />
+      <DashboardSubNav />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         <ReportFilterBar
@@ -153,7 +153,7 @@ export default function NarcoticReportPage() {
         />
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 bg-white rounded-xl border border-[#DBEFF3] p-1 w-fit">
+        <div className="flex items-center gap-1 bg-white rounded-xl border border-[#E6ECE2] p-1 w-fit">
           {([
             { key: "summary", label: "Product Summary" },
             { key: "activity", label: "Movement Activity" },
@@ -162,13 +162,13 @@ export default function NarcoticReportPage() {
               key={t.key}
               onClick={() => { setTab(t.key); resetPage(); }}
               className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
-                tab === t.key ? "bg-[#49B0C1] text-white" : "text-[#666666] hover:text-[#333333]"
+                tab === t.key ? "bg-[#4F6B4A] text-white" : "text-[#666666] hover:text-[#333333]"
               }`}
             >
               {t.label}
             </button>
           ))}
-          <div className="pl-1 pr-2 border-l border-[#DBEFF3] flex gap-2 items-center">
+          <div className="pl-1 pr-2 border-l border-[#E6ECE2] flex gap-2 items-center">
             {tab === "summary" ? (
               <SearchInput value={search} onChange={(v) => { setSearch(v); resetPage(); }} placeholder="Search narcotics..." />
             ) : (
@@ -182,10 +182,10 @@ export default function NarcoticReportPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#DBEFF3] border-t-[#49B0C1] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#4F6B4A] animate-spin" />
               <p className="text-sm text-[#666666]">Loading narcotics report...</p>
             </div>
           ) : error ? (
@@ -211,11 +211,11 @@ export default function NarcoticReportPage() {
           </p>
           {totalPages > 1 && (
             <div className="flex gap-1">
-              <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">←</button>
+              <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">←</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#49B0C1] text-white" : "border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3]"}`}>{p}</button>
+                <button key={p} onClick={() => setPage(p)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${p === page ? "bg-[#4F6B4A] text-white" : "border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2]"}`}>{p}</button>
               ))}
-              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#ABDBE3] text-[#666666] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors">→</button>
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg px-3 py-1.5 text-xs border border-[#C6D4BF] text-[#666666] hover:bg-[#E6ECE2] disabled:opacity-40 transition-colors">→</button>
             </div>
           )}
         </div>
@@ -231,7 +231,7 @@ function SummaryTable({ rows }: { rows: NarcoticSummaryDto[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-[#DBEFF3] text-left">
+          <tr className="bg-[#E6ECE2] text-left">
             {["Product", "SKU", "Batches", "Sold", "Purchased", "Returned", "Adjusted"].map((h) => (
               <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
             ))}
@@ -239,7 +239,7 @@ function SummaryTable({ rows }: { rows: NarcoticSummaryDto[] }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={row.productId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
+            <tr key={row.productId} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}>
               <td className="px-4 py-3">
                 <p className="font-medium text-[#333333]">
                   {row.productName}
@@ -250,7 +250,7 @@ function SummaryTable({ rows }: { rows: NarcoticSummaryDto[] }) {
               <td className="px-4 py-3 font-mono text-xs text-[#666666]">{row.sku}</td>
               <td className="px-4 py-3">
                 {row.batches.length === 0 ? (
-                  <span className="text-xs text-[#999]">No stock</span>
+                  <span className="text-xs text-[#999999]">No stock</span>
                 ) : (
                   <div className="flex flex-col gap-0.5">
                     {row.batches.map((b) => (
@@ -293,7 +293,7 @@ function ActivityTable({ rows }: { rows: NarcoticActivityDto[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-[#DBEFF3] text-left">
+          <tr className="bg-[#E6ECE2] text-left">
             {["Date", "Product", "Batch", "Location", "Movement", "Qty", "Balance After", "Reference"].map((h) => (
               <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
             ))}
@@ -301,7 +301,7 @@ function ActivityTable({ rows }: { rows: NarcoticActivityDto[] }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={row.transactionId} className={i % 2 === 0 ? "bg-white" : "bg-[#DBEFF3]/15"}>
+            <tr key={row.transactionId} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}>
               <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDateTime(row.date)}</td>
               <td className="px-4 py-3">
                 <p className="font-medium text-[#333333]">{row.productName}</p>

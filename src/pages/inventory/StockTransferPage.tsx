@@ -5,7 +5,6 @@ import SearchInput from "../../components/ui/SearchInput"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
-import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
 import {
   listTransfers,
   getTransfer,
@@ -23,12 +22,16 @@ import {
   type CreateTransferInput,
 } from "../../features/inventory/transfersApi"
 import { listProductBatches } from "../../features/inventory/batchesApi"
-import { searchProducts, searchLocations } from "../../features/inventory/searchSelectors"
+import {
+  searchProducts,
+  searchLocations,
+} from "../../features/inventory/searchSelectors"
 import { useProductUnits } from "../../features/inventory/useProductUnits"
 import { toBaseQuantity } from "../../features/inventory/unitOptions"
 import SearchableSelect from "../../components/ui/SearchableSelect"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
+import DatePicker from "../../components/ui/DatePicker"
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -42,20 +45,22 @@ function fmtDate(d: string) {
 }
 
 function StatusBadge({ status }: { status: TransferStatusDto }) {
-  const map: Record<TransferStatusDto, StatusTone> = {
-    DRAFT: "amber",
-    COMPLETED: "green",
-    CANCELLED: "red",
+  const map: Record<TransferStatusDto, string> = {
+    DRAFT: "bg-yellow-100 text-yellow-700",
+    COMPLETED: "bg-green-100 text-green-700",
+    CANCELLED: "bg-red-100 text-red-700",
   }
-  return <StatusChip label={status} tone={map[status] ?? "gray"} />
+  return (
+    <span
+      className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${map[status] ?? "bg-gray-100 text-gray-600"}`}
+    >
+      {status}
+    </span>
+  )
 }
 
 function nameOf(ref: unknown, fallback: string): string {
-  if (
-    ref &&
-    typeof ref === "object" &&
-    "name" in ref as Record<string, unknown>
-  ) {
+  if (ref && typeof ref === "object" && "name" in ref) {
     const n = (ref as { name?: unknown }).name
     if (typeof n === "string" && n) return n
   }
@@ -239,8 +244,8 @@ function TransferListScreen({
 
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex-1 min-w-[200px]">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <div className="flex-1">
               <SearchInput
                 value={search}
                 onChange={(v) => {
@@ -256,43 +261,51 @@ function TransferListScreen({
                 setStatusFilter(e.target.value)
                 setPage(1)
               }}
-              className="sm:w-40 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
+              className="sm:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
             >
               <option value="">All Statuses</option>
               <option value="DRAFT">DRAFT</option>
               <option value="COMPLETED">COMPLETED</option>
               <option value="CANCELLED">CANCELLED</option>
             </select>
-            <select
-              value={fromFilter}
-              onChange={(e) => {
-                setFromFilter(e.target.value)
-                setPage(1)
-              }}
-              className="sm:w-40 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
-            >
-              <option value="">From Location</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={toFilter}
-              onChange={(e) => {
-                setToFilter(e.target.value)
-                setPage(1)
-              }}
-              className="sm:w-40 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
-            >
-              <option value="">To Location</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+            <div className="sm:w-44">
+              <SearchableSelect
+                value={fromFilter || null}
+                onChange={(v) => {
+                  setFromFilter(v)
+                  setPage(1)
+                }}
+                options={fromFilterOptions}
+                onSearch={fromSearch.setTerm}
+                loading={fromSearch.loading}
+                error={fromSearch.error}
+                onRetry={fromSearch.retry}
+                allowClear
+                placeholder="From Location"
+                searchPlaceholder="Search locations..."
+                emptyMessage="No locations found"
+                noResultsMessage="No locations matching your search"
+              />
+            </div>
+            <div className="sm:w-44">
+              <SearchableSelect
+                value={toFilter || null}
+                onChange={(v) => {
+                  setToFilter(v)
+                  setPage(1)
+                }}
+                options={toFilterOptions}
+                onSearch={toSearch.setTerm}
+                loading={toSearch.loading}
+                error={toSearch.error}
+                onRetry={toSearch.retry}
+                allowClear
+                placeholder="To Location"
+                searchPlaceholder="Search locations..."
+                emptyMessage="No locations found"
+                noResultsMessage="No locations matching your search"
+              />
+            </div>
             {(search || statusFilter || fromFilter || toFilter) && (
               <button
                 onClick={reset}
@@ -305,20 +318,12 @@ function TransferListScreen({
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#E6ECE2] text-left">
-                  {[
-                    "Transfer #",
-                    "From",
-                    "To",
-                    "Status",
-                    "Date",
-                    "Items",
-                    "",
-                  ].map((h) => (
+                  {["Date", "From", "To", "Status", "Items", ""].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 font-semibold text-[#333333]"
@@ -355,8 +360,8 @@ function TransferListScreen({
                         i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
                       }`}
                     >
-                      <td className="px-4 py-3 font-semibold text-[#7A9076]">
-                        {t.transferNumber ?? t.id.slice(0, 8)}
+                      <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
+                        {fmtDate(t.transferDate)}
                       </td>
                       <td className="px-4 py-3 text-[#333333]">
                         {nameOf(t.fromLocation, t.fromLocation.id)}
@@ -367,16 +372,13 @@ function TransferListScreen({
                       <td className="px-4 py-3">
                         <StatusBadge status={t.status} />
                       </td>
-                      <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
-                        {fmtDate(t.transferDate)}
-                      </td>
                       <td className="px-4 py-3 text-[#666666]">
                         {t.items?.length ?? 0} item
                         {(t.items?.length ?? 0) !== 1 ? "s" : ""}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#7A9076]">
-                          View <ChevronRight className="h-3.5 w-3.5" />
+                        <span className="text-xs font-semibold text-[#7A9076]">
+                          View →
                         </span>
                       </td>
                     </tr>
@@ -389,9 +391,12 @@ function TransferListScreen({
             page={page}
             totalPages={totalPages}
             onPageChange={setPage}
-            total={total}
-            pageSize={10}
-            itemLabel="transfers"
+            label={
+              <>
+                Showing {total > 0 ? (page - 1) * 10 + 1 : 0}–
+                {Math.min(page * 10, total)} of {total} transfers
+              </>
+            }
           />
         </div>
       </div>
@@ -422,6 +427,9 @@ function NewTransferScreen({
   // Pending items: { productId, batchId, unitId, quantity }
   type PendingItem = Omit<CreateTransferInput["items"][number], never> & {
     key: string
+    productLabel?: string
+    batchLabel?: string
+    unitLabel?: string
   }
   const [items, setItems] = useState<PendingItem[]>([])
   const [addItemOpen, setAddItemOpen] = useState(false)
@@ -475,7 +483,7 @@ function NewTransferScreen({
       setError("Please select a destination location.")
       return
     }
-    if (from === to) {
+    if (sameLocation) {
       setError("Source and destination must be different.")
       return
     }
@@ -549,7 +557,7 @@ function NewTransferScreen({
 
       {/* ── Scrollable body ───────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        {(error) && (
+        {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 flex-shrink-0">
             {error}
           </div>
@@ -600,19 +608,16 @@ function NewTransferScreen({
             )}
 
             <FieldWrap label="Transfer Date *">
-              <input
-                type="date"
+              <DatePicker
                 value={toDateInput(date)}
-                onChange={(e) =>
+                onChange={(v) =>
                   setDate(
-                    e.target.value
-                      ? new Date(
-                          `${e.target.value}T09:00:00.000Z`,
-                        ).toISOString()
+                    v
+                      ? new Date(`${v}T09:00:00.000Z`).toISOString()
                       : "",
                   )
                 }
-                className={SELECT_CLS}
+                placeholder="Select transfer date"
               />
             </FieldWrap>
 
@@ -628,7 +633,7 @@ function NewTransferScreen({
         </div>
 
         {/* ── Card 2: Transfer Items ─────────────────────────── */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
               Transfer Items
@@ -703,13 +708,13 @@ function NewTransferScreen({
                       className={idx % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}
                     >
                       <td className="px-4 py-3 font-medium text-[#333333]">
-                        {productName(item.productId)}
+                        {item.productLabel ?? item.productId.slice(0, 8)}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-[#666666]">
-                        {item.batchId.slice(0, 8)}
+                        {item.batchLabel ?? item.batchId.slice(0, 8)}
                       </td>
                       <td className="px-4 py-3 text-[#666666]">
-                        {item.unitId.slice(0, 8)}
+                        {item.unitLabel ?? item.unitId.slice(0, 8)}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-[#333333]">
                         {item.quantity}
@@ -755,14 +760,19 @@ function NewTransferScreen({
 
 function AddTransferItemModal({
   open,
-  products,
   onClose,
   onAdd,
 }: {
   open: boolean
   products: { id: string name: string }[]
   onClose: () => void
-  onAdd: (item: Omit<CreateTransferInput["items"][number], never> & { productLabel?: string; batchLabel?: string; unitLabel?: string }) => void
+  onAdd: (
+    item: Omit<CreateTransferInput["items"][number], never> & {
+      productLabel?: string
+      batchLabel?: string
+      unitLabel?: string
+    },
+  ) => void
 }) {
   const [productId, setProductId] = useState("")
   const [batchId, setBatchId] = useState("")
@@ -770,44 +780,39 @@ function AddTransferItemModal({
   const [quantity, setQuantity] = useState("")
   const [error, setError] = useState("")
 
-  const [batches, setBatches] = useState<{ id: string batchNumber: string }[]>(
+  const [batches, setBatches] = useState<{ id: string; batchNumber: string }[]>(
     [],
   )
-  const [units, setUnits] = useState<{ unitId: string name: string }[]>([])
   const [loading, setLoading] = useState(false)
 
   const productSearch = useSearchableResource(searchProducts, open)
   const unitsApi = useProductUnits(productId)
 
-  const selectedProductOption = productSearch.options.find((o) => o.value === productId) ?? null
+  const selectedProductOption =
+    productSearch.options.find((o) => o.value === productId) ?? null
   const productOptions: SearchableOption[] = selectedProductOption
-    ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
+    ? [
+        selectedProductOption,
+        ...productSearch.options.filter((o) => o.value !== productId),
+      ]
     : productSearch.options
 
   useEffect(() => {
     if (!open || !productId) {
       setBatches([])
-      setUnits([])
       return
     }
     let cancelled = false
     setLoading(true)
-    Promise.all([
-      listProductBatches(productId, { limit: 100 }),
-      getProductDetail(productId),
-    ])
-      .then(([b, p]) => {
-        if (cancelled) return
-        setBatches(
-          b.data.map((row) => ({ id: row.id, batchNumber: row.batchNumber })),
-        )
-        setUnits(p.units.map((u) => ({ unitId: u.unitId, name: u.unit.name })))
+    listProductBatches(productId, { limit: 100 })
+      .then((b) => {
+        if (!cancelled)
+          setBatches(
+            b.data.map((row) => ({ id: row.id, batchNumber: row.batchNumber })),
+          )
       })
       .catch(() => {
-        if (!cancelled) {
-          setBatches([])
-          setUnits([])
-        }
+        if (!cancelled) setBatches([])
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -874,7 +879,10 @@ function AddTransferItemModal({
 
   const selectedUnit = unitsApi.units.find((u) => u.unitId === unitId)
   const basePreview = toBaseQuantity(parseInt(quantity) || 0, selectedUnit)
-  const baseLabel = basePreview !== null && unitsApi.baseUnit ? basePreview.toLocaleString() + " " + (unitsApi.baseUnit.name ?? "") : ""
+  const baseLabel =
+    basePreview !== null && unitsApi.baseUnit
+      ? basePreview.toLocaleString() + " " + (unitsApi.baseUnit.name ?? "")
+      : ""
 
   return (
     <Modal
@@ -891,58 +899,61 @@ function AddTransferItemModal({
         )}
 
         <FieldWrap label="Product *">
-          <select
-            value={productId}
-            onChange={(e) => {
-              setProductId(e.target.value)
+          <SearchableSelect
+            value={productId || null}
+            onChange={(v) => {
+              setProductId(v)
               setBatchId("")
               setUnitId("")
             }}
-            className={SELECT_CLS}
-          >
-            <option value="">Select product...</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            options={productOptions}
+            onSearch={productSearch.setTerm}
+            loading={productSearch.loading}
+            error={productSearch.error}
+            onRetry={productSearch.retry}
+            placeholder="Search and select a product..."
+            searchPlaceholder="Search by name or SKU..."
+            emptyMessage="No products found"
+            noResultsMessage="No products matching your search"
+          />
         </FieldWrap>
 
         <FieldWrap label="Batch *">
-          <select
-            value={batchId}
-            onChange={(e) => setBatchId(e.target.value)}
-            className={SELECT_CLS}
+          <SearchableSelect
+            value={batchId || null}
+            onChange={setBatchId}
+            options={batches.map((b) => ({
+              value: b.id,
+              label: b.batchNumber,
+            }))}
             disabled={!productId || loading}
-          >
-            <option value="">
-              {loading ? "Loading batches..." : "Select batch..."}
-            </option>
-            {batches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.batchNumber}
-              </option>
-            ))}
-          </select>
+            placeholder={loading ? "Loading batches..." : "Select batch..."}
+            searchPlaceholder="Search batches..."
+            emptyMessage={loading ? "Loading batches..." : "No batches found"}
+            noResultsMessage="No batches matching your search"
+          />
         </FieldWrap>
 
         <FieldWrap label="Unit *">
-          <select
-            value={unitId}
-            onChange={(e) => setUnitId(e.target.value)}
-            className={SELECT_CLS}
+          <SearchableSelect
+            value={unitId || null}
+            onChange={setUnitId}
+            options={unitsApi.units.map((u) => ({
+              value: u.unitId,
+              label: `${u.unit.name}${u.isBaseUnit ? " (base)" : ""}`,
+            }))}
             disabled={!productId || unitsApi.units.length === 0}
-          >
-            <option value="">
-              {loading ? "Loading units..." : "Select unit..."}
-            </option>
-            {units.map((u) => (
-              <option key={u.unitId} value={u.unitId}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+            placeholder={
+              unitsApi.units.length === 0
+                ? productId
+                  ? "No units configured"
+                  : "Select product first"
+                : "Select unit..."
+            }
+            searchPlaceholder="Search units..."
+            emptyMessage="No units available"
+            noResultsMessage="No units matching your search"
+          />
         </FieldWrap>
 
         <FieldWrap label="Quantity *">
@@ -955,9 +966,12 @@ function AddTransferItemModal({
               className={SELECT_CLS}
               placeholder="0"
             />
-            {baseLabel && quantity && selectedUnit && !selectedUnit.isBaseUnit && (
-              <p className="text-xs text-[#999]">= {baseLabel}</p>
-            )}
+            {baseLabel &&
+              quantity &&
+              selectedUnit &&
+              !selectedUnit.isBaseUnit && (
+                <p className="text-xs text-[#999]">= {baseLabel}</p>
+              )}
           </div>
         </FieldWrap>
 
@@ -973,6 +987,109 @@ function AddTransferItemModal({
 }
 
 // ─── Transfer Details Screen ─────────────────────────────────────────────────
+
+// Loading skeleton for the Transfer Details screen. Mirrors the loaded layout
+// (header, Transfer Information card, Transfer Items table, action bar) using
+// the app's shimmer pattern (animate-pulse + sage-tinted placeholders) so the
+// page doesn't jump when the data arrives.
+function TransferDetailSkeleton() {
+  return (
+    <div className="flex-1 flex flex-col min-h-0 animate-pulse">
+      {/* Header */}
+      <div
+        className="px-6 pt-5 pb-4"
+        style={{
+          background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)",
+        }}
+      >
+        <div className="h-4 w-20 rounded bg-white/40 mb-3" />
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="h-6 w-52 rounded-lg bg-white/40" />
+          <div className="h-6 w-16 rounded-full bg-white/30" />
+        </div>
+      </div>
+
+      <div className="flex-1 p-6 flex flex-col gap-5">
+        {/* Transfer Information */}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
+            <div className="h-3 w-36 rounded bg-[#E6ECE2]" />
+            <div className="h-3 w-20 rounded bg-[#E6ECE2]" />
+          </div>
+          <div className="px-5 py-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[...Array(4)].map((_, i) => (
+              <div key={i}>
+                <div className="h-2.5 w-10 rounded bg-[#E6ECE2] mb-2" />
+                <div className="h-4 w-28 rounded bg-[#E6ECE2]" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Transfer Items */}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+          <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
+            <div className="h-3 w-40 rounded bg-[#E6ECE2]" />
+            <div className="h-3 w-16 rounded bg-[#E6ECE2]" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[#E6ECE2]/50 text-left">
+                  {["w-16", "w-12", "w-10", "w-14", "w-16"].map((w, i) => (
+                    <th
+                      key={i}
+                      className={`px-4 py-3 ${i === 3 ? "text-right" : ""}`}
+                    >
+                      <div
+                        className={`h-3 rounded bg-[#E6ECE2] ${
+                          i === 3 ? "ml-auto" : ""
+                        } ${w}`}
+                      />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...Array(3)].map((_, i) => (
+                  <tr
+                    key={i}
+                    className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}
+                  >
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-36 rounded bg-[#E6ECE2]" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-3.5 w-20 rounded bg-[#E6ECE2]" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-3.5 w-14 rounded bg-[#E6ECE2]" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-12 rounded bg-[#E6ECE2] ml-auto" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-3.5 w-16 rounded bg-[#E6ECE2]" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Transfer Actions */}
+        <div className="bg-white rounded-xl border border-[#E6ECE2] px-5 py-4 flex items-center justify-between flex-wrap gap-3">
+          <div className="h-3 w-32 rounded bg-[#E6ECE2]" />
+          <div className="flex gap-3">
+            <div className="h-9 w-32 rounded-xl bg-[#E6ECE2]" />
+            <div className="h-9 w-40 rounded-xl bg-[#E6ECE2]" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function TransferDetailsScreen({
   transferId,
@@ -1026,23 +1143,7 @@ function TransferDetailsScreen({
   }
 
   if (loading) {
-    return (
-      <div className="flex-1 flex flex-col min-h-0">
-        <div
-          className="px-6 pt-5 pb-4"
-          style={{
-            background: "linear-gradient(135deg, #B6C8AF 0%, #7A9076 100%)",
-          }}
-        >
-          <p className="text-xl font-bold text-[#333333]">Loading transfer…</p>
-        </div>
-        <div className="flex-1 p-6 animate-pulse space-y-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-xl bg-[#E6ECE2]" />
-          ))}
-        </div>
-      </div>
-    )
+    return <TransferDetailSkeleton />
   }
 
   if (loadError || !transfer) {
@@ -1051,14 +1152,14 @@ function TransferDetailsScreen({
         <div
           className="px-6 pt-5 pb-4"
           style={{
-            background: "linear-gradient(135deg, #B6C8AF 0%, #7A9076 100%)",
+            background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)",
           }}
         >
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-1 text-sm text-[#333333]/80 hover:text-[#333333]"
+            className="text-sm text-white/80 hover:text-white"
           >
-            <ChevronLeft className="h-4 w-4" /> Transfers
+            ← Transfers
           </button>
         </div>
         <div className="flex-1 p-6">
@@ -1082,12 +1183,12 @@ function TransferDetailsScreen({
       <div
         className="px-6 pt-5 pb-4"
         style={{
-          background: "linear-gradient(135deg, #B6C8AF 0%, #7A9076 100%)",
+          background: "linear-gradient(135deg, #4F6B4A 0%, #3B4F35 100%)",
         }}
       >
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-[#333333]/80 hover:text-[#333333] transition-colors mb-3"
+          className="flex items-center gap-1.5 text-sm text-white/80 hover:text-white transition-colors mb-3"
         >
           <svg
             className="h-4 w-4"
@@ -1104,7 +1205,7 @@ function TransferDetailsScreen({
           Transfers
         </button>
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-xl font-bold text-[#333333]">
+          <h1 className="text-xl font-bold text-white">
             Transfer #{transfer.transferNumber ?? transfer.id.slice(0, 8)}
           </h1>
           <StatusBadge status={transfer.status} />
@@ -1119,7 +1220,7 @@ function TransferDetailsScreen({
         )}
 
         {/* Section 1: Transfer Information */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
               Transfer Information
@@ -1149,7 +1250,7 @@ function TransferDetailsScreen({
         </div>
 
         {/* Section 2: Transfer Items */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           <div className="px-5 py-3 border-b border-[#E6ECE2] flex items-center justify-between">
             <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
               Transfer Items{" "}
@@ -1421,11 +1522,10 @@ function EditTransferModal({
           and items are managed on their own.
         </div>
         <FieldWrap label="Date">
-          <input
-            type="date"
+          <DatePicker
             value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={SELECT_CLS}
+            onChange={setDate}
+            placeholder="Select transfer date"
           />
         </FieldWrap>
         <FieldWrap label="Reason">
@@ -1469,53 +1569,41 @@ function AddItemToExistingModal({
   const [batchId, setBatchId] = useState("")
   const [unitId, setUnitId] = useState("")
   const [quantity, setQuantity] = useState("")
-  const [batches, setBatches] = useState<{ id: string batchNumber: string }[]>(
+  const [batches, setBatches] = useState<{ id: string; batchNumber: string }[]>(
     [],
   )
-  const [units, setUnits] = useState<{ unitId: string name: string }[]>([])
   const [loadingOptions, setLoadingOptions] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
-  useEffect(() => {
-    if (!open || products.length > 0) return
-    fetchProductOptions()
-      .then((opts) =>
-        setProducts(opts.map((p) => ({ id: p.id, name: p.name }))),
-      )
-      .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Failed to load products.",
-        ),
-      )
-  }, [open, products.length])
+  const productSearch = useSearchableResource(searchProducts, open)
+  const unitsApi = useProductUnits(productId)
+  const selectedProductOption =
+    productSearch.options.find((o) => o.value === productId) ?? null
+  const productOptions: SearchableOption[] = selectedProductOption
+    ? [
+        selectedProductOption,
+        ...productSearch.options.filter((o) => o.value !== productId),
+      ]
+    : productSearch.options
 
   useEffect(() => {
     if (!productId) {
       setBatches([])
-      setUnits([])
       setBatchId("")
-      setUnitId("")
       return
     }
     let cancelled = false
     setLoadingOptions(true)
-    Promise.all([
-      listProductBatches(productId, { limit: 100 }),
-      getProductDetail(productId),
-    ])
-      .then(([b, p]) => {
-        if (cancelled) return
-        setBatches(
-          b.data.map((row) => ({ id: row.id, batchNumber: row.batchNumber })),
-        )
-        setUnits(p.units.map((u) => ({ unitId: u.unitId, name: u.unit.name })))
+    listProductBatches(productId, { limit: 100 })
+      .then((b) => {
+        if (!cancelled)
+          setBatches(
+            b.data.map((row) => ({ id: row.id, batchNumber: row.batchNumber })),
+          )
       })
       .catch(() => {
-        if (!cancelled) {
-          setBatches([])
-          setUnits([])
-        }
+        if (!cancelled) setBatches([])
       })
       .finally(() => {
         if (!cancelled) setLoadingOptions(false)
@@ -1579,66 +1667,88 @@ function AddItemToExistingModal({
           </p>
         )}
         <FieldWrap label="Product *">
-          <select
-            value={productId}
-            onChange={(e) => {
-              setProductId(e.target.value)
+          <SearchableSelect
+            value={productId || null}
+            onChange={(v) => {
+              setProductId(v)
               setBatchId("")
               setUnitId("")
             }}
-            className={SELECT_CLS}
-          >
-            <option value="">Select product...</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            options={productOptions}
+            onSearch={productSearch.setTerm}
+            loading={productSearch.loading}
+            error={productSearch.error}
+            onRetry={productSearch.retry}
+            placeholder="Search and select a product..."
+            searchPlaceholder="Search by name or SKU..."
+            emptyMessage="No products found"
+            noResultsMessage="No products matching your search"
+          />
         </FieldWrap>
         <FieldWrap label="Batch *">
-          <select
-            value={batchId}
-            onChange={(e) => setBatchId(e.target.value)}
-            className={SELECT_CLS}
+          <SearchableSelect
+            value={batchId || null}
+            onChange={setBatchId}
+            options={batches.map((b) => ({
+              value: b.id,
+              label: b.batchNumber,
+            }))}
             disabled={!productId || loadingOptions}
-          >
-            <option value="">
-              {loadingOptions ? "Loading batches..." : "Select batch..."}
-            </option>
-            {batches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.batchNumber}
-              </option>
-            ))}
-          </select>
+            placeholder={
+              loadingOptions ? "Loading batches..." : "Select batch..."
+            }
+            searchPlaceholder="Search batches..."
+            emptyMessage={
+              loadingOptions ? "Loading batches..." : "No batches found"
+            }
+            noResultsMessage="No batches matching your search"
+          />
         </FieldWrap>
         <FieldWrap label="Unit *">
-          <select
-            value={unitId}
-            onChange={(e) => setUnitId(e.target.value)}
-            className={SELECT_CLS}
-            disabled={!productId || loadingOptions}
-          >
-            <option value="">
-              {loadingOptions ? "Loading units..." : "Select unit..."}
-            </option>
-            {units.map((u) => (
-              <option key={u.unitId} value={u.unitId}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            value={unitId || null}
+            onChange={setUnitId}
+            options={unitsApi.units.map((u) => ({
+              value: u.unitId,
+              label: `${u.unit.name}${u.isBaseUnit ? " (base)" : ""}`,
+            }))}
+            disabled={!productId || unitsApi.units.length === 0}
+            placeholder={
+              unitsApi.units.length === 0
+                ? productId
+                  ? "No units configured"
+                  : "Select product first"
+                : "Select unit..."
+            }
+            searchPlaceholder="Search units..."
+            emptyMessage="No units available"
+            noResultsMessage="No units matching your search"
+          />
         </FieldWrap>
         <FieldWrap label="Quantity *">
-          <input
-            type="number"
-            min={1}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            className={SELECT_CLS}
-            placeholder="0"
-          />
+          <div className="flex flex-col gap-1">
+            <input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className={SELECT_CLS}
+              placeholder="0"
+            />
+            {(() => {
+              const sel = unitsApi.units.find((u) => u.unitId === unitId)
+              const preview = toBaseQuantity(parseInt(quantity) || 0, sel)
+              return preview !== null &&
+                unitsApi.baseUnit &&
+                quantity &&
+                sel &&
+                !sel.isBaseUnit ? (
+                <p className="text-xs text-[#999]">
+                  = {preview.toLocaleString()} {unitsApi.baseUnit.name ?? ""}
+                </p>
+              ) : null
+            })()}
+          </div>
         </FieldWrap>
         <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
           <Button variant="secondary" onClick={onClose}>
