@@ -1349,7 +1349,7 @@ function NewRequirementModal({
       open={open}
       title="Create Purchase Requirement"
       onClose={onClose}
-      size="lg"
+      size="xl"
     >
       <div className="flex flex-col gap-5">
         {error && (
@@ -1408,7 +1408,7 @@ function NewRequirementModal({
                       key={i}
                       className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}
                     >
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 min-w-[320px]">
                         <SearchableSelect
                           value={line.productId || null}
                           onChange={(v) => {
@@ -1418,7 +1418,7 @@ function NewRequirementModal({
                           }}
                           options={products.map((p) => ({
                             value: p.id,
-                            label: p.name,
+                            label: p.brand ? `${p.name} (${p.brand})` : p.name,
                           }))}
                           placeholder="Select product..."
                           searchPlaceholder="Search products..."
