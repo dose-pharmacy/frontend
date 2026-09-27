@@ -10,6 +10,7 @@ import { useSearchableResource } from "../../hooks/useSearchableResource";
 import { searchSuppliers } from "../../features/inventory/searchSelectors";
 import { IconWarningTriangle } from "../../components/ui/icons";
 import DatePicker from "../../components/ui/DatePicker";
+import ScanReceiptWorkflow from "./ScanReceiptWorkflow";
 
 interface GRItemRow {
   purchaseOrderItemId: string;
@@ -34,6 +35,7 @@ function fmtDate(d: string | null | undefined) {
 
 export default function DeliveryRegistrationPage() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"manual" | "scan" | null>(null);
   const [orders, setOrders] = useState<PurchaseOrderDto[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [selectedPoId, setSelectedPoId] = useState("");
@@ -180,17 +182,71 @@ export default function DeliveryRegistrationPage() {
         title="Register Goods Receipt"
         subtitle="Purchasing → Goods Receipts → New"
         actions={
-          <button
-            onClick={handleSubmit}
-            disabled={!selectedPoId || saving || items.length === 0}
-            className="rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? "Registering…" : "Register Receipt →"}
-          </button>
+          mode === "manual" ? (
+            <button
+              onClick={handleSubmit}
+              disabled={!selectedPoId || saving || items.length === 0}
+              className="rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? "Registering…" : "Register Receipt →"}
+            </button>
+          ) : undefined
         }
       />
 
-      <div className="flex-1 overflow-y-auto pb-24">
+      {/* Method selector */}
+      <div className="px-4 sm:px-6 py-4 flex-shrink-0">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+          <h2 className="text-base font-bold text-[#333333] mb-1">
+            How would you like to register this receipt?
+          </h2>
+          <p className="text-xs text-[#999] mb-4">
+            Choose how you want to capture the delivery and receiving information.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className={`rounded-xl border p-5 flex flex-col gap-3 transition-colors ${mode === "manual" ? "border-[#7A9076] bg-[#E6ECE2]/40" : "border-[#E6ECE2] bg-white"}`}>
+              <div>
+                <p className="font-bold text-[#333333]">Enter Manually</p>
+                <p className="text-sm text-[#666666] mt-1">
+                  Enter delivery and receiving information manually.
+                </p>
+              </div>
+              <button
+                onClick={() => setMode("manual")}
+                className="mt-auto rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#A5B89E] transition-colors"
+              >
+                Continue Manually
+              </button>
+            </div>
+            <div className={`rounded-xl border p-5 flex flex-col gap-3 transition-colors ${mode === "scan" ? "border-[#7A9076] bg-[#E6ECE2]/40" : "border-[#E6ECE2] bg-white"}`}>
+              <div>
+                <p className="font-bold text-[#333333]">Scan / Upload Receipt</p>
+                <p className="text-sm text-[#666666] mt-1">
+                  Scan or upload the supplier receipt and let the system extract the receiving information.
+                </p>
+              </div>
+              <button
+                onClick={() => setMode("scan")}
+                className="mt-auto rounded-lg bg-[#C6D4BF] border border-[#C6D4BF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#B5C6AE] transition-colors"
+              >
+                Scan / Upload Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {mode === null && (
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-24">
+          <div className="rounded-xl border border-[#E6ECE2] bg-white p-6 text-sm text-[#666666]">
+            Select a method above to begin registering this receipt.
+          </div>
+        </div>
+      )}
+
+      {mode === "manual" && (
+        <>
+          <div className="flex-1 overflow-y-auto pb-24">
         {error && (
           <div className="mx-4 sm:mx-6 mt-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
             {error}
@@ -363,6 +419,12 @@ export default function DeliveryRegistrationPage() {
           {saving ? "Registering…" : "Register Receipt →"}
         </button>
       </div>
+        </>
+      )}
+
+      {mode === "scan" && (
+        <ScanReceiptWorkflow onBackToMethods={() => setMode(null)} />
+      )}
     </div>
   );
 }
