@@ -5,7 +5,7 @@ import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
 import DatePicker from "../../components/ui/DatePicker"
-import { IconPencil, IconTrash } from "../../components/ui/icons"
+import { IconPencil, IconTrash, IconBox } from "../../components/ui/icons"
 import {
   listRequirements,
   createRequirement,
@@ -650,6 +650,43 @@ function RequirementsListScreen({
                                 <IconTrash className="w-4 h-4" />
                               </button>
                             )}
+                            {r.lines.length > 0 &&
+                              (r.status === "OPEN" ||
+                                r.status === "PARTIALLY_FULFILLED") && (
+                                <button
+                                  onClick={() => {
+                                    const line =
+                                      r.lines.find(
+                                        (l) =>
+                                          l.remainingToReceive > 0 &&
+                                          l.status !== "CLOSED",
+                                      ) ?? r.lines[0]
+                                    const params = new URLSearchParams()
+                                    params.set("requirementLineId", line.id)
+                                    params.set(
+                                      "quantity",
+                                      String(
+                                        line.remainingToReceive > 0
+                                          ? line.remainingToReceive
+                                          : line.quantityNeeded,
+                                      ),
+                                    )
+                                    params.set("unitCost", "0")
+                                    params.set(
+                                      "requirementReference",
+                                      r.reference,
+                                    )
+                                    params.set("productName", line.product)
+                                    params.set("productSku", line.sku)
+                                    window.location.href = `/purchasing/orders/new?${params.toString()}`
+                                  }}
+                                  className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                                  aria-label={`Create purchase order for ${r.reference}`}
+                                  title="Create purchase order"
+                                >
+                                  <IconBox className="w-4 h-4" />
+                                </button>
+                              )}
                           </div>
                         </td>
                       </tr>
@@ -1349,7 +1386,7 @@ function NewRequirementModal({
       open={open}
       title="Create Purchase Requirement"
       onClose={onClose}
-      size="lg"
+      size="2xl"
     >
       <div className="flex flex-col gap-5">
         {error && (
@@ -1408,7 +1445,7 @@ function NewRequirementModal({
                       key={i}
                       className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}
                     >
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 min-w-[300px]">
                         <SearchableSelect
                           value={line.productId || null}
                           onChange={(v) => {
@@ -1418,7 +1455,7 @@ function NewRequirementModal({
                           }}
                           options={products.map((p) => ({
                             value: p.id,
-                            label: p.name,
+                            label: p.brand ? `${p.name} (${p.brand})` : p.name,
                           }))}
                           placeholder="Select product..."
                           searchPlaceholder="Search products..."
