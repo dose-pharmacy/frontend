@@ -63,8 +63,10 @@ export function useSearchableResource(fetcher: SearchableResourceFetcher, enable
     if (!enabled) return;
     if (debounceTimer.current) window.clearTimeout(debounceTimer.current);
     debounceTimer.current = window.setTimeout(() => {
-      setPage(1);
-      run(term, 1);
+      if (term !== latestTermRef.current) {
+        setPage(1);
+        run(term, 1);
+      }
     }, DEBOUNCE_MS);
     return () => {
       if (debounceTimer.current) window.clearTimeout(debounceTimer.current);

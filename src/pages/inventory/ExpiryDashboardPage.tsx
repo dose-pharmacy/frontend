@@ -12,7 +12,6 @@ import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import FormError from "../../components/ui/FormError";
 import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory";
-import { IconWarningTriangle } from "../../components/ui/icons";
 
 interface Thresholds { t30: number; t60: number; t90: number; }
 type ExpiryAction = "return" | "clearance" | "dispose";
@@ -128,7 +127,7 @@ export default function ExpiryDashboardPage() {
         actions={<Button variant="secondary" onClick={() => alert("Export report — backend pending")}>Export Expiry Report</Button>}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
         {/* Threshold configuration */}
         <div className="bg-[#E6ECE2] rounded-xl p-5">
           <p className="text-sm font-bold text-[#333333] mb-3">Threshold Settings (days)</p>
@@ -290,7 +289,13 @@ function ExpirySection({ title, batches, urgency, onAction }: {
                         <span className={`font-bold ${urgency === "high" ? "text-red-600" : urgency === "medium" ? "text-yellow-600" : urgency === "expired" ? "text-red-700" : "text-[#7A9076]"}`}>
                           {days} days
                         </span>
-                        {urgency === "high" && <span className="ml-1.5 text-red-400" role="img" aria-label="Urgent"><IconWarningTriangle className="h-4 w-4 inline-block align-middle" /></span>}
+                        {urgency === "high" && (
+                          <span className="ml-1.5 inline-flex text-red-400" aria-label="Urgent">
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd"/>
+                            </svg>
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

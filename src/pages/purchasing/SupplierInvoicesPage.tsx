@@ -5,7 +5,6 @@ import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Pagination from "../../components/ui/Pagination"
 import Button from "../../components/ui/Button"
-import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
 import {
@@ -156,6 +155,13 @@ export default function SupplierInvoicesPage() {
     }
   }
 
+  const summary = {
+    total: totalCount,
+    open: invoices.filter((i) => i.status === "OPEN").length,
+    partiallyPaid: invoices.filter((i) => i.status === "PARTIALLY_PAID").length,
+    paid: invoices.filter((i) => i.status === "PAID").length,
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
@@ -170,19 +176,58 @@ export default function SupplierInvoicesPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {([
+            ["Total Invoices", summary.total, "text-[#333333]"],
+            ["Open", summary.open, "text-yellow-600"],
+            ["Partially Paid", summary.partiallyPaid, "text-orange-600"],
+            ["Paid", summary.paid, "text-green-600"],
+          ] as [string, number, string][]).map(([label, value, accent]) => (
+            <div
+              key={label}
+              className="bg-white rounded-xl border border-[#E6ECE2] p-4"
+            >
+              <p className="text-xs text-[#666666]">{label}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col lg:flex-row gap-3 items-center">
-            <div className="flex-1">
-              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search invoices..." />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex-1 min-w-[200px]">
+              <SearchInput
+                value={search}
+                onChange={(v) => {
+                  setSearch(v)
+                  setPage(1)
+                }}
+                placeholder="Search invoices..."
+              />
             </div>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as SupplierInvoiceStatus | ""); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as SupplierInvoiceStatus | "")
+                setPage(1)
+              }}
+              className="sm:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
+            >
               <option value="">All Statuses</option>
               <option value="OPEN">Open</option>
               <option value="PARTIALLY_PAID">Partially Paid</option>
               <option value="PAID">Paid</option>
             </select>
-            <select value={supplierFilter} onChange={(e) => { setSupplierFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+            <select
+              value={supplierFilter}
+              onChange={(e) => {
+                setSupplierFilter(e.target.value)
+                setPage(1)
+              }}
+              className="sm:w-48 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
+            >
               <option value="">All Suppliers</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -207,7 +252,7 @@ export default function SupplierInvoicesPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
@@ -373,16 +418,13 @@ export default function SupplierInvoicesPage() {
                 </table>
               </div>
               <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  onPageChange={setPage}
-                  label={
-                    <>
-                      Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
-                      {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} invoices
-                    </>
-                  }
-                />
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                total={totalCount}
+                pageSize={PAGE_SIZE}
+                itemLabel="invoices"
+              />
             </>
           )}
         </div>

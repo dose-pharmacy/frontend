@@ -34,8 +34,6 @@ export interface BatchDto {
   manufacturingDate: string | null;
   receivedDate: string | null;
   expiryDate: string;
-  /** Base unit the batch quantity is measured in (present when set). */
-  unitId?: string | null;
   purchaseCost: number | null;
   supplierReference: string | null;
   createdAt: string;
@@ -54,7 +52,6 @@ export interface BatchDetailDto extends BatchDto {
 /** Body for POST /inventory/batches. */
 export interface CreateBatchInput {
   productId: string;
-  unitId: string;
   batchNumber: string;
   receivedDate: string; // "YYYY-MM-DD"
   expiryDate: string; // "YYYY-MM-DD"
@@ -289,7 +286,6 @@ export async function createBatch(input: CreateBatchInput): Promise<BatchDto> {
     method: "POST",
     body: JSON.stringify({
       productId: input.productId,
-      unitId: input.unitId,
       batchNumber: input.batchNumber.trim(),
       receivedDate: input.receivedDate,
       expiryDate: input.expiryDate,

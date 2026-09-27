@@ -4,22 +4,21 @@ import {
   fetchBatches,
   fetchProductOptions,
   daysUntilExpiry,
+  createBatch,
   type ProductOption,
 } from "../../features/inventory/inventoryService"
 import type { Batch } from "../../features/inventory/inventoryMock"
 import {
   listExpiryBatches,
   listExpiredProducts,
-  getExpiryDashboard,
   createExpiryAction,
   dedupeBatchesById,
   ExpiryApiError,
   type ExpiryBatchDto,
   type ExpiredProductDto,
   type ExpiredProductBatchDto,
-  type ExpiryDashboardResult,
 } from "../../features/inventory/expiryApi"
-import { searchLocations } from "../../features/inventory/searchSelectors"
+import { searchProducts, searchLocations } from "../../features/inventory/searchSelectors"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchableSelect from "../../components/ui/SearchableSelect"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
@@ -35,16 +34,47 @@ import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory"
 import Pagination from "../../components/ui/Pagination"
 import StatusBadge from "../../components/ui/StatusBadge"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
-import BatchFormModal from "../../components/ui/BatchFormModal"
 
 type Tab = "batches" | "expiring" | "expired"
 type ExpiryAction = "return" | "clearance" | "dispose"
 
 const PAGE_SIZE = 10
 const EXPIRY_LIMIT = 100
-// Thresholds for GET /inventory/expiry/dashboard — feed the two expiry
-// summary cards ("Expiring Within 6 Months" / "Expiring Within 1 Year").
-const EXPIRY_DASHBOARD_THRESHOLDS: number[] = [180, 365]
+
+interface AddBatchForm {
+  productId: string
+  batchNumber: string
+  receivedDate: string
+  expiryDate: string
+  purchaseCost: string
+  supplierReference: string
+}
+
+function emptyBatchForm(): AddBatchForm {
+  const today = new Date().toISOString().slice(0, 10)
+  return {
+    productId: "",
+    batchNumber: "",
+    receivedDate: today,
+    expiryDate: "",
+    purchaseCost: "",
+    supplierReference: "",
+  }
+}
+
+function addBatchErrors(f: AddBatchForm) {
+  const e: Partial<Record<keyof AddBatchForm, string>> = {}
+  if (!f.productId) e.productId = "Product is required."
+  if (!f.batchNumber.trim()) e.batchNumber = "Batch number is required."
+  if (!f.receivedDate) e.receivedDate = "Received date is required."
+  if (!f.expiryDate) e.expiryDate = "Expiry date is required."
+  else if (f.expiryDate < f.receivedDate)
+    e.expiryDate = "Expiry must be after received date."
+  if (f.purchaseCost.trim() === "") e.purchaseCost = "Purchase cost is required."
+  else if (Number.isNaN(Number(f.purchaseCost)) || Number(f.purchaseCost) < 0)
+    e.purchaseCost = "Purchase cost must be a non-negative number."
+  return e
+}
 
 export default function BatchesExpiryPage() {
   const navigate = useNavigate()
@@ -60,6 +90,7 @@ export default function BatchesExpiryPage() {
   const [expiredSearchTerm, setExpiredSearchTerm] = useState("")
   const [expiredProductsLoading, setExpiredProductsLoading] = useState(false)
   const [expiredProductsError, setExpiredProductsError] = useState<string | null>(null)
+  const [expiryLoading, setExpiryLoading] = useState(false)
   const [expiryError, setExpiryError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -79,11 +110,20 @@ export default function BatchesExpiryPage() {
   const [submitting, setSubmitting] = useState(false)
   const [actionRefreshKey, setActionRefreshKey] = useState(0)
 
-  // Add Batch modal (shared component — also used by the Add Stock form)
+  // Add Batch modal
   const [addOpen, setAddOpen] = useState(false)
+  const [addForm, setAddForm] = useState<AddBatchForm>(emptyBatchForm())
+  const [addErrors, setAddErrors] = useState<Partial<Record<keyof AddBatchForm, string>>>({})
+  const [addError, setAddError] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
 
   const locationSearch = useSearchableResource(searchLocations)
   const locationFilterOptions: SearchableOption[] = locationSearch.options
+  const addProductSearch = useSearchableResource(searchProducts, addOpen)
+  const selectedAddProduct = addProductSearch.options.find((o) => o.value === addForm.productId) ?? null
+  const addProductOptions: SearchableOption[] = selectedAddProduct
+    ? [selectedAddProduct, ...addProductSearch.options.filter((o) => o.value !== addForm.productId)]
+    : addProductSearch.options
 
   useEffect(() => {
     fetchProductOptions()
@@ -128,10 +168,9 @@ export default function BatchesExpiryPage() {
   }
 
   // ── Expiring batches from GET /inventory/expiry/batches ──
-  // (Feeds the "Expiring Soon (n)" tab badge; the cards and the table below
-  // them use GET /inventory/expiry/dashboard.) 
   useEffect(() => {
     let cancelled = false
+    setExpiryLoading(true)
     listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
       .then((res) => {
         if (cancelled) return
@@ -148,43 +187,13 @@ export default function BatchesExpiryPage() {
             : "Failed to load expiring batches. Please try again."
         )
       })
+      .finally(() => {
+        if (!cancelled) setExpiryLoading(false)
+      })
     return () => {
       cancelled = true
     }
   }, [])
-
-  // ── Expiry summary cards from GET /inventory/expiry/dashboard ──
-  // Thresholds 180/365 feed the "Expiring Within 6 Months" and
-  // "Expiring Within 1 Year" cards (windows mapped below by daysFrom/daysTo).
-  const [expiryDashboard, setExpiryDashboard] = useState<ExpiryDashboardResult | null>(null)
-  const [expiryDashboardLoading, setExpiryDashboardLoading] = useState(true)
-  const [expiryDashboardError, setExpiryDashboardError] = useState<string | null>(null)
-  const dashboardSeq = useRef(0)
-  const loadExpiryDashboard = useCallback(async () => {
-    const seq = ++dashboardSeq.current
-    setExpiryDashboardLoading(true)
-    setExpiryDashboardError(null)
-    try {
-      const res = await getExpiryDashboard({ thresholds: EXPIRY_DASHBOARD_THRESHOLDS })
-      if (seq !== dashboardSeq.current) return
-      setExpiryDashboard(res)
-    } catch (err) {
-      if (seq !== dashboardSeq.current) return
-      setExpiryDashboardError(
-        err instanceof ExpiryApiError
-          ? err.message
-          : "Failed to load the expiry summary. Please try again."
-      )
-    } finally {
-      if (seq === dashboardSeq.current) setExpiryDashboardLoading(false)
-    }
-  }, [])
-  useEffect(() => {
-    void loadExpiryDashboard()
-    return () => {
-      dashboardSeq.current++
-    }
-  }, [loadExpiryDashboard])
 
   // ── Expired products from GET /inventory/expired-products ──
   const expiredSeq = useRef(0)
@@ -272,54 +281,6 @@ export default function BatchesExpiryPage() {
     [expiringBatches]
   )
 
-  // Expiry summary cards. Counts come from the expiry dashboard's `windows`
-  // array — matched by daysFrom/daysTo (never by the backend's label string,
-  // and never from the `critical`/`expiringSoon`/`warning` summary fields).
-  // The 6-month window is a subset of the 1-year window; nothing is subtracted.
-  const expiryCards = useMemo(() => {
-    const windows = expiryDashboard?.windows ?? []
-    const windowCount = (targetEnd: number): number => {
-      // Prefer the window that starts the range (daysFrom 0) and ends on or
-      // after the target; fall back to the window whose end is closest.
-      const covering = windows
-        .filter((w) => w.daysFrom <= 0 && w.daysTo >= targetEnd)
-        .sort((a, b) => a.daysTo - b.daysTo)[0]
-      if (covering) return covering.batchCount
-      const closest = windows
-        .slice()
-        .sort(
-          (a, b) =>
-            Math.abs(a.daysTo - targetEnd) - Math.abs(b.daysTo - targetEnd),
-        )[0]
-      return closest?.batchCount ?? 0
-    }
-    return [
-      {
-        label: "Expiring Within 6 Months",
-        count: windowCount(180),
-        cls: "border-[#C6D4BF] bg-[#E6ECE2]/60",
-        textCls: "text-[#4F6B4A]",
-      },
-      {
-        label: "Expiring Within 1 Year",
-        count: windowCount(365),
-        cls: "border-[#C6D4BF] bg-white",
-        textCls: "text-[#4F6B4A]",
-      },
-    ]
-  }, [expiryDashboard])
-
-  // Batches for the single table below the summary cards — taken from the
-  // dashboard's returned `windows[].batches` (a batch inside 6 months also
-  // appears in the 1-year window, so rows are deduped by id). Only
-  // not-yet-expired, in-stock batches within the next year are shown.
-  const expiryTableRows = useMemo(() => {
-    const all = (expiryDashboard?.windows ?? []).flatMap((w) => w.batches)
-    return dedupeBatchesById(all)
-      .filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 365 && b.stock.quantity > 0)
-      .sort((a, b) => a.daysRemaining - b.daysRemaining)
-  }, [expiryDashboard])
-
   function daysUntil(d: string): number {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -403,8 +364,7 @@ export default function BatchesExpiryPage() {
       }
       setActionBatch(null)
       setActionRefreshKey((k) => k + 1)
-      // Refresh the expiring sweep, the expired-products list, and the
-      // expiry-dashboard summary cards.
+      // Refresh both the expiring sweep and the expired-products list.
       listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
         .then((res) => {
           const rows = dedupeBatchesById(res.data)
@@ -412,7 +372,6 @@ export default function BatchesExpiryPage() {
           setExpiryError(null)
         })
         .catch(() => setExpiryError("Failed to refresh expiring batches."))
-      void loadExpiryDashboard()
       await loadExpiredProducts()
       await reloadBatches()
     } catch (err) {
@@ -428,7 +387,36 @@ export default function BatchesExpiryPage() {
 
   // ── Add Batch ──
   function openAdd() {
+    setAddForm(emptyBatchForm())
+    setAddErrors({})
+    setAddError(null)
     setAddOpen(true)
+  }
+
+  async function handleAddBatch() {
+    const e = addBatchErrors(addForm)
+    if (Object.keys(e).length) {
+      setAddErrors(e)
+      return
+    }
+    setAdding(true)
+    setAddError(null)
+    try {
+      await createBatch({
+        productId: addForm.productId,
+        batchNumber: addForm.batchNumber.trim(),
+        receivedDate: addForm.receivedDate,
+        expiryDate: addForm.expiryDate,
+        purchaseCost: Number(addForm.purchaseCost),
+        supplierReference: addForm.supplierReference.trim(),
+      })
+      setAddOpen(false)
+      await reloadBatches()
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to create batch.")
+    } finally {
+      setAdding(false)
+    }
   }
 
   function formatDate(d: string) {
@@ -468,7 +456,7 @@ export default function BatchesExpiryPage() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
         {loadError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {loadError}
@@ -518,7 +506,7 @@ export default function BatchesExpiryPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
               {loading ? (
                 <LoadingSkeleton />
               ) : filteredBatches.length === 0 ? (
@@ -585,77 +573,50 @@ export default function BatchesExpiryPage() {
         {/* ── EXPIRING SOON TAB ── */}
         {tab === "expiring" && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {expiryDashboardLoading ? (
-                <>
-                  <div className="rounded-xl border border-[#E6ECE2] p-4 animate-pulse">
-                    <div className="h-8 w-16 rounded bg-[#E6ECE2]" />
-                    <div className="h-3 w-36 rounded bg-[#E6ECE2] mt-2.5" />
-                  </div>
-                  <div className="rounded-xl border border-[#E6ECE2] p-4 animate-pulse">
-                    <div className="h-8 w-16 rounded bg-[#E6ECE2]" />
-                    <div className="h-3 w-36 rounded bg-[#E6ECE2] mt-2.5" />
-                  </div>
-                </>
-              ) : expiryDashboardError ? (
-                <div className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                  {expiryDashboardError}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+  { label: "Critical (≤ 30 days)", count: expiring.filter((b) => b.daysRemaining <= 30).length, cls: "border-red-200 bg-red-50", textCls: "text-red-600" },
+  { label: "Within 60 days", count: expiring.filter((b) => b.daysRemaining > 30 && b.daysRemaining <= 60).length, cls: "border-orange-200 bg-orange-50", textCls: "text-orange-600" },
+  { label: "Within 90 days", count: expiring.filter((b) => b.daysRemaining > 60 && b.daysRemaining <= 90).length, cls: "border-yellow-200 bg-yellow-50", textCls: "text-yellow-600" },
+  { label: "Already Expired", count: expiredTotal, cls: "border-gray-200 bg-gray-50", textCls: "text-gray-600" },
+].map(({ label, count, cls, textCls }) => (
+                <div key={label} className={`rounded-xl border p-4 ${cls}`}>
+                  <p className={`text-2xl font-bold ${textCls}`}>{count}</p>
+                  <p className="text-xs text-[#666666] mt-0.5">{label}</p>
                 </div>
-              ) : (
-                expiryCards.map(({ label, count, cls, textCls }) => (
-                  <div key={label} className={`rounded-xl border p-4 ${cls}`}>
-                    <p className={`text-2xl font-bold ${textCls}`}>{count}</p>
-                    <p className="text-xs text-[#666666] mt-0.5">{label}</p>
-                  </div>
-                ))
-              )}
+              ))}
             </div>
 
-            {expiryDashboardLoading ? (
+            {expiryLoading ? (
               <LoadingSkeleton />
-            ) : expiryDashboardError ? null : expiryTableRows.length === 0 ? (
-              <EmptyState title="No expiring batches" description="No batches expiring within the next 1 year." />
+            ) : expiring.length === 0 ? (
+              <EmptyState title="No expiring batches" description="No batches expiring within the next 90 days." />
             ) : (
-              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-[#E6ECE2] text-left">
-                        <th className="px-4 py-3 font-semibold text-[#333333]">Product</th>
-                        <th className="px-4 py-3 font-semibold text-[#333333]">Batch</th>
-                        <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">Location</th>
-                        <th className="px-4 py-3 font-semibold text-[#333333]">Expiry Date</th>
-                        <th className="px-4 py-3 font-semibold text-[#333333] text-right">Days Remaining</th>
-                        <th className="px-4 py-3 font-semibold text-[#333333] text-right">Quantity</th>
-                        <th className="px-4 py-3 font-semibold text-[#333333]">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {expiryTableRows.map((b, i) => (
-                        <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
-                          <td className="px-4 py-3 font-medium text-[#333333]">{b.product.name}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
-                          <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{b.stock.location.name}</td>
-                          <td className="px-4 py-3 text-[#666666]">{formatDate(b.expiryDate)}</td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="font-semibold text-orange-600">{b.daysRemaining} days</span>
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-[#333333]">
-                            {b.stock.quantity.toLocaleString()} {productUnit(b.product.id)}s
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
-                              <button onClick={() => openAction(b, "return")} className="text-xs font-semibold text-[#7A9076] hover:underline">Return</button>
-                              <button onClick={() => openAction(b, "clearance")} className="text-xs font-semibold text-orange-500 hover:underline">Clearance</button>
-                              <button onClick={() => openAction(b, "dispose")} className="text-xs font-semibold text-red-500 hover:underline">Dispose</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <>
+                <ExpiryGroup
+                  title="Critical — Expiring within 30 days"
+                  urgency="critical"
+                  batches={expiring.filter((b) => b.daysRemaining <= 30)}
+                  productUnit={productUnit}
+                  onAction={openAction}
+                />
+                <ExpiryGroup
+                  title="Expiring within 60 days"
+                  urgency="warning"
+                  batches={expiring.filter((b) => b.daysRemaining > 30 && b.daysRemaining <= 60)}
+                  productUnit={productUnit}
+                  onAction={openAction}
+                />
+                <ExpiryGroup
+                  title="Expiring within 90 days"
+                  urgency="notice"
+                  batches={expiring.filter((b) => b.daysRemaining > 60 && b.daysRemaining <= 90)}
+                  productUnit={productUnit}
+                  onAction={openAction}
+                />
+                
+                
+              </>
             )}
           </>
         )}
@@ -706,14 +667,110 @@ export default function BatchesExpiryPage() {
         )}
       </div>
 
-      {/* Add Batch modal (shared — also used by the Add Stock form) */}
-      <BatchFormModal
+      {/* ─────────── Add Batch Modal ─────────── */}
+      <Modal
         open={addOpen}
-        onClose={() => setAddOpen(false)}
-        onSaved={async () => {
-          await reloadBatches()
-        }}
-      />
+        title="Add Batch"
+        onClose={() => !adding && setAddOpen(false)}
+        size="md"
+      >
+        <div className="flex flex-col gap-4">
+          <FormError message={addError} />
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[#333333]">Product</label>
+            <SearchableSelect
+              value={addForm.productId || null}
+              onChange={(v) => {
+                setAddForm((f) => ({ ...f, productId: v }))
+                setAddErrors((er) => ({ ...er, productId: undefined }))
+              }}
+              options={addProductOptions}
+              onSearch={addProductSearch.setTerm}
+              loading={addProductSearch.loading}
+              error={addProductSearch.error}
+              onRetry={addProductSearch.retry}
+              placeholder="Search and select a product..."
+              searchPlaceholder="Search by name or SKU..."
+              emptyMessage="No products found"
+              noResultsMessage="No products matching your search"
+            />
+            {addErrors.productId && (
+              <p className="text-xs text-red-500">{addErrors.productId}</p>
+            )}
+          </div>
+
+          <Input
+            label="Batch Number"
+            value={addForm.batchNumber}
+            onChange={(e) => {
+              setAddForm((f) => ({ ...f, batchNumber: e.target.value }))
+              setAddErrors((er) => ({ ...er, batchNumber: undefined }))
+            }}
+            error={addErrors.batchNumber}
+            placeholder="e.g. PCM001"
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Received Date"
+              type="date"
+              value={addForm.receivedDate}
+              onChange={(e) => {
+                setAddForm((f) => ({ ...f, receivedDate: e.target.value }))
+                setAddErrors((er) => ({ ...er, receivedDate: undefined }))
+              }}
+              error={addErrors.receivedDate}
+            />
+            <Input
+              label="Expiry Date"
+              type="date"
+              value={addForm.expiryDate}
+              onChange={(e) => {
+                setAddForm((f) => ({ ...f, expiryDate: e.target.value }))
+                setAddErrors((er) => ({ ...er, expiryDate: undefined }))
+              }}
+              error={addErrors.expiryDate}
+            />
+          </div>
+
+          <Input
+            label="Purchase Cost"
+            type="number"
+            min={0}
+            step="0.01"
+            value={addForm.purchaseCost}
+            onChange={(e) => {
+              setAddForm((f) => ({ ...f, purchaseCost: e.target.value }))
+              setAddErrors((er) => ({ ...er, purchaseCost: undefined }))
+            }}
+            error={addErrors.purchaseCost}
+            placeholder="e.g. 110"
+          />
+
+          <Input
+            label="Supplier Reference"
+            value={addForm.supplierReference}
+            onChange={(e) =>
+              setAddForm((f) => ({ ...f, supplierReference: e.target.value }))
+            }
+            placeholder="e.g. ABC Pharma invoice 1042"
+          />
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => setAddOpen(false)}
+              disabled={adding}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void handleAddBatch()} loading={adding}>
+              Create Batch
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ─────────── Expiry Action Modal ─────────── */}
       <Modal open={!!actionBatch} title="Expiry Action" onClose={() => setActionBatch(null)} size="md">
@@ -763,6 +820,51 @@ export default function BatchesExpiryPage() {
         )}
       </Modal>
     </div>
+  )
+}
+
+function ExpiryGroup({
+  title, urgency, batches, productUnit, onAction,
+}: {
+  title: string
+  urgency: "critical" | "warning" | "notice"
+  batches: ExpiryBatchDto[]
+  productUnit: (id: string) => string
+  onAction: (b: ExpiryBatchDto, type: ExpiryAction) => void
+}) {
+  if (batches.length === 0) return null
+  const headerCls = urgency === "critical" ? "bg-red-500" : urgency === "warning" ? "bg-orange-400" : "bg-yellow-400"
+  const dotCls = urgency === "critical" ? "text-red-600" : urgency === "warning" ? "text-orange-500" : "text-yellow-500"
+
+  return (
+    <section>
+      <div className={`${headerCls} px-4 py-2.5 rounded-t-xl flex items-center justify-between`}>
+        <p className="text-sm font-bold text-white">{title}</p>
+        <span className="text-xs text-white/80">{batches.length} batch{batches.length !== 1 ? "es" : ""}</span>
+      </div>
+      <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] divide-y divide-[#E6ECE2]">
+        {batches.map((b) => {
+          const days = b.daysRemaining
+          return (
+            <div key={b.id} className="flex items-center gap-4 px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-[#333333] truncate">{b.product.name}</p>
+                <p className="text-xs text-[#666666] font-mono">{b.batchNumber} · {b.stock.location.name}</p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className={`text-sm font-bold ${dotCls}`}>{days} days</p>
+                <p className="text-xs text-[#666666]">{b.stock.quantity.toLocaleString()} {productUnit(b.product.id)}s</p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => onAction(b, "return")} className="text-xs font-semibold text-[#7A9076] hover:underline">Return</button>
+                <button onClick={() => onAction(b, "clearance")} className="text-xs font-semibold text-orange-500 hover:underline">Clearance</button>
+                <button onClick={() => onAction(b, "dispose")} className="text-xs font-semibold text-red-500 hover:underline">Dispose</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 

@@ -5,7 +5,6 @@ import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
 import Pagination from "../../components/ui/Pagination"
 import Button from "../../components/ui/Button"
-import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
 import {
@@ -13,6 +12,7 @@ import {
   deleteGoodsReceipt,
   type GoodsReceiptDto,
   type GoodsReceiptStatus,
+  type GoodsReceiptListSummary,
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
@@ -46,6 +46,7 @@ export default function GoodsReceiptsPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptDto | null>(null)
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
+  const [grSummary, setGrSummary] = useState<GoodsReceiptListSummary | null>(null)
 
   const PAGE_SIZE = 20
 
@@ -75,6 +76,7 @@ export default function GoodsReceiptsPage() {
       setReceipts(res.data)
       setTotalPages(res.meta.totalPages)
       setTotalCount(res.meta.total)
+      if (res.summary) setGrSummary(res.summary)
     } catch (e) {
       setError(
         e instanceof GoodsReceiptsApiError
@@ -125,6 +127,14 @@ export default function GoodsReceiptsPage() {
     )
   }, [receipts, search, supplierName])
 
+  // Status counts come from the server (over the filtered dataset) when available.
+  const summary = {
+    total: totalCount,
+    matched: grSummary?.matched ?? visibleReceipts.filter((r) => r.status === "MATCHED").length,
+    discrepancy: grSummary?.discrepancy ?? visibleReceipts.filter((r) => r.status === "DISCREPANCY").length,
+    resolved: grSummary?.resolved ?? visibleReceipts.filter((r) => r.status === "RESOLVED").length,
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <PageHeader
@@ -139,13 +149,45 @@ export default function GoodsReceiptsPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {([
+            ["Total Receipts", summary.total, "text-[#333333]"],
+            ["Matched", summary.matched, "text-green-600"],
+            ["Discrepancy", summary.discrepancy, "text-yellow-600"],
+            ["Resolved", summary.resolved, "text-blue-600"],
+          ] as [string, number, string][]).map(([label, value, accent]) => (
+            <div
+              key={label}
+              className="bg-white rounded-xl border border-[#E6ECE2] p-4"
+            >
+              <p className="text-xs text-[#666666]">{label}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+
         {/* Filters */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <div className="flex-1">
-              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search receipts..." />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex-1 min-w-[200px]">
+              <SearchInput
+                value={search}
+                onChange={(v) => {
+                  setSearch(v)
+                  setPage(1)
+                }}
+                placeholder="Search receipts..."
+              />
             </div>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as GoodsReceiptStatus | ""); setPage(1) }} className="sm:w-48 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as GoodsReceiptStatus | "")
+                setPage(1)
+              }}
+              className="sm:w-48 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
+            >
               <option value="">All Statuses</option>
               <option value="MATCHED">Matched</option>
               <option value="DISCREPANCY">Discrepancy</option>
@@ -167,7 +209,7 @@ export default function GoodsReceiptsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
+        <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
@@ -254,66 +296,85 @@ export default function GoodsReceiptsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleReceipts.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="px-4 py-8 text-center text-sm text-[#999]">No receipts match your search.</td>
+                    {receipts.map((r, i) => (
+                      <tr
+                        key={r.id}
+                        className={`hover:bg-[#E6ECE2]/30 transition-colors ${
+                          i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"
+                        }`}
+                      >
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/purchasing/deliveries/${r.id}/reconcile`,
+                              )
+                            }
+                            className="font-semibold text-[#7A9076] hover:underline"
+                          >
+                            {r.receiptNumber}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-[#333333]">
+                          {r.purchaseOrder?.poNumber ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-[#333333]">
+                          {r.purchaseOrder?.supplier?.name ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
+                          {fmtDate(r.receivedDate)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusChip
+                            label={r.status}
+                            tone={STATUS_BADGE[r.status] ?? "gray"}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-[#666666]">
+                          {r.items?.length ?? 0} item
+                          {(r.items?.length ?? 0) !== 1 ? "s" : ""}
+                        </td>
+                        <td className="px-4 py-3 text-[#666666]">
+                          {r.createdBy?.name ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-[#666666]">
+                          {r.confirmedAt ? "Yes" : "No"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                navigate(
+                                  `/purchasing/deliveries/${r.id}/reconcile`,
+                                )
+                              }
+                              className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                            >
+                              View <ChevronRight className="h-3.5 w-3.5" />
+                            </button>
+                            {r.confirmedAt === null && (
+                              <button
+                                onClick={() => setDeleteTarget(r)}
+                                className="text-xs text-red-500 hover:underline whitespace-nowrap"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
-                    ) : (
-                      visibleReceipts.map((r, i) => {
-                        const itemCount = r._count?.items ?? r.items?.length ?? 0
-                        const confirmed = !!r.confirmedBy || !!r.confirmedById || !!r.confirmedAt
-                        return (
-                          <tr key={r.id} className={`hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`}>
-                            <td className="px-4 py-3">
-                              <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="font-semibold text-[#7A9076] hover:underline">{r.receiptNumber}</button>
-                            </td>
-                            <td className="px-4 py-3 text-[#333333]">{r.purchaseOrder?.poNumber ?? r.purchaseOrderId}</td>
-                            <td className="px-4 py-3 text-[#333333]">{supplierName(r.supplierId)}</td>
-                            <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(r.receivedDate)}</td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${STATUS_BADGE[r.status] ?? "bg-gray-100 text-gray-600"}`}>
-                                {r.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-[#666666]">
-                              {itemCount} item{itemCount !== 1 ? "s" : ""}
-                            </td>
-                            <td className="px-4 py-3 text-[#666666]">{r.createdBy?.name ?? "—"}</td>
-                            <td className="px-4 py-3 text-[#666666]">
-                              {confirmed
-                                ? (r.confirmedBy ? `Yes · ${r.confirmedBy.name}` : "Yes")
-                                : "No"}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
-                                  View
-                                </button>
-                                {!confirmed && (
-                                  <button onClick={() => setDeleteTarget(r)} className="text-xs text-red-500 hover:underline whitespace-nowrap">
-                                    Delete
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
               <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  onPageChange={setPage}
-                  label={
-                    <>
-                      Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–
-                      {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} receipts
-                    </>
-                  }
-                />
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                total={totalCount}
+                pageSize={PAGE_SIZE}
+                itemLabel="receipts"
+              />
             </>
           )}
         </div>

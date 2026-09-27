@@ -1,30 +1,34 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router"
 import {
   getReorderDashboard,
   getReorderSuggestions,
   ReorderApiError,
   type ReorderDashboardItemDto,
-  type ReorderProductDto,
   type ReorderSuggestionDto,
-  type ReorderUrgency,
 } from "../../features/inventory/reorderApi"
 import PageHeader from "../../components/ui/PageHeader"
+import MetricCard from "../../components/ui/MetricCard"
 import Button from "../../components/ui/Button"
 import FormError from "../../components/ui/FormError"
-import Pagination from "../../components/ui/Pagination"
+import StatusChip from "../../components/ui/StatusChip"
 import GenerateRequirementsModal from "./ReorderReq"
-
-const PAGE_SIZE = 10
 
 export default function ReorderManagementPage() {
   const navigate = useNavigate()
   const [dashboard, setDashboard] = useState<ReorderDashboardItemDto[]>([])
+  const [summary, setSummary] = useState({
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    totalItems: 0,
+    totalSuggestedQuantity: 0,
+  })
   const [suggestions, setSuggestions] = useState<ReorderSuggestionDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showGenerate, setShowGenerate] = useState(false)
-  const [page, setPage] = useState(1)
 
   useEffect(() => {
     let cancelled = false
@@ -35,6 +39,7 @@ export default function ReorderManagementPage() {
       .then(([dash, sugg]) => {
         if (cancelled) return
         setDashboard(dash.items)
+        setSummary(dash.summary)
         setSuggestions(sugg.data)
         setError(null)
       })
@@ -62,6 +67,7 @@ export default function ReorderManagementPage() {
     ])
       .then(([dash, sugg]) => {
         setDashboard(dash.items)
+        setSummary(dash.summary)
         setSuggestions(sugg.data)
         setError(null)
       })
@@ -75,6 +81,22 @@ export default function ReorderManagementPage() {
       .finally(() => setLoading(false))
   }
 
+  const avgSales = suggestions.length
+    ? (
+        suggestions.reduce((s, d) => s + (d.averageDailySales ?? 0), 0) /
+        suggestions.length
+      ).toFixed(1)
+    : "0"
+
+  // Merge dashboard rows with reorder suggestions — one row per product.
+  const suggestionByProduct = new Map(
+    suggestions.map((s) => [s.product.id, s]),
+  )
+  const rows = dashboard.map((d) => ({
+    item: d,
+    suggestion: suggestionByProduct.get(d.product.id),
+  }))
+
   const modalSuggestions = suggestions.map((s) => ({
     id: s.product.id,
     name: s.product.name,
@@ -82,98 +104,16 @@ export default function ReorderManagementPage() {
     status: "Draft",
   }))
 
-  // Merge the low-stock alerts (dashboard) and the reorder suggestions into a
-  // single per-product list so both tables can be presented together.
-  type MergedReorderRow = {
-    product: ReorderProductDto
-    currentStock: number
-    threshold: number
-    averageDailySales: number | null
-    leadTimeDays: number
-    suggestedQuantity: number
-    urgency: ReorderUrgency | null
-  }
-
-  const mergedRows = useMemo<MergedReorderRow[]>(() => {
-    const byId = new Map<string, MergedReorderRow>()
-    for (const d of dashboard) {
-      byId.set(d.product.id, {
-        product: d.product,
-        currentStock: d.currentStock,
-        threshold: d.minimumThreshold,
-        averageDailySales: null,
-        leadTimeDays: d.leadTimeDays,
-        suggestedQuantity: d.suggestedQuantity,
-        urgency: d.urgency,
-      })
-    }
-    for (const s of suggestions) {
-      const existing = byId.get(s.product.id)
-      if (existing) {
-        existing.averageDailySales = s.averageDailySales
-        existing.leadTimeDays = s.leadTimeDays
-        existing.suggestedQuantity = s.suggestedQuantity
-      } else {
-        byId.set(s.product.id, {
-          product: s.product,
-          currentStock: s.currentStock,
-          threshold: s.reorderPoint,
-          averageDailySales: s.averageDailySales,
-          leadTimeDays: s.leadTimeDays,
-          suggestedQuantity: s.suggestedQuantity,
-          urgency: null,
-        })
-      }
-    }
-    return Array.from(byId.values())
-  }, [dashboard, suggestions])
-
-  const totalPages = Math.max(1, Math.ceil(mergedRows.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const paginatedRows = mergedRows.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  )
-
   const urgencyBadge = (urgency: string) => {
     switch (urgency) {
       case "CRITICAL":
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
-            Critical
-          </span>
-        )
+        return <StatusChip label="Critical" tone="red" />
       case "HIGH":
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700">
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-orange-500"
-              aria-hidden
-            />
-            High
-          </span>
-        )
+        return <StatusChip label="High" tone="orange" />
       case "MEDIUM":
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-amber-500"
-              aria-hidden
-            />
-            Medium
-          </span>
-        )
+        return <StatusChip label="Medium" tone="amber" />
       default:
-        return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6ECE2] px-2.5 py-0.5 text-xs font-medium text-[#7A9076]">
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-[#B6C8AF]"
-              aria-hidden
-            />
-            Low
-          </span>
-        )
+        return <StatusChip label="Low" tone="sage" />
     }
   }
 
@@ -199,6 +139,28 @@ export default function ReorderManagementPage() {
       />
 
       <div className="p-6 flex flex-col gap-6">
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <MetricCard
+            title="Below Threshold"
+            value={summary.totalItems}
+            icon={<AlertIcon />}
+            subtitle="items need attention"
+          />
+          <MetricCard
+            title="Avg Daily Sales"
+            value={avgSales}
+            icon={<TrendIcon />}
+            subtitle="units/day"
+          />
+          <MetricCard
+            title="Total Suggested Qty"
+            value={summary.totalSuggestedQuantity}
+            icon={<OrderIcon />}
+            subtitle="units to reorder"
+          />
+        </div>
+
         {error && <FormError message={error} />}
 
         {loading ? (
@@ -209,12 +171,12 @@ export default function ReorderManagementPage() {
           </div>
         ) : !error ? (
           <>
-            {/* Merged low-stock alerts + suggested reorder quantities */}
+            {/* Low stock & reorder recommendations */}
             <section>
-              <div className="bg-[#B6C8AF] px-4 py-2.5 rounded-t-xl flex items-center justify-between">
-                <p className="text-sm font-bold text-white">
-                  LOW STOCK ALERTS & SUGGESTED QUANTITIES ({mergedRows.length}{" "}
-                  item{mergedRows.length !== 1 ? "s" : ""})
+              <div className="bg-[#E6ECE2] px-4 py-2.5 rounded-t-xl flex items-center justify-between">
+                <p className="text-sm font-bold text-[#333333]">
+                  LOW STOCK &amp; REORDER RECOMMENDATIONS ({dashboard.length}{" "}
+                  items)
                 </p>
               </div>
               <div className="bg-white rounded-b-xl border border-t-0 border-[#E6ECE2] overflow-hidden">
@@ -226,13 +188,15 @@ export default function ReorderManagementPage() {
                           "Product",
                           "Current Stock",
                           "Threshold",
+                          "Avg Daily Sales",
+                          "Lead Time",
                           "Suggested Qty",
                           "Urgency",
                           "Action",
                         ].map((h) => (
                           <th
                             key={h}
-                            className="px-4 py-3 text-left font-semibold text-[#333333] whitespace-nowrap"
+                            className="px-4 py-3 text-left font-semibold text-[#333333]"
                           >
                             {h}
                           </th>
@@ -240,70 +204,59 @@ export default function ReorderManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {mergedRows.length === 0 ? (
+                      {rows.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={6}
+                            colSpan={8}
                             className="px-4 py-6 text-center text-[#333333]/60"
                           >
-                            No low-stock alerts or reorder suggestions right
-                            now.
+                            No low-stock alerts right now.
                           </td>
                         </tr>
                       ) : (
-                        paginatedRows.map((r, i) => (
+                        rows.map(({ item: d, suggestion: s }, i) => (
                           <tr
-                            key={r.product.id}
+                            key={d.product.id}
                             className={
                               i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"
                             }
                           >
                             <td className="px-4 py-3 font-medium text-[#333333]">
-                              {r.product.name}
+                              {d.product.name}
                             </td>
                             <td
                               className={`px-4 py-3 font-bold ${
-                                r.currentStock <= r.threshold
+                                d.currentStock <= d.minimumThreshold
                                   ? "text-red-600"
                                   : "text-[#333333]"
                               }`}
                             >
-                              {r.currentStock}
+                              {d.currentStock}
                             </td>
                             <td className="px-4 py-3 text-[#666666]">
-                              {r.threshold}
+                              {d.minimumThreshold}
                             </td>
-                            <td className="px-4 py-3 font-semibold text-[#7A9076]">
-                              {r.suggestedQuantity}
+                            <td className="px-4 py-3 text-[#666666]">
+                              {s && s.averageDailySales > 0
+                                ? s.averageDailySales
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-[#666666]">
+                              {d.leadTimeDays} days
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-[#333333]">
+                              {d.suggestedQuantity}
                             </td>
                             <td className="px-4 py-3">
-                              {r.urgency ? (
-                                urgencyBadge(r.urgency)
-                              ) : (
-                                <span className="text-xs text-[#999999]">
-                                  —
-                                </span>
-                              )}
+                              {urgencyBadge(d.urgency)}
                             </td>
                             <td className="px-4 py-3">
                               <Button
-                                onClick={() => {
-                                  const params = new URLSearchParams()
-                                  params.set("productId", r.product.id)
-                                  params.set("productName", r.product.name)
-                                  params.set("productSku", r.product.sku)
-                                  params.set(
-                                    "quantity",
-                                    String(r.suggestedQuantity),
+                                onClick={() =>
+                                  alert(
+                                    "Create purchase order — Purchasing module coming soon.",
                                   )
-                                  if (r.product.baseUnit?.id) {
-                                    params.set("unitId", r.product.baseUnit.id)
-                                    params.set("unitName", r.product.baseUnit.name)
-                                  }
-                                  navigate(
-                                    `/purchasing/orders/new?${params.toString()}`,
-                                  )
-                                }}
+                                }
                               >
                                 Order
                               </Button>
@@ -314,20 +267,6 @@ export default function ReorderManagementPage() {
                     </tbody>
                   </table>
                 </div>
-                {mergedRows.length > 0 && (
-                  <Pagination
-                    page={safePage}
-                    totalPages={totalPages}
-                    onPageChange={setPage}
-                    label={
-                      <>
-                        Showing {(safePage - 1) * PAGE_SIZE + 1}–
-                        {Math.min(safePage * PAGE_SIZE, mergedRows.length)} of{" "}
-                        {mergedRows.length} items
-                      </>
-                    }
-                  />
-                )}
               </div>
             </section>
           </>
@@ -341,5 +280,60 @@ export default function ReorderManagementPage() {
         onGenerate={() => refresh()}
       />
     </div>
+  )
+}
+
+function AlertIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+      />
+    </svg>
+  )
+}
+function TrendIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"
+      />
+    </svg>
+  )
+}
+function OrderIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
+      />
+    </svg>
   )
 }

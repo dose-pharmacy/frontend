@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
-import PageHeader from "../../components/ui/PageHeader";
-import AddSupplier from "./AddSupplier";
-import Pagination from "../../components/ui/Pagination";
-import SearchableSelect from "../../components/ui/SearchableSelect";
+import { useEffect, useState } from "react"
 import {
-  IconBanknotes,
-  IconBox,
-  IconCheck,
-  IconCheckCircle,
-  IconDocumentText,
-  IconReturn,
-  IconWarningTriangle,
-} from "../../components/ui/icons";
+  ChevronRight,
+  TriangleAlert,
+  Wallet,
+  FileText,
+  Package,
+  Undo2,
+  X,
+} from "lucide-react"
+import PageHeader from "../../components/ui/PageHeader"
+import SearchInput from "../../components/ui/SearchInput"
+import Pagination from "../../components/ui/Pagination"
+import Button from "../../components/ui/Button"
+import Modal from "../../components/ui/Modal"
+import StatusChip, { type StatusTone } from "../../components/ui/StatusChip"
+import AddSupplier from "./AddSupplier"
 
 import {
   listSuppliers,
@@ -51,12 +54,12 @@ const PO_BADGE: Record<string, StatusTone> = {
   CANCELLED: "red",
 }
 
-const INV_BADGE: Record<string, string> = {
-  PAID: "bg-green-500 text-white",
-  PARTIALLY_PAID: "bg-orange-400 text-white",
-  UNPAID: "bg-yellow-400 text-[#4A4A4A]",
-  OVERDUE: "bg-red-500 text-white",
-};
+const INV_BADGE: Record<string, StatusTone> = {
+  PAID: "green",
+  PARTIALLY_PAID: "orange",
+  UNPAID: "yellow",
+  OVERDUE: "red",
+}
 
 interface EditSupplierForm {
   name: string
@@ -110,17 +113,9 @@ export default function SupplierPayablesPage() {
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState<string | null>(null)
 
-  const [suppFilter, setSuppFilter] = useState("all");
-
-  /*
-   * Invoice status filtering is temporarily disabled because the supplied
-   * supplier API does not expose a global invoice-list endpoint.
-   *
-   * const [statusFilter, setStatusFilter] = useState("all");
-   */
-
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [suppFilter, setSuppFilter] = useState("all")
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
 
   // ---------------------------------------------------------------------------
   // Add Supplier
@@ -156,12 +151,13 @@ export default function SupplierPayablesPage() {
   // Delete Supplier
   // ---------------------------------------------------------------------------
 
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletingSupplier, setDeletingSupplier] =
-    useState<SupplierDto | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteSuccess, setDeleteSuccess] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletingSupplier, setDeletingSupplier] = useState<SupplierDto | null>(
+    null,
+  )
+  const [deleting, setDeleting] = useState(false)
+  const [deleteSuccess, setDeleteSuccess] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // ---------------------------------------------------------------------------
   // Load suppliers from real API
@@ -201,18 +197,49 @@ export default function SupplierPayablesPage() {
   }, [search])
 
   // ---------------------------------------------------------------------------
-  // Pagination
+  // Filtering & pagination
   // ---------------------------------------------------------------------------
+
+  const filteredSuppliers =
+    suppFilter === "all"
+      ? suppliers
+      : suppliers.filter((supplier) => supplier.id === suppFilter)
 
   const totalPages = Math.max(
     1,
-    Math.ceil(suppliers.length / PAGE_SIZE),
-  );
+    Math.ceil(filteredSuppliers.length / PAGE_SIZE),
+  )
 
-  const pagedSuppliers = suppliers.slice(
+  const pagedSuppliers = filteredSuppliers.slice(
     (page - 1) * PAGE_SIZE,
     page * PAGE_SIZE,
-  );
+  )
+
+  function resetFilters() {
+    setSearch("")
+    setSuppFilter("all")
+    setPage(1)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Supplier statistics
+  // ---------------------------------------------------------------------------
+
+  const totalOutstanding = filteredSuppliers.reduce(
+    (sum, supplier) => sum + Number(supplier.totalOutstanding ?? 0),
+    0,
+  )
+
+  const totalInvoices = filteredSuppliers.reduce(
+    (sum, supplier) => sum + Number(supplier._count?.supplierInvoices ?? 0),
+    0,
+  )
+
+  const totalSuppliers = filteredSuppliers.length
+
+  const activeSuppliers = filteredSuppliers.filter(
+    (supplier) => supplier.isActive,
+  ).length
 
   // ---------------------------------------------------------------------------
   // Add supplier
@@ -449,16 +476,7 @@ export default function SupplierPayablesPage() {
     }
   }
 
-  /*
-   * Supplier options for the SearchableSelect filter.
-   */
-  const supplierFilterOptions = [
-    { value: "all", label: "All Suppliers" },
-    ...suppliers.map((supplier) => ({
-      value: supplier.id,
-      label: supplier.name,
-    })),
-  ];
+  const hasFilters = Boolean(search.trim()) || suppFilter !== "all"
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -479,10 +497,20 @@ export default function SupplierPayablesPage() {
               Generate Report
             </button>
 
+            {/*
+             * RECORD PAYMENT TEMPORARILY DISABLED.
+             *
+             * There is no confirmed payment endpoint in suppliersApi.ts.
+             *
+             * <button ...>
+             *   Record Payment
+             * </button>
+             */}
+
             <button
               type="button"
               onClick={() => setShowAddSupplier(true)}
-              className="rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-bold text-[#4A4A4A] hover:bg-[#A5B89E] transition-colors"
+              className="rounded-lg bg-[#B6C8AF] border border-[#B6C8AF] px-4 py-2 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors"
             >
               + Add Supplier
             </button>
@@ -490,15 +518,32 @@ export default function SupplierPayablesPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {([
+            ["Total Outstanding", fmtMoney(totalOutstanding), "text-red-600"],
+            ["Total Invoices", String(totalInvoices), "text-[#333333]"],
+            ["Suppliers", String(totalSuppliers), "text-[#333333]"],
+            ["Active Suppliers", String(activeSuppliers), "text-green-600"],
+          ] as [string, string, string][]).map(([label, value, accent]) => (
+            <div
+              key={label}
+              className="bg-white rounded-xl border border-[#E6ECE2] p-4"
+            >
+              <p className="text-xs text-[#666666]">{label}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+
         {/* ---------------------------------------------------------------- */}
         {/* API error                                                        */}
         {/* ---------------------------------------------------------------- */}
 
         {apiError && (
-          <div className="mx-4 sm:mx-6 mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-            <IconWarningTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-            <span>{apiError}</span>
+          <div className="mx-4 sm:mx-6 mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            ⚠ {apiError}
           </div>
         )}
 
@@ -506,34 +551,58 @@ export default function SupplierPayablesPage() {
         {/* Filters                                                          */}
         {/* ---------------------------------------------------------------- */}
 
-        <div className="bg-[#E6ECE2] px-4 sm:px-6 py-3 flex flex-wrap items-end gap-3 border-b border-[#C6D4BF]">
-          <div className="flex flex-col gap-1 w-56">
-            <span className="text-[10px] text-[#7A7A7A] uppercase tracking-wide">
+        <div className="bg-[#DBEFF3] px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 border-b border-[#ABDBE3]">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-[#666666] uppercase tracking-wide">
               Supplier
             </span>
 
-            <SearchableSelect
+            <select
               value={suppFilter}
-              onChange={(v) => {
-                setSuppFilter(v || "all");
-                setPage(1);
+              onChange={(e) => {
+                setSuppFilter(e.target.value)
+                setPage(1)
               }}
-              options={supplierFilterOptions}
-              placeholder="All Suppliers"
-              searchPlaceholder="Search suppliers..."
-              emptyMessage="No suppliers found"
-              noResultsMessage="No suppliers matching your search"
-            />
+              className="rounded-md border border-[#ABDBE3] bg-white px-2 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
+            >
+              <option value="all">All Suppliers</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </select>
+            {hasFilters && (
+              <button
+                onClick={resetFilters}
+                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+              >
+                Reset
+              </button>
+            )}
           </div>
+        </div>
 
-          <div className="flex flex-col gap-1 flex-1 min-w-[160px] max-w-xs">
-            <span className="text-[10px] text-[#7A7A7A] uppercase tracking-wide">
+          {/*
+           * STATUS FILTER COMMENTED OUT.
+           *
+           * The supplied supplier API does not provide a global invoice
+           * endpoint with status filtering.
+           *
+           * <div>
+           *   <span>Status</span>
+           *   <select>...</select>
+           * </div>
+           */}
+
+          <div className="flex flex-col gap-0.5 flex-1 min-w-[160px] max-w-xs">
+            <span className="text-[10px] text-[#666666] uppercase tracking-wide">
               Search
             </span>
 
             <div className="relative">
               <svg
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8A8A8A]"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#666666]"
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >
@@ -551,7 +620,7 @@ export default function SupplierPayablesPage() {
                   setPage(1);
                 }}
                 placeholder="Search suppliers..."
-                className="w-full rounded-md border border-[#C6D4BF] bg-white pl-8 pr-3 py-1.5 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none"
+                className="w-full rounded-md border border-[#ABDBE3] bg-white pl-8 pr-3 py-1.5 text-sm focus:border-[#49B0C1] focus:outline-none"
               />
             </div>
           </div>
@@ -562,191 +631,241 @@ export default function SupplierPayablesPage() {
         {/* ---------------------------------------------------------------- */}
 
         <div className="px-4 sm:px-6 py-4">
-          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[720px]">
-                <thead>
-                  <tr className="bg-[#E6ECE2] text-left">
-                    {[
-                      "Supplier",
-                      "Contact",
-                      "Phone",
-                      "Invoices",
-                      "Status",
-                      "Actions",
-                    ].map((heading) => (
-                      <th
-                        key={heading}
-                        className="px-4 py-3 font-semibold text-[#5A5A5A]"
-                      >
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+          <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[#ABDBE3]">
+                  {[
+                    "Supplier",
+                    "Contact",
+                    "Phone",
+                    "Invoices",
+                    "Status",
+                    "Actions",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className="px-4 py-3 text-left font-semibold text-[#333333]"
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
-                <tbody>
-                  {loading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr
-                        key={i}
-                        className={
-                          i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"
-                        }
-                      >
-                        {Array.from({ length: 6 }).map((_, j) => (
-                          <td key={j} className="px-4 py-3">
-                            <div className="h-4 bg-[#C6D4BF]/40 rounded animate-pulse" />
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  ) : pagedSuppliers.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-4 py-12 text-center text-[#7A7A7A]"
-                      >
-                        No suppliers found.
-                      </td>
+              <tbody>
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr
+                      key={i}
+                      className={
+                        i % 2 === 0
+                          ? "bg-white"
+                          : "bg-[#DBEFF3]/30"
+                      }
+                    >
+                      {Array.from({ length: 8 }).map((_, j) => (
+                        <td key={j} className="px-4 py-3">
+                          <div className="h-4 bg-[#ABDBE3]/40 rounded animate-pulse" />
+                        </td>
+                      ))}
                     </tr>
-                  ) : (
-                    pagedSuppliers.map((supplier, index) => (
-                      <tr
-                        key={supplier.id}
-                        onClick={() => void openSupplierDetail(supplier)}
-                        className={`cursor-pointer hover:bg-[#E6ECE2]/60 transition-colors ${
-                          index % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
-                        }`}
-                      >
-                        <td className="px-4 py-3">
-                          <div>
-                            <p className="font-semibold text-[#4A4A4A]">
-                              {supplier.name}
-                            </p>
+                  ))
+                ) : pagedSuppliers.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-4 py-12 text-center text-[#666666]"
+                    >
+                      No suppliers found.
+                    </td>
+                  </tr>
+                ) : (
+                  pagedSuppliers.map((supplier, index) => (
+                    <tr
+                      key={supplier.id}
+                      onClick={() => void openSupplierDetail(supplier)}
+                      className={`cursor-pointer hover:bg-[#DBEFF3]/60 transition-colors ${
+                        index % 2 === 0
+                          ? "bg-white"
+                          : "bg-[#DBEFF3]/20"
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="font-semibold text-[#333333]">
+                            {supplier.name}
+                          </p>
 
-                            <p className="text-[11px] text-[#8A8A8A] font-mono">
-                              {supplier.id}
-                            </p>
-                          </div>
+                          <p className="text-[11px] text-[#666666] font-mono">
+                            {supplier.id}
+                          </p>
                         </td>
 
-                        <td className="px-4 py-3 text-[#4A4A4A]">
+                        <td className="px-4 py-3 text-[#333333]">
                           {supplier.contactPerson ?? "—"}
                         </td>
 
-                        <td className="px-4 py-3 text-[#4A4A4A]">
-                          {supplier.phone ?? "—"}
-                        </td>
+                      <td className="px-4 py-3 text-[#333333]">
+                        {supplier.phone ?? "—"}
+                      </td>
 
-                        <td className="px-4 py-3 text-[#4A4A4A]">
+                     
+
+                        <td className="px-4 py-3 text-[#333333]">
                           {supplier._count?.supplierInvoices ?? 0}
                         </td>
 
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              supplier.isActive
-                                ? "bg-green-500 text-white"
-                                : "bg-gray-400 text-white"
-                            }`}
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            supplier.isActive
+                              ? "bg-green-500 text-white"
+                              : "bg-gray-400 text-white"
+                          }`}
+                        >
+                          {supplier.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {/* View */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openSupplierDetail(supplier);
+                            }}
+                            className="text-[#49B0C1] hover:text-[#3a9baf]"
+                            title="View supplier"
                           >
-                            {supplier.isActive ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {/* View */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void openSupplierDetail(supplier);
-                              }}
-                              className="text-[#7A9076] hover:text-[#A5B89E]"
-                              title="View supplier"
+                            <svg
+                              className="h-4 w-4"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
                             >
-                              <svg
-                                className="h-4 w-4"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
-                                <path
-                                  fillRule="evenodd"
-                                  d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </button>
+                              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                              <path
+                                fillRule="evenodd"
+                                d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
 
-                            {/* Edit */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void openEdit(supplier);
-                              }}
-                              className="text-[#7A9076] hover:text-[#A5B89E]"
-                              title="Edit supplier"
+                          {/* Edit */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openEdit(supplier);
+                            }}
+                            className="text-[#49B0C1] hover:text-[#3a9baf]"
+                            title="Edit supplier"
+                          >
+                            <svg
+                              className="h-4 w-4"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
                             >
-                              <svg
-                                className="h-4 w-4"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                              </svg>
+                              Edit
                             </button>
+                            <button
+                              onClick={() => openDelete(supplier)}
+                              className="text-xs text-red-500 hover:underline whitespace-nowrap"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-                            {/* Delete */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openDelete(supplier);
-                              }}
-                              className="text-red-500 hover:text-red-700"
-                              title="Delete supplier"
-                            >
-                              <svg
-                                className="h-4 w-4"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          {/* Pagination */}
+          {!loading && suppliers.length > 0 && (
+            <div className="flex items-center justify-between mt-3 px-1">
+              <p className="text-sm text-[#666666]">
+                Showing{" "}
+                {(page - 1) * PAGE_SIZE + 1}–
+                {Math.min(page * PAGE_SIZE, suppliers.length)}{" "}
+                of {suppliers.length} suppliers
+              </p>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage((current) => current - 1)}
+                  className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors"
+                >
+                  ← Prev
+                </button>
+
+                {Array.from(
+                  { length: totalPages },
+                  (_, index) => index + 1,
+                ).map((pageNumber) => (
+                  <button
+                    type="button"
+                    key={pageNumber}
+                    onClick={() => setPage(pageNumber)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                      pageNumber === page
+                        ? "bg-[#49B0C1] text-white"
+                        : "text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3]"
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((current) => current + 1)}
+                  className="rounded-lg px-3 py-1.5 text-sm text-[#666666] border border-[#ABDBE3] hover:bg-[#DBEFF3] disabled:opacity-40 transition-colors"
+                >
+                  Next →
+                </button>
+              </div>
             </div>
+          )}
+        </div>
 
-            {/* Pagination — using shared component */}
-            {!loading && suppliers.length > 0 && (
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onPageChange={setPage}
-                label={
-                  <>
-                    Showing{" "}
-                    {suppliers.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}–
-                    {Math.min(page * PAGE_SIZE, suppliers.length)} of{" "}
-                    {suppliers.length} suppliers
-                  </>
-                }
-              />
-            )}
+        {/* ---------------------------------------------------------------- */}
+        {/* Record Payment - disabled                                        */}
+        {/* ---------------------------------------------------------------- */}
+
+        {/*
+         * RECORD PAYMENT FORM COMMENTED OUT.
+         *
+         * Reason:
+         * No payment endpoint was included in suppliersApi.ts.
+         *
+         * Once you provide the supplier invoice payment endpoint,
+         * we can restore this section and connect it to the backend.
+         */}
+
+        <div className="px-4 sm:px-6 pb-6">
+          <div className="rounded-xl border border-dashed border-[#ABDBE3] bg-[#DBEFF3]/30 p-4">
+            <p className="font-bold text-[#333333]">
+              Invoice Payments
+            </p>
+
+            <p className="text-sm text-[#666666] mt-1">
+              Payment recording is temporarily unavailable until the
+              supplier-invoice payment endpoint is connected.
+            </p>
           </div>
         </div>
       </div>
@@ -844,13 +963,13 @@ function EditSupplierModal({
         className="w-full max-w-lg rounded-xl bg-white shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#E6ECE2] bg-[#E6ECE2] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[#DBEFF3] bg-[#ABDBE3] px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-[#4A4A4A]">
+            <h2 className="text-lg font-bold text-[#333333]">
               Edit Supplier
             </h2>
 
-            <p className="text-xs text-[#7A7A7A]">
+            <p className="text-xs text-[#333333]/80">
               Update supplier information
             </p>
           </div>
@@ -858,7 +977,7 @@ function EditSupplierModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[#4A4A4A] hover:bg-[#D8E0D3] transition-colors"
+            className="rounded-lg p-1.5 text-[#333333] hover:bg-white/40 transition-colors"
             aria-label="Close"
           >
             <svg
@@ -876,118 +995,118 @@ function EditSupplierModal({
         </div>
 
         {error && (
-          <div className="mx-5 mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-700 flex items-start gap-2">
-            <IconWarningTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-            <span>{error}</span>
+          <div className="mx-5 mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+            ⚠ {error}
           </div>
         )}
 
-        {success && (
-          <div className="mx-5 mt-4 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-700 flex items-start gap-2">
-            <IconCheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-            <span>Supplier updated successfully!</span>
-          </div>
-        )}
+      {success && (
+        <p className="mb-4 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+          Supplier updated successfully!
+        </p>
+      )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-5 py-5">
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs text-[#7A7A7A]">
-              Supplier Name *
-            </label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-xs text-[#666666]">
+            Supplier Name *
+          </label>
 
             <input
               value={form.name}
               onChange={(e) => onChange("name", e.target.value)}
               placeholder="ABC Pharmaceuticals Ltd"
-              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:outline-none ${
+              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
                 errors.name
                   ? "border-red-400"
-                  : "border-[#C6D4BF] focus:border-[#B6C8AF]"
+                  : "border-[#ABDBE3] focus:border-[#49B0C1]"
               }`}
             />
 
-            {errors.name && (
-              <p className="mt-1 text-xs text-red-500">{errors.name}</p>
-            )}
-          </div>
+          {errors.name && (
+            <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+          )}
+        </div>
 
-          <div>
-            <label className="mb-1 block text-xs text-[#7A7A7A]">
-              Contact Person
-            </label>
+        <div>
+          <label className="mb-1 block text-xs text-[#666666]">
+            Contact Person
+          </label>
 
             <input
               value={form.contactPerson}
-              onChange={(e) => onChange("contactPerson", e.target.value)}
+              onChange={(e) =>
+                onChange("contactPerson", e.target.value)
+              }
               placeholder="Jane Doe"
-              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none"
+              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
             />
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs text-[#7A7A7A]">
-              Email
-            </label>
+        <div>
+          <label className="mb-1 block text-xs text-[#666666]">Email</label>
 
             <input
               type="email"
               value={form.email}
               onChange={(e) => onChange("email", e.target.value)}
               placeholder="jane@abc.com"
-              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:outline-none ${
+              className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none ${
                 errors.email
                   ? "border-red-400"
-                  : "border-[#C6D4BF] focus:border-[#B6C8AF]"
+                  : "border-[#ABDBE3] focus:border-[#49B0C1]"
               }`}
             />
 
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-500">{errors.email}</p>
-            )}
-          </div>
+          {errors.email && (
+            <p className="mt-1 text-xs text-red-500">{errors.email}</p>
+          )}
+        </div>
 
-          <div>
-            <label className="mb-1 block text-xs text-[#7A7A7A]">
-              Phone
-            </label>
+        <div>
+          <label className="mb-1 block text-xs text-[#666666]">Phone</label>
 
             <input
               value={form.phone}
               onChange={(e) => onChange("phone", e.target.value)}
               placeholder="+251922345678"
-              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none"
+              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
             />
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs text-[#7A7A7A]">
-              Payment Terms
-            </label>
+        <div>
+          <label className="mb-1 block text-xs text-[#666666]">
+            Payment Terms
+          </label>
 
             <select
               value={form.paymentTerms}
-              onChange={(e) => onChange("paymentTerms", e.target.value)}
-              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm text-[#4A4A4A] focus:border-[#B6C8AF] focus:outline-none"
+              onChange={(e) =>
+                onChange("paymentTerms", e.target.value)
+              }
+              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
             >
               <option value="">No terms specified</option>
               <option value="15 days">15 days</option>
               <option value="30 days">30 days</option>
               <option value="45 days">45 days</option>
               <option value="60 days">60 days</option>
-              <option value="Cash on delivery">Cash on delivery</option>
+              <option value="Cash on delivery">
+                Cash on delivery
+              </option>
             </select>
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs text-[#7A7A7A]">
-              Address
-            </label>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-xs text-[#666666]">Address</label>
 
             <input
               value={form.address}
-              onChange={(e) => onChange("address", e.target.value)}
+              onChange={(e) =>
+                onChange("address", e.target.value)
+              }
               placeholder="Bole, Addis Ababa"
-              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none"
+              className="w-full rounded-lg border border-[#ABDBE3] bg-white px-3 py-2 text-sm focus:border-[#49B0C1] focus:outline-none"
             />
           </div>
 
@@ -996,22 +1115,24 @@ function EditSupplierModal({
               id="editIsActive"
               type="checkbox"
               checked={form.isActive}
-              onChange={(e) => onChange("isActive", e.target.checked)}
-              className="h-4 w-4 rounded border-[#C6D4BF] text-[#7A9076] focus:ring-[#B6C8AF]"
+              onChange={(e) =>
+                onChange("isActive", e.target.checked)
+              }
+              className="h-4 w-4 rounded border-[#ABDBE3] text-[#49B0C1] focus:ring-[#49B0C1]"
             />
 
-            <label htmlFor="editIsActive" className="text-sm text-[#4A4A4A]">
-              Active supplier
-            </label>
-          </div>
+          <label htmlFor="editIsActive" className="text-sm text-[#333333]">
+            Active supplier
+          </label>
         </div>
+      </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-[#DBEFF3] px-5 py-4 bg-white">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-[#C6D4BF] px-4 py-2 text-sm font-medium text-[#7A7A7A] hover:bg-[#E6ECE2] transition-colors disabled:opacity-40"
+            className="rounded-lg border border-[#ABDBE3] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#DBEFF3] transition-colors disabled:opacity-40"
           >
             Cancel
           </button>
@@ -1020,16 +1141,9 @@ function EditSupplierModal({
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="rounded-lg bg-[#B6C8AF] px-5 py-2 text-sm font-bold text-[#4A4A4A] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg bg-[#49B0C1] px-5 py-2 text-sm font-bold text-white hover:bg-[#3a9baf] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? (
-              "Saving..."
-            ) : (
-              <span className="inline-flex items-center gap-2">
-                <IconCheck className="h-4 w-4" />
-                Save Changes
-              </span>
-            )}
+            {saving ? "Saving..." : "✓ Save Changes"}
           </button>
         </div>
       </div>
@@ -1076,46 +1190,40 @@ function DeleteSupplierModal({
           </svg>
         </div>
 
-          <div className="min-w-0">
-            <h3 className="text-lg font-bold text-[#4A4A4A]">
-              Delete Supplier
-            </h3>
+        <div className="min-w-0">
+          <p className="text-sm text-[#666666]">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-[#333333]">
+              {supplier?.name}
+            </span>
+            ?
+          </p>
 
-            <p className="mt-1 text-sm text-[#7A7A7A]">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold text-[#4A4A4A]">
-                {supplier?.name}
-              </span>
-              ?
-            </p>
-
-            <p className="mt-2 text-xs text-[#8A8A8A]">
-              If this supplier has related purchase orders, invoices, or
-              returns, the backend may reject the deletion.
-            </p>
-          </div>
+          <p className="mt-2 text-xs text-[#666666]">
+            If this supplier has related purchase orders, invoices, or returns,
+            the backend may reject the deletion.
+          </p>
         </div>
+      </div>
 
-        {error && (
-          <div className="mx-5 mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-700 flex items-start gap-2">
-            <IconWarningTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+      {error && (
+        <p className="mt-4 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
 
-        {success && (
-          <div className="mx-5 mb-3 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-700 flex items-start gap-2">
-            <IconCheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-            <span>Supplier deleted successfully!</span>
-          </div>
-        )}
+      {success && (
+        <p className="mt-4 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+          Supplier deleted successfully!
+        </p>
+      )}
 
         <div className="flex items-center justify-end gap-2 border-t border-[#DBEFF3] px-5 py-4">
           <button
             type="button"
             onClick={onClose}
             disabled={deleting}
-            className="rounded-lg border border-[#C6D4BF] px-4 py-2 text-sm font-medium text-[#7A7A7A] hover:bg-[#E6ECE2] transition-colors disabled:opacity-40"
+            className="rounded-lg border border-[#ABDBE3] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#DBEFF3] transition-colors disabled:opacity-40"
           >
             Cancel
           </button>
@@ -1126,14 +1234,7 @@ function DeleteSupplierModal({
             disabled={deleting || success}
             className="rounded-lg bg-red-500 px-5 py-2 text-sm font-bold text-white hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {deleting ? (
-              "Deleting..."
-            ) : (
-              <span className="inline-flex items-center gap-2">
-                <IconCheck className="h-4 w-4" />
-                Yes, Delete
-              </span>
-            )}
+            {deleting ? "Deleting..." : "✓ Yes, Delete"}
           </button>
         </div>
       </div>
@@ -1166,23 +1267,21 @@ function SupplierDetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between bg-[#E6ECE2] px-5 py-4 flex-shrink-0">
+        <div className="flex items-center justify-between bg-[#ABDBE3] px-5 py-4 flex-shrink-0">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-[#4A4A4A] truncate">
+            <h2 className="text-base font-bold text-[#333333] truncate">
               {loading
                 ? "Loading supplier..."
                 : (data?.name ?? "Supplier Detail")}
             </h2>
 
-            <p className="text-xs text-[#7A7A7A]">
-              Purchasing → Supplier Detail
-            </p>
+            <p className="text-xs text-[#666666]">Supplier Detail</p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[#4A4A4A] hover:bg-[#D8E0D3] transition-colors"
+            className="rounded-lg p-1.5 text-[#333333] hover:bg-white/40 transition-colors"
             aria-label="Close"
           >
             <X className="h-4 w-4" aria-hidden />
@@ -1195,7 +1294,10 @@ function SupplierDetailModal({
             <div className="animate-pulse space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-20 rounded-xl bg-[#E6ECE2]" />
+                  <div
+                    key={i}
+                    className="h-20 rounded-xl bg-[#DBEFF3]"
+                  />
                 ))}
               </div>
 
@@ -1205,9 +1307,8 @@ function SupplierDetailModal({
           )}
 
           {error && !loading && (
-            <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-              <IconWarningTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>{error}</span>
+            <div className="rounded-xl flex items-center gap-2 border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <TriangleAlert className="h-4 w-4 flex-shrink-0" /> {error}
             </div>
           )}
 
@@ -1220,37 +1321,37 @@ function SupplierDetailModal({
                     label: "Total Outstanding",
                     value: fmtMoney(data.totalOutstanding ?? 0),
                     color: "text-red-500",
-                    icon: <IconBanknotes className="h-6 w-6" />,
+                    icon: <Wallet className="h-7 w-7" />,
                   },
                   {
                     label: "Purchase Orders",
                     value: String(data._count?.purchaseOrders ?? 0),
-                    color: "text-[#4A4A4A]",
-                    icon: <IconBox className="h-6 w-6" />,
+                    color: "text-[#333333]",
+                    icon: <Package className="h-7 w-7" />,
                   },
                   {
                     label: "Invoices",
                     value: String(data._count?.supplierInvoices ?? 0),
-                    color: "text-[#4A4A4A]",
-                    icon: <IconDocumentText className="h-6 w-6" />,
+                    color: "text-[#333333]",
+                    icon: <FileText className="h-7 w-7" />,
                   },
                   {
                     label: "Returns",
                     value: String(data._count?.purchaseReturns ?? 0),
-                    color: "text-[#4A4A4A]",
-                    icon: <IconReturn className="h-6 w-6" />,
+                    color: "text-[#333333]",
+                    icon: <Undo2 className="h-7 w-7" />,
                   },
                 ].map(({ label, value, color, icon }) => (
                   <div
                     key={label}
                     className="bg-[#DBEFF3] rounded-xl p-4 flex items-center gap-3 border border-[#ABDBE3]/30"
                   >
-                    <span className="flex-shrink-0 text-[#7A9076]" aria-hidden>
+                    <span className="text-2xl flex-shrink-0" aria-hidden>
                       {icon}
                     </span>
 
                     <div className="min-w-0">
-                      <p className="text-xs text-[#7A7A7A]">{label}</p>
+                      <p className="text-xs text-[#666666]">{label}</p>
 
                       <p className={`text-sm font-bold ${color} truncate`}>
                         {value}
@@ -1261,9 +1362,9 @@ function SupplierDetailModal({
               </div>
 
               {/* Supplier information */}
-              <div className="rounded-xl border border-[#E6ECE2] bg-white overflow-hidden">
-                <div className="bg-[#E6ECE2] px-5 py-3 flex items-center justify-between">
-                  <h3 className="font-bold text-[#4A4A4A]">
+              <div className="rounded-xl border border-[#DBEFF3] bg-white overflow-hidden">
+                <div className="bg-[#ABDBE3] px-5 py-3 flex items-center justify-between">
+                  <h3 className="font-bold text-[#333333]">
                     Supplier Information
                   </h3>
 
@@ -1307,13 +1408,13 @@ function SupplierDetailModal({
               </div>
 
               {/* Purchase Orders */}
-              <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
-                <div className="bg-[#E6ECE2] px-5 py-3 flex items-center justify-between">
-                  <h3 className="font-bold text-[#4A4A4A]">
+              <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+                <div className="bg-[#ABDBE3] px-5 py-3 flex items-center justify-between">
+                  <h3 className="font-bold text-[#333333]">
                     Purchase Orders
                   </h3>
 
-                  <span className="text-xs text-[#7A7A7A]">
+                  <span className="text-xs text-[#333333]">
                     Showing {(data.purchaseOrders ?? []).length} of{" "}
                     {data._count?.purchaseOrders ?? 0}
                   </span>
@@ -1330,7 +1431,7 @@ function SupplierDetailModal({
                       ].map((heading) => (
                         <th
                           key={heading}
-                          className="px-5 py-2.5 text-left font-semibold text-[#5A5A5A]"
+                          className="px-5 py-2.5 text-left font-semibold text-[#333333]"
                         >
                           {heading}
                         </th>
@@ -1343,7 +1444,7 @@ function SupplierDetailModal({
                       <tr>
                         <td
                           colSpan={4}
-                          className="px-5 py-8 text-center text-[#7A7A7A]"
+                          className="px-5 py-8 text-center text-[#666666]"
                         >
                           No purchase orders.
                         </td>
@@ -1353,7 +1454,9 @@ function SupplierDetailModal({
                         <tr
                           key={po.id}
                           className={
-                            i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
+                            i % 2 === 0
+                              ? "bg-white"
+                              : "bg-[#DBEFF3]/20"
                           }
                         >
                           <td className="px-5 py-3 font-medium text-[#7A9076]">
@@ -1363,18 +1466,19 @@ function SupplierDetailModal({
                           <td className="px-5 py-3">
                             <span
                               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                PO_BADGE[po.status] ?? "bg-gray-400 text-white"
+                                PO_BADGE[po.status] ??
+                                "bg-gray-400 text-white"
                               }`}
                             >
                               {po.status}
                             </span>
                           </td>
 
-                          <td className="px-5 py-3 text-[#4A4A4A]">
+                          <td className="px-5 py-3 text-[#333333]">
                             {fmtDate(po.orderDate)}
                           </td>
 
-                          <td className="px-5 py-3 text-[#4A4A4A]">
+                          <td className="px-5 py-3 text-[#333333]">
                             {fmtDate(po.expectedDeliveryDate)}
                           </td>
                         </tr>
@@ -1385,13 +1489,13 @@ function SupplierDetailModal({
               </div>
 
               {/* Supplier invoices */}
-              <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
-                <div className="bg-[#E6ECE2] px-5 py-3 flex items-center justify-between">
-                  <h3 className="font-bold text-[#4A4A4A]">
+              <div className="rounded-xl border border-[#DBEFF3] overflow-hidden">
+                <div className="bg-[#ABDBE3] px-5 py-3 flex items-center justify-between">
+                  <h3 className="font-bold text-[#333333]">
                     Supplier Invoices
                   </h3>
 
-                  <span className="text-xs text-[#7A7A7A]">
+                  <span className="text-xs text-[#333333]">
                     Showing {(data.supplierInvoices ?? []).length} of{" "}
                     {data._count?.supplierInvoices ?? 0}
                   </span>
@@ -1408,7 +1512,7 @@ function SupplierDetailModal({
                       ].map((heading) => (
                         <th
                           key={heading}
-                          className="px-5 py-2.5 text-left font-semibold text-[#5A5A5A]"
+                          className="px-5 py-2.5 text-left font-semibold text-[#333333]"
                         >
                           {heading}
                         </th>
@@ -1421,7 +1525,7 @@ function SupplierDetailModal({
                       <tr>
                         <td
                           colSpan={4}
-                          className="px-5 py-8 text-center text-[#7A7A7A]"
+                          className="px-5 py-8 text-center text-[#666666]"
                         >
                           No invoices.
                         </td>
@@ -1431,7 +1535,9 @@ function SupplierDetailModal({
                         <tr
                           key={invoice.id}
                           className={
-                            i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
+                            i % 2 === 0
+                              ? "bg-white"
+                              : "bg-[#DBEFF3]/20"
                           }
                         >
                           <td className="px-5 py-3 font-medium text-[#7A9076]">
@@ -1449,16 +1555,15 @@ function SupplierDetailModal({
                             </span>
                           </td>
 
-                          <td className="px-5 py-3 font-semibold text-[#4A4A4A]">
+                          <td className="px-5 py-3 font-semibold text-[#333333]">
                             {fmtMoney(invoice.invoiceAmount)}
                           </td>
 
                           <td
-                            className={`px-5 py-3 font-semibold ${
-                              invoice.outstandingBalance > 0
+                            className={`px-5 py-3 font-semibold ${invoice.outstandingBalance > 0
                                 ? "text-red-500"
                                 : "text-green-600"
-                            }`}
+                              }`}
                           >
                             {fmtMoney(invoice.outstandingBalance)}
                           </td>
@@ -1495,7 +1600,7 @@ function SupplierDetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[#C6D4BF] px-4 py-2 text-sm font-medium text-[#7A7A7A] hover:bg-[#E6ECE2] transition-colors"
+            className="rounded-lg border border-[#ABDBE3] px-4 py-2 text-sm font-medium text-[#666666] hover:bg-[#DBEFF3] transition-colors"
           >
             Close
           </Button>
@@ -1520,14 +1625,13 @@ function InfoRow({
 }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide text-[#8A8A8A]">
+      <p className="text-[10px] uppercase tracking-wide text-[#666666]">
         {label}
       </p>
 
       <p
-        className={`text-sm text-[#4A4A4A] ${
-          mono ? "font-mono" : ""
-        } break-all`}
+        className={`text-sm text-[#333333] ${mono ? "font-mono" : ""
+          } break-all`}
       >
         {value}
       </p>
@@ -1538,9 +1642,9 @@ function InfoRow({
 function SummaryCount({ label, value }: { label: string value: number }) {
   return (
     <div className="text-center sm:text-left">
-      <p className="text-xs text-[#7A7A7A]">{label}</p>
+      <p className="text-xs text-[#666666]">{label}</p>
 
-      <p className="text-lg font-bold text-[#4A4A4A]">{value}</p>
+      <p className="text-lg font-bold text-[#333333]">{value}</p>
     </div>
   )
 }

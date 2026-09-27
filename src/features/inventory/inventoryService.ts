@@ -217,7 +217,6 @@ export async function deleteBatch(id: string): Promise<void> {
 // POST /inventory/batches
 export interface CreateBatchPayload {
   productId: string;
-  unitId: string;
   batchNumber: string;
   receivedDate: string; // "YYYY-MM-DD"
   expiryDate: string;   // "YYYY-MM-DD"
@@ -228,7 +227,6 @@ export interface CreateBatchPayload {
 export async function createBatch(payload: CreateBatchPayload): Promise<Batch> {
   const dto = await createBatchApi({
     productId: payload.productId,
-    unitId: payload.unitId,
     batchNumber: payload.batchNumber,
     receivedDate: payload.receivedDate,
     expiryDate: payload.expiryDate,
