@@ -24,6 +24,7 @@ import {
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
+import { listRequirementLinesByProduct } from "../../features/purchasing/requirementsApi"
 import type { POItem, POStatus } from "./PurchaseOrdersPage"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import { searchProducts } from "../../features/inventory/searchSelectors"
@@ -216,7 +217,7 @@ function AddProductModal({ open, products, existingProductIds, onClose, onAdd }:
     listRequirementLinesByProduct(product)
       .then((lines) => {
         if (!active) return
-        const options: ReqLineOption[] = lines.map((l: { id: string; requirementReference?: string; requirementId: string; product?: { name?: string } }) => ({
+        const options: ReqLineOption[] = lines.map((l) => ({
           lineId: l.id,
           label: `${l.requirementReference || l.requirementId.slice(0, 8).toUpperCase()} — ${l.product?.name ?? ""}`,
         }))
@@ -358,12 +359,20 @@ function AddProductModal({ open, products, existingProductIds, onClose, onAdd }:
             disabled={!product || reqLinesLoading}
             className={`${SC} ${!product || reqLinesLoading ? "bg-[#F5F4EE] text-[#999] cursor-not-allowed" : ""}`}
           >
-            <option value="">
-              {reqLinesLoading ? "Loading requirements..." : "No requirement"}
-            </option>
-            {reqLineOptions.map((r) => (
-              <option key={r.lineId} value={r.lineId}>{r.label}</option>
-            ))}
+            {reqLinesLoading ? (
+              <option value="">Loading requirements...</option>
+            ) : reqLineOptions.length > 0 ? (
+              <>
+                <option value="" disabled>
+                  Select a requirement...
+                </option>
+                {reqLineOptions.map((r) => (
+                  <option key={r.lineId} value={r.lineId}>{r.label}</option>
+                ))}
+              </>
+            ) : (
+              <option value="">No requirement</option>
+            )}
           </select>
           {reqLinesNoMatch && (
             <p className="text-xs text-[#999] mt-1.5">
@@ -1664,12 +1673,5 @@ export default function CreatePurchaseOrderPage() {
       {toast && <Toast message={toast} onDone={() => setToast("")} />}
     </div>
   )
-}
-async function listRequirementLinesByProduct(product: string) {
-  const response = await fetch(`/api/requirements/lines?productId=${product}`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch requirement lines.");
-  }
-  return response.json();
 }
 

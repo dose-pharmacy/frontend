@@ -318,6 +318,38 @@ export async function listRequirements(
   return result ?? { data: [], meta: { page: 1, limit: query.limit ?? 20, total: 0, totalPages: 1 } };
 }
 
+/**
+ * Row returned by GET /requirements/lines?productId= — one requirement line
+ * for the selected product, enriched with its requirement reference so the UI
+ * can label options like "PR-… — Product Name".
+ */
+export interface RequirementLineSearchDto {
+  id: string;
+  requirementId: string;
+  requirementReference: string;
+  productId: string;
+  product: RequirementProductRefDto | null;
+  quantityNeeded: number;
+  remainingToOrder: number;
+  status: RequirementLineStatus;
+}
+
+/**
+ * GET /requirements/lines?productId={productId} — open requirement lines for a
+ * specific product. Used to link Purchase Order items back to requirement
+ * lines without loading every requirement up front.
+ */
+export async function listRequirementLinesByProduct(
+  productId: string,
+): Promise<RequirementLineSearchDto[]> {
+  const params = new URLSearchParams({ productId });
+  const result = await requirementsRequest<{
+    success: boolean;
+    data: RequirementLineSearchDto[] | null;
+  }>(`/lines?${params.toString()}`);
+  return result?.data ?? [];
+}
+
 /** POST /requirements — create a requirement with one or more product lines. */
 export async function createRequirement(input: CreateRequirementInput): Promise<RequirementDto> {
   const result = await requirementsRequest<{ success: boolean; data: RequirementDto }>("", {
