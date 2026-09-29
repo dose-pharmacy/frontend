@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
 import SearchInput from "../../components/ui/SearchInput"
@@ -235,60 +235,6 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   )
 }
 
-// ─── OverflowMenu ────────────────────────────────────────────────────────────
-
-function OverflowMenu({
-  items,
-}: {
-  items: { label: string; danger?: boolean; onClick: () => void }[]
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    function close(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", close)
-    return () => document.removeEventListener("mousedown", close)
-  }, [])
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] transition-colors"
-        aria-label="More actions"
-      >
-        <svg
-          className="h-4 w-4"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden
-        >
-          <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border border-[#E6ECE2] bg-white shadow-xl py-1">
-          {items.map((item) => (
-            <button
-              key={item.label}
-              onClick={() => {
-                setOpen(false)
-                item.onClick()
-              }}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-[#E6ECE2]/60 ${
-                item.danger ? "text-red-600" : "text-[#333333]"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Root page ───────────────────────────────────────────────────────────────
 
 export default function PurchaseRequirementsPage() {
@@ -434,6 +380,7 @@ function RequirementsListScreen({
 }) {
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Requirement | null>(null)
+  const [orderTarget, setOrderTarget] = useState<Requirement | null>(null)
 
   const paginated = reqs
 
@@ -654,32 +601,7 @@ function RequirementsListScreen({
                               (r.status === "OPEN" ||
                                 r.status === "PARTIALLY_FULFILLED") && (
                                 <button
-                                  onClick={() => {
-                                    const line =
-                                      r.lines.find(
-                                        (l) =>
-                                          l.remainingToReceive > 0 &&
-                                          l.status !== "CLOSED",
-                                      ) ?? r.lines[0]
-                                    const params = new URLSearchParams()
-                                    params.set("requirementLineId", line.id)
-                                    params.set(
-                                      "quantity",
-                                      String(
-                                        line.remainingToReceive > 0
-                                          ? line.remainingToReceive
-                                          : line.quantityNeeded,
-                                      ),
-                                    )
-                                    params.set("unitCost", "0")
-                                    params.set(
-                                      "requirementReference",
-                                      r.reference,
-                                    )
-                                    params.set("productName", line.product)
-                                    params.set("productSku", line.sku)
-                                    window.location.href = `/purchasing/orders/new?${params.toString()}`
-                                  }}
+                                  onClick={() => setOrderTarget(r)}
                                   className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
                                   aria-label={`Create purchase order for ${r.reference}`}
                                   title="Create purchase order"
@@ -721,6 +643,12 @@ function RequirementsListScreen({
         onClose={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
         loading={deleting}
+      />
+
+      {/* Order: select products + fill unit cost, then create the PO */}
+      <RequirementOrderModal
+        requirement={orderTarget}
+        onClose={() => setOrderTarget(null)}
       />
     </div>
   )
@@ -1033,35 +961,37 @@ function RequirementDetailScreen({
                       </td>
                       {!isReadOnly && (
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <OverflowMenu
-                              items={[
-                                {
-                                  label: "Edit",
-                                  onClick: () => setEditLine(line),
-                                },
-                                ...(line.quantityRemaining > 0
-                                  ? [
-                                      {
-                                        label: "Order Remaining",
-                                        onClick: () =>
-                                          handleOrderRemaining(line),
-                                      },
-                                    ]
-                                  : [
-                                      { label: "Fulfilled", onClick: () => {} },
-                                    ]),
-                                ...(line.hasPo
-                                  ? []
-                                  : [
-                                      {
-                                        label: "Remove",
-                                        danger: true,
-                                        onClick: () => setDeleteLine(line),
-                                      },
-                                    ]),
-                              ]}
-                            />
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setEditLine(line)}
+                              className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                              aria-label={`Edit ${line.product}`}
+                              title="Edit line"
+                            >
+                              <IconPencil className="w-4 h-4" />
+                            </button>
+                            {line.quantityRemaining > 0 ? (
+                              <button
+                                onClick={() => handleOrderRemaining(line)}
+                                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                              >
+                                Order Remaining
+                              </button>
+                            ) : (
+                              <span className="text-xs font-medium text-[#999] whitespace-nowrap">
+                                Fulfilled
+                              </span>
+                            )}
+                            {!line.hasPo && (
+                              <button
+                                onClick={() => setDeleteLine(line)}
+                                className="p-1.5 rounded-lg text-[#666666] hover:bg-red-50 hover:text-red-600 transition-colors"
+                                aria-label={`Remove ${line.product}`}
+                                title="Remove line"
+                              >
+                                <IconTrash className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -2338,6 +2268,264 @@ function OrderPreviewModal({
             Create Purchase Order
           </Button>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Requirement Order Modal ─────────────────────────────────────────────────
+
+interface OrderDraftLine {
+  line: RequirementLine
+  selected: boolean
+  quantity: string
+  unitCost: string
+}
+
+function RequirementOrderModal({
+  requirement,
+  onClose,
+}: {
+  requirement: Requirement | null
+  onClose: () => void
+}) {
+  const [drafts, setDrafts] = useState<OrderDraftLine[]>([])
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (!requirement) return
+    setDrafts(
+      requirement.lines
+        .filter(
+          (l) =>
+            l.status !== "CLOSED" &&
+            (l.remainingToReceive > 0 || l.quantityRemaining > 0),
+        )
+        .map((l) => ({
+          line: l,
+          selected: true,
+          quantity: String(
+            l.remainingToReceive > 0
+              ? l.remainingToReceive
+              : l.quantityRemaining,
+          ),
+          unitCost: "",
+        })),
+    )
+    setError("")
+  }, [requirement])
+
+  const req = requirement
+  if (!req) return null
+  const reference = req.reference
+
+  function update(index: number, patch: Partial<OrderDraftLine>) {
+    setDrafts((prev) =>
+      prev.map((d, i) => (i === index ? { ...d, ...patch } : d)),
+    )
+    setError("")
+  }
+
+  const picked = drafts.filter((d) => d.selected)
+
+  function handleCreate() {
+    if (drafts.length === 0) {
+      setError("This requirement has no products remaining to order.")
+      return
+    }
+    if (picked.length === 0) {
+      setError("Select at least one product to order.")
+      return
+    }
+    for (const d of picked) {
+      const qty = parseFloat(d.quantity)
+      const remaining =
+        d.line.remainingToReceive > 0
+          ? d.line.remainingToReceive
+          : d.line.quantityRemaining
+      if (!Number.isFinite(qty) || qty <= 0) {
+        setError(`Quantity must be greater than zero for ${d.line.product}.`)
+        return
+      }
+      if (qty > remaining) {
+        setError(
+          `Cannot order more than the remaining quantity for ${d.line.product}.`,
+        )
+        return
+      }
+      if (
+        d.unitCost === "" ||
+        !Number.isFinite(parseFloat(d.unitCost)) ||
+        parseFloat(d.unitCost) < 0
+      ) {
+        setError(`Enter a valid unit cost for ${d.line.product}.`)
+        return
+      }
+    }
+    setError("")
+    const params = new URLSearchParams()
+    for (const d of picked) {
+      params.append("requirementLineId", d.line.id)
+      params.append("quantity", d.quantity)
+      params.append("unitCost", d.unitCost)
+      params.append("requirementReference", reference)
+      params.append("productName", d.line.product)
+      params.append("productSku", d.line.sku)
+    }
+    window.location.href = `/purchasing/orders/new?${params.toString()}`
+  }
+
+  return (
+    <Modal
+      open
+      title={`Create Purchase Order — ${reference}`}
+      onClose={onClose}
+      size="xl"
+    >
+      {error && (
+        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <p className="mb-4 text-sm text-[#666666]">
+        Select the products under this requirement to order and enter a unit
+        cost for each. Quantities are pre-filled with the remaining amount to
+        receive.
+      </p>
+
+      {drafts.length === 0 ? (
+        <p className="rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-4 py-6 text-center text-sm text-[#666666]">
+          No orderable products remain on this requirement.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-[#E6ECE2]">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead>
+              <tr className="bg-[#E6ECE2]/50 text-left text-xs font-semibold text-[#666666] uppercase">
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={drafts.every((d) => d.selected)}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setDrafts((prev) =>
+                        prev.map((d) => ({ ...d, selected: on })),
+                      )
+                      setError("")
+                    }}
+                    className="accent-[#4F6B4A] w-4 h-4"
+                    aria-label="Select all products"
+                  />
+                </th>
+                <th className="px-4 py-3 font-semibold text-[#333333]">
+                  Product
+                </th>
+                <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                  Required
+                </th>
+                <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                  Ordered
+                </th>
+                <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                  Remaining
+                </th>
+                <th className="px-4 py-3 font-semibold text-[#333333]">
+                  Qty to Order
+                </th>
+                <th className="px-4 py-3 font-semibold text-[#333333]">
+                  Unit Cost (ETB)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((d, i) => {
+                const remaining =
+                  d.line.remainingToReceive > 0
+                    ? d.line.remainingToReceive
+                    : d.line.quantityRemaining
+                return (
+                  <tr
+                    key={d.line.id}
+                    className={`border-t border-[#E6ECE2] ${
+                      i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
+                    } ${d.selected ? "" : "opacity-50"}`}
+                  >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={d.selected}
+                        onChange={(e) =>
+                          update(i, { selected: e.target.checked })
+                        }
+                        className="accent-[#4F6B4A] w-4 h-4"
+                        aria-label={`Select ${d.line.product}`}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-[#333333]">
+                        {d.line.product}
+                      </div>
+                      {d.line.sku && (
+                        <div className="text-xs text-[#999] font-mono">
+                          {d.line.sku}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-[#333333]">
+                      {d.line.quantityNeeded}
+                      {d.line.unitName && (
+                        <span className="ml-1 text-xs text-[#999]">
+                          {d.line.unitName}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-[#666666]">
+                      {d.line.quantityOrdered}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-[#4F6B4A]">
+                      {remaining}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={d.quantity}
+                        onChange={(e) =>
+                          update(i, { quantity: e.target.value })
+                        }
+                        disabled={!d.selected}
+                        className="w-24 rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none disabled:opacity-50"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={d.unitCost}
+                        onChange={(e) => update(i, { unitCost: e.target.value })}
+                        disabled={!d.selected}
+                        placeholder="0.00"
+                        className="w-28 rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none disabled:opacity-50"
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4 mt-5">
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={handleCreate}>
+          Create Purchase Order ({picked.length})
+        </Button>
       </div>
     </Modal>
   )

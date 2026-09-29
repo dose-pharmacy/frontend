@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
 import DatePicker from "../../components/ui/DatePicker"
-import { getSupplierById } from "../../features/purchasing/suppliersApi"
+import { getSupplierById, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import AddSupplier from "./AddSupplier"
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto } from "../../features/purchasing/purchaseOrdersApi"
 import { searchSuppliers } from "../../features/inventory/searchSelectors"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
@@ -81,6 +82,8 @@ export default function CreateSupplierInvoicePage() {
 
   const supplierSearch = useSearchableResource(searchSuppliers, true)
   const [prefillSupplierOption, setPrefillSupplierOption] = useState<SearchableOption | null>(null)
+  const [addedSupplierOption, setAddedSupplierOption] = useState<SearchableOption | null>(null)
+  const [showAddSupplier, setShowAddSupplier] = useState(false)
   useEffect(() => {
     if (!prefillSupplierId) return
     let cancelled = false
@@ -100,9 +103,23 @@ export default function CreateSupplierInvoicePage() {
   const selectedSupplierOption = supplierSearch.options.find((o) => o.value === supplierId) ?? null
   const supplierOptions: SearchableOption[] = [
     ...(prefillSupplierOption && prefillSupplierOption.value === supplierId ? [prefillSupplierOption] : []),
+    ...(addedSupplierOption && addedSupplierOption.value === supplierId ? [addedSupplierOption] : []),
     ...(selectedSupplierOption ? [selectedSupplierOption] : []),
     ...supplierSearch.options.filter((o) => o.value !== supplierId),
   ].filter((o, i, arr) => arr.findIndex((x) => x.value === o.value) === i)
+
+  // Callback from the Add Supplier popup — select the newly created supplier.
+  function handleSupplierCreated(created: SupplierDto) {
+    setAddedSupplierOption({
+      value: created.id,
+      label: created.name,
+      sub: created.contactPerson ? `${created.contactPerson}${created.email ? ` · ${created.email}` : ""}` : (created.email ?? undefined),
+    })
+    setSupplierId(created.id)
+    setShowAddSupplier(false)
+    setError("")
+    supplierSearch.refresh()
+  }
 
   // When supplier changes, reload received POs filtered by that supplier
   useEffect(() => {
@@ -257,6 +274,16 @@ export default function CreateSupplierInvoicePage() {
                     emptyMessage="No suppliers found"
                     noResultsMessage="No suppliers matching your search"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSupplier(true)}
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-[#7A9076] hover:underline transition-colors"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                      <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                    </svg>
+                    Add New Supplier
+                  </button>
                 </div>
                 <div>
                   <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
@@ -452,6 +479,12 @@ export default function CreateSupplierInvoicePage() {
           </div>
         </div>
       </div>
+
+      <AddSupplier
+        open={showAddSupplier}
+        onClose={() => setShowAddSupplier(false)}
+        onCreated={handleSupplierCreated}
+      />
     </div>
   )
 }

@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useParams, useNavigate, useSearchParams } from "react-router"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import PageHeader from "../../components/ui/PageHeader"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
-import { StatusBadge, Toast, fmtDate } from "./PurchaseOrdersPage"
+import { StatusBadge, PaymentBadge, Toast, fmtDate } from "./PurchaseOrdersPage"
 import {
   getPurchaseOrder,
   createPurchaseOrder,
@@ -58,6 +58,129 @@ const STATUS_FLOW: POStatus[] = [
   "RECEIVED",
   "CLOSED",
 ]
+
+// ─── Receiving progress ───────────────────────────────────────────────────────
+
+function ReceivingProgress({
+  ordered,
+  received,
+  remaining,
+}: {
+  ordered: number
+  received: number
+  remaining: number
+}) {
+  const pct =
+    ordered > 0 ? Math.min(100, Math.round((received / ordered) * 100)) : 0
+  return (
+    <div className="px-5 py-4 border-b border-[#E6ECE2] bg-[#E6ECE2]/30">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-6 text-sm">
+          {[
+            ["Ordered", ordered],
+            ["Received", received],
+            ["Remaining", remaining],
+          ].map(([label, value]) => (
+            <div key={label as string}>
+              <p className="text-xs text-[#666666]">{label}</p>
+              <p className="text-lg font-bold text-[#333333]">
+                {value as number}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="flex-1 min-w-[200px] max-w-[280px]">
+          <div className="flex justify-between text-xs text-[#666666] mb-1">
+            <span className="font-medium text-[#333333]">
+              {received} / {ordered} received
+            </span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-[#C6D4BF]/50 overflow-hidden">
+            <div
+              className="h-2 rounded-full bg-[#7A9076] transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Receiving balance strip ──────────────────────────────────────────────────
+
+function ReceivingBalanceStrip({
+  receivedQty,
+  receivedValue,
+  remainingQty,
+  remainingValue,
+  remainingToInvoice,
+}: {
+  receivedQty: number
+  receivedValue: number
+  remainingQty: number
+  remainingValue: number
+  remainingToInvoice: number
+}) {
+  return (
+    <div className="border-t border-[#E6ECE2] bg-[#E6ECE2]/30 px-5 py-4">
+      <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">
+        Receiving Balance
+      </p>
+      <div className="grid sm:grid-cols-3 gap-4">
+        <div className="rounded-xl bg-white border border-[#E6ECE2] px-4 py-3">
+          <p className="text-xs text-[#666666]">Arrived · Received</p>
+          <p className="text-lg font-bold text-[#333333] mt-0.5">
+            {receivedQty}
+          </p>
+          <p className="text-sm font-semibold text-[#7A9076]">
+            {fmtMoney(receivedValue)}
+          </p>
+          <p className="text-xs text-[#999] mt-1">units received</p>
+        </div>
+        <div className="rounded-xl bg-white border border-[#E6ECE2] px-4 py-3">
+          <p className="text-xs text-[#666666]">Balance · Remaining to Receive</p>
+          <p className="text-lg font-bold text-[#333333] mt-0.5">
+            {remainingQty}
+          </p>
+          <p className="text-sm font-semibold text-[#7A9076]">
+            {fmtMoney(remainingValue)}
+          </p>
+          <p className="text-xs text-[#999] mt-1">units still expected</p>
+        </div>
+        <div className="rounded-xl bg-white border border-[#E6ECE2] px-4 py-3">
+          <p className="text-xs text-[#666666]">Remaining to Invoice</p>
+          <p className="text-lg font-bold text-[#333333] mt-0.5">
+            {fmtMoney(remainingToInvoice)}
+          </p>
+          <p className="text-xs text-[#999] mt-1">
+            value of received goods not yet billed
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Goods receipt status badge ───────────────────────────────────────────────
+
+const RECEIPT_STATUS_CFG: Record<string, { label: string; cls: string }> = {
+  RESOLVED: { label: "Resolved", cls: "bg-green-100 text-green-700" },
+  RECEIVED: { label: "Received", cls: "bg-green-100 text-green-700" },
+  PENDING: { label: "Pending", cls: "bg-yellow-100 text-yellow-700" },
+  DRAFT: { label: "Draft", cls: "bg-gray-100 text-gray-500" },
+  CANCELLED: { label: "Cancelled", cls: "bg-red-100 text-red-600" },
+}
+
+function receiptStatusCfg(status: string) {
+  return (
+    RECEIPT_STATUS_CFG[status] ?? {
+      label: status ? status.charAt(0) + status.slice(1).toLowerCase() : status,
+      cls: "bg-gray-100 text-gray-500",
+    }
+  )
+}
 
 function StatusTimeline({
   current,
@@ -582,6 +705,24 @@ export default function CreatePurchaseOrderPage() {
   // Track if we're in from-requirement mode
   const isFromRequirement = isNew && !!requirementLineId
 
+  // Multi-line prefill from a requirement (the "Order" action on the Purchase
+  // Requirements list). Each requested line is carried as repeated query params
+  // (requirementLineId, quantity, unitCost, productName, ...), zipped by index.
+  const prefillLines = useMemo(() => {
+    const ids = searchParams.getAll("requirementLineId")
+    const quantities = searchParams.getAll("quantity")
+    const costs = searchParams.getAll("unitCost")
+    const names = searchParams.getAll("productName")
+    return ids
+      .map((id, i) => ({
+        requirementLineId: id,
+        quantity: quantities[i] ?? "",
+        unitCost: costs[i] ?? "",
+        productName: names[i] ?? "",
+      }))
+      .filter((l) => l.requirementLineId && l.quantity && l.unitCost !== "")
+  }, [searchParams])
+
   // Real data
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
   const [products, setProducts] = useState<ProductDto[]>([])
@@ -630,40 +771,32 @@ export default function CreatePurchaseOrderPage() {
     return () => { active = false }
   }, [])
 
-  // Handle from-requirement prefill: add the requirement line as an item
+  // Handle from-requirement prefill: add the requirement line(s) as items
   useEffect(() => {
-    if (
-      isFromRequirement &&
-      requirementLineId &&
-      prefilledQuantity &&
-      prefilledUnitCost &&
-      items.length === 0
-    ) {
-      const product = products.find((p) => p.name === productName)
-      const productId = product?.id ?? ""
-      setItems([
-        {
-          id: `draft-${requirementLineId}`,
-          productId,
-          product: productName ?? "",
+    if (!isFromRequirement || items.length > 0) return
+    if (prefillLines.length === 0) return
+    setItems(
+      prefillLines.map((pl) => {
+        const product = products.find((p) => p.name === pl.productName)
+        return {
+          id: `draft-${pl.requirementLineId}`,
+          productId: product?.id ?? "",
+          product: pl.productName ?? "",
           unitId: null,
           unitLabel: "",
-          requirementLineId,
-          quantity: parseFloat(prefilledQuantity),
-          unitCost: parseFloat(prefilledUnitCost),
-        },
-      ])
-      if (prefilledDelivDate) setDelivDate(prefilledDelivDate)
-      if (prefilledNotes) setNotes(prefilledNotes)
-    }
+          requirementLineId: pl.requirementLineId,
+          quantity: parseFloat(pl.quantity),
+          unitCost: parseFloat(pl.unitCost),
+        }
+      }),
+    )
+    if (prefilledDelivDate) setDelivDate(prefilledDelivDate)
+    if (prefilledNotes) setNotes(prefilledNotes)
   }, [
     isFromRequirement,
-    requirementLineId,
-    prefilledQuantity,
-    prefilledUnitCost,
+    prefillLines,
     prefilledDelivDate,
     prefilledNotes,
-    productName,
     products,
     items.length,
   ])
@@ -902,11 +1035,20 @@ export default function CreatePurchaseOrderPage() {
 
   /** Remaining quantity of a detail item (for the shortage / progress rendering). */
   function itemRemaining(item: POItem): number {
+    return itemNumbers(item).remaining
+  }
+
+  /** Ordered / received / remaining numbers for a detail item (from the DTO). */
+  function itemNumbers(item: POItem): {
+    ordered: number
+    received: number
+    remaining: number
+  } {
     const dtoItem = poState?.items?.find((it) => it.id === item.id)
-    return Math.max(
-      0,
-      (dtoItem?.quantityOrdered ?? item.quantity) - (dtoItem?.quantityReceived ?? 0) - (dtoItem?.quantityShort ?? 0),
-    )
+    const ordered = dtoItem?.quantityOrdered ?? item.quantity
+    const received = dtoItem?.quantityReceived ?? 0
+    const short = dtoItem?.quantityShort ?? 0
+    return { ordered, received, remaining: Math.max(0, ordered - received - short) }
   }
 
   /** Confirmed status transition against the real endpoint. */
@@ -954,6 +1096,11 @@ export default function CreatePurchaseOrderPage() {
     "w-full rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-3.5 py-2.5 text-sm text-[#666666]"
 
   const reference = poState?.poNumber ?? (isNew ? "New Purchase Order" : "")
+
+  const goodsSummary = poState?.goodsSummary ?? null
+  const paymentSummary = poState?.paymentSummary ?? null
+  const receivingSummary = poState?.receivingSummary ?? null
+  const goodsReceipts = poState?.goodsReceipts ?? []
 
   if (loadingPO) {
     return (
@@ -1196,112 +1343,346 @@ export default function CreatePurchaseOrderPage() {
                   </button>
                 )}
               </div>
-              {items.length === 0 ? (
-                <div className="py-12 text-center">
-                  <p className="text-sm text-[#999]">No products added yet.</p>
-                  {!isReadOnly && (
-                    <button
-                      onClick={() => setAddProductOpen(true)}
-                      className="mt-3 text-xs font-semibold text-[#7A9076] hover:underline"
-                    >
-                      + Add Product
-                    </button>
-                  )}
-                </div>
+              {/* Receiving progress (read-only detail) */}
+              {isReadOnly && receivingSummary && (
+                <ReceivingProgress
+                  ordered={receivingSummary.orderedQuantity ?? 0}
+                  received={receivingSummary.receivedQuantity ?? 0}
+                  remaining={
+                    receivingSummary.remainingQuantity ??
+                    Math.max(
+                      0,
+                      (receivingSummary.orderedQuantity ?? 0) -
+                        (receivingSummary.receivedQuantity ?? 0) -
+                        (receivingSummary.shortQuantity ?? 0),
+                    )
+                  }
+                />
+              )}
+
+              {isReadOnly ? (
+                items.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <p className="text-sm text-[#999]">No products added yet.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[880px]">
+                      <thead>
+                        <tr className="bg-[#E6ECE2]/50 text-left">
+                          <th className="px-4 py-3 font-semibold text-[#333333]">
+                            Product
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333]">
+                            Unit
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                            Ordered
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                            Received
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                            Remaining
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                            Unit Cost
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                            Ordered Value
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                            Received Value
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, i) => {
+                          const product = products.find((p) => p.id === item.productId)
+                          const { ordered, received, remaining } = itemNumbers(item)
+                          const pct =
+                            ordered > 0
+                              ? Math.min(100, Math.round((received / ordered) * 100))
+                              : 0
+                          const unitLabel =
+                            item.unitLabel ||
+                            poState?.items?.find((it) => it.id === item.id)?.unit
+                              ?.name ||
+                            "—"
+                          const dtoItem = poState?.items?.find(
+                            (it) => it.id === item.id,
+                          )
+                          return (
+                            <tr
+                              key={item.id}
+                              className={
+                                i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"
+                              }
+                            >
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-[#333333]">
+                                  {product?.name ?? item.product ?? "—"}
+                                </div>
+                                {dtoItem?.product?.sku && (
+                                  <div className="text-xs text-[#999] font-mono mt-0.5">
+                                    {dtoItem.product.sku}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-[#666666]">
+                                {unitLabel}
+                              </td>
+                              <td className="px-4 py-3 text-right text-[#333333]">
+                                {ordered}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-[#7A9076]">
+                                {received}
+                                {received > 0 && received < ordered && (
+                                  <span className="ml-1 text-[10px] font-medium text-[#999]">
+                                    ({pct}%)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="text-[#333333]">{remaining}</div>
+                                <div className="mt-1 h-1 w-20 rounded-full bg-[#E6ECE2] overflow-hidden ml-auto">
+                                  <div
+                                    className="h-1 rounded-full bg-[#7A9076]"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right text-[#666666]">
+                                {fmtMoney(item.unitCost)}
+                              </td>
+                              <td className="px-4 py-3 text-right text-[#333333]">
+                                {fmtMoney(ordered * item.unitCost)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-[#333333]">
+                                {fmtMoney(received * item.unitCost)}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-[#E6ECE2] bg-[#E6ECE2]/30">
+                          <td
+                            colSpan={6}
+                            className="px-4 py-3 text-right text-xs font-semibold text-[#666666] uppercase tracking-wide"
+                          >
+                            Order Total
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-[#333333]">
+                            {fmtMoney(
+                              items.reduce(
+                                (s, it) => s + itemNumbers(it).ordered * it.unitCost,
+                                0,
+                              ),
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-[#333333]">
+                            {fmtMoney(
+                              items.reduce(
+                                (s, it) => s + itemNumbers(it).received * it.unitCost,
+                                0,
+                              ),
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )
               ) : (
+                <>
+                  {items.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <p className="text-sm text-[#999]">No products added yet.</p>
+                      <button
+                        onClick={() => setAddProductOpen(true)}
+                        className="mt-3 text-xs font-semibold text-[#7A9076] hover:underline"
+                      >
+                        + Add Product
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-[#E6ECE2]/50 text-left">
+                            <th className="px-4 py-3 font-semibold text-[#333333]">
+                              Product
+                            </th>
+                            <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">
+                              Requirement
+                            </th>
+                            <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                              Quantity
+                            </th>
+                            <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                              Unit Cost
+                            </th>
+                            <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                              Line Total
+                            </th>
+                            <th className="px-4 py-3" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, i) => {
+                            const product = products.find((p) => p.id === item.productId)
+                            return (
+                              <tr
+                                key={item.id}
+                                className={
+                                  i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"
+                                }
+                              >
+                                <td className="px-4 py-3 font-medium text-[#333333]">
+                                  {product?.name ?? item.product ?? "—"}
+                                </td>
+                                <td className="px-4 py-3 text-[#666666] font-mono text-xs hidden sm:table-cell">
+                                  {item.requirementLineId ? (
+                                    item.requirementLineId.slice(0, 8)
+                                  ) : (
+                                    <span className="text-[#999]">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right text-[#333333]">
+                                  {item.quantity}
+                                </td>
+                                <td className="px-4 py-3 text-right text-[#666666]">
+                                  {fmtMoney(item.unitCost)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-bold text-[#333333]">
+                                  {fmtMoney(itemTotal(item))}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center justify-end gap-3">
+                                    {poState && !item.id.startsWith("draft-") && (
+                                      <button
+                                        onClick={() => setEditItem(item)}
+                                        className="text-xs text-[#7A9076] hover:underline font-medium"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                    {poState && status === "AWAITING_DELIVERY" && itemRemaining(item) > 0 && (
+                                      <button
+                                        onClick={() => openShortage(item)}
+                                        className="text-xs text-amber-600 hover:underline font-medium"
+                                      >
+                                        Shortage
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        if (poState && !item.id.startsWith("draft-")) {
+                                          void handleRemoveItem(item)
+                                        } else {
+                                          setItems((prev) => prev.filter((x) => x.id !== item.id))
+                                        }
+                                      }}
+                                      className="text-xs text-red-400 hover:text-red-600 font-medium"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Receiving balance (detail only) */}
+              {!isNew && receivingSummary && goodsSummary && (
+                <ReceivingBalanceStrip
+                  receivedQty={receivingSummary.receivedQuantity ?? 0}
+                  receivedValue={goodsSummary.receivedGoodsValue ?? 0}
+                  remainingQty={
+                    receivingSummary.remainingQuantity ??
+                    Math.max(
+                      0,
+                      (receivingSummary.orderedQuantity ?? 0) -
+                        (receivingSummary.receivedQuantity ?? 0) -
+                        (receivingSummary.shortQuantity ?? 0),
+                    )
+                  }
+                  remainingValue={Math.max(
+                    0,
+                    (goodsSummary.orderedGoodsValue ?? 0) -
+                      (goodsSummary.receivedGoodsValue ?? 0),
+                  )}
+                  remainingToInvoice={
+                    goodsSummary.remainingGoodsToInvoice ?? 0
+                  }
+                />
+              )}
+            </div>
+
+            {/* Goods receipts (detail only) */}
+            {!isNew && goodsReceipts.length > 0 && (
+              <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+                <div className="px-5 py-3 border-b border-[#E6ECE2]">
+                  <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
+                    Goods Receipts
+                  </p>
+                  <p className="text-xs text-[#999] mt-0.5">
+                    Receipts registered against this purchase order.
+                  </p>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-[#E6ECE2]/50 text-left">
                         <th className="px-4 py-3 font-semibold text-[#333333]">
-                          Product
+                          Receipt
                         </th>
-                        <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">
-                          Requirement
+                        <th className="px-4 py-3 font-semibold text-[#333333]">
+                          Status
                         </th>
-                        <th className="px-4 py-3 font-semibold text-[#333333] text-right">
-                          Quantity
+                        <th className="px-4 py-3 font-semibold text-[#333333]">
+                          Received Date
                         </th>
-                        <th className="px-4 py-3 font-semibold text-[#333333] text-right">
-                          Unit Cost
-                        </th>
-                        <th className="px-4 py-3 font-semibold text-[#333333] text-right">
-                          Line Total
-                        </th>
-                        {!isReadOnly && <th className="px-4 py-3" />}
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((item, i) => {
-                        const product = products.find((p) => p.id === item.productId)
+                      {goodsReceipts.map((gr, i) => {
+                        const cfg = receiptStatusCfg(gr.status ?? "")
                         return (
                           <tr
-                            key={item.id}
+                            key={gr.id ?? gr.receiptNumber}
                             className={
                               i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"
                             }
                           >
-                            <td className="px-4 py-3 font-medium text-[#333333]">
-                              {product?.name ?? item.product ?? "—"}
+                            <td className="px-4 py-3 font-mono text-xs text-[#333333]">
+                              {gr.receiptNumber}
                             </td>
-                            <td className="px-4 py-3 text-[#666666] font-mono text-xs hidden sm:table-cell">
-                              {item.requirementLineId ? (
-                                item.requirementLineId.slice(0, 8)
-                              ) : (
-                                <span className="text-[#999]">—</span>
-                              )}
+                            <td className="px-4 py-3">
+                              <span
+                                className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${cfg.cls}`}
+                              >
+                                {cfg.label}
+                              </span>
                             </td>
-                            <td className="px-4 py-3 text-right text-[#333333]">
-                              {item.quantity}
+                            <td className="px-4 py-3 text-[#666666]">
+                              {fmtDate(gr.receivedDate)}
                             </td>
-                            <td className="px-4 py-3 text-right text-[#666666]">
-                              {fmtMoney(item.unitCost)}
-                            </td>
-                            <td className="px-4 py-3 text-right font-bold text-[#333333]">
-                              {fmtMoney(itemTotal(item))}
-                            </td>
-                            {!isReadOnly && (
-                              <td className="px-4 py-3">
-                                <div className="flex items-center justify-end gap-3">
-                                  {poState && !item.id.startsWith("draft-") && (
-                                    <button
-                                      onClick={() => setEditItem(item)}
-                                      className="text-xs text-[#7A9076] hover:underline font-medium"
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
-                                  {poState && status === "AWAITING_DELIVERY" && itemRemaining(item) > 0 && (
-                                    <button
-                                      onClick={() => openShortage(item)}
-                                      className="text-xs text-amber-600 hover:underline font-medium"
-                                    >
-                                      Shortage
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => {
-                                      if (poState && !item.id.startsWith("draft-")) {
-                                        void handleRemoveItem(item)
-                                      } else {
-                                        setItems((prev) => prev.filter((x) => x.id !== item.id))
-                                      }
-                                    }}
-                                    className="text-xs text-red-400 hover:text-red-600 font-medium"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              </td>
-                            )}
                           </tr>
                         )
                       })}
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Notes */}
             <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
@@ -1583,6 +1964,97 @@ export default function CreatePurchaseOrderPage() {
                 )}
               </div>
             </div>
+
+            {/* Goods summary (detail only) */}
+            {!isNew && goodsSummary && (
+              <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">
+                  Goods Summary
+                </p>
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-[#666666]">Ordered Goods Value</span>
+                    <span className="text-[#333333] font-medium">
+                      {fmtMoney(goodsSummary.orderedGoodsValue ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#666666]">Received Goods Value</span>
+                    <span className="text-[#333333] font-medium">
+                      {fmtMoney(goodsSummary.receivedGoodsValue ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#666666]">Remaining Goods Value</span>
+                    <span className="text-[#333333] font-medium">
+                      {fmtMoney(
+                        Math.max(
+                          0,
+                          (goodsSummary.orderedGoodsValue ?? 0) -
+                            (goodsSummary.receivedGoodsValue ?? 0),
+                        ),
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-[#E6ECE2] pt-2.5">
+                    <span className="text-[#666666]">Invoiced Amount</span>
+                    <span className="text-[#333333] font-medium">
+                      {fmtMoney(goodsSummary.goodsInvoicedAmount ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#666666]">Remaining to Invoice</span>
+                    <span className="text-[#333333] font-medium">
+                      {fmtMoney(goodsSummary.remainingGoodsToInvoice ?? 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Payment summary (detail only) */}
+            {!isNew && paymentSummary && (
+              <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
+                    Payment Summary
+                  </p>
+                  <PaymentBadge status={paymentSummary.status} />
+                </div>
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-[#666666]">Invoice Count</span>
+                    <span className="text-[#333333] font-medium">
+                      {paymentSummary.invoiceCount ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#666666]">Invoiced Amount</span>
+                    <span className="text-[#333333] font-medium">
+                      {fmtMoney(paymentSummary.invoicedAmount ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#666666]">Paid Amount</span>
+                    <span className="text-[#333333] font-medium">
+                      {fmtMoney(paymentSummary.paidAmount ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-[#E6ECE2] pt-2.5">
+                    <span className="text-[#666666]">Outstanding Amount</span>
+                    <span
+                      className={
+                        (paymentSummary.outstandingAmount ?? 0) > 0
+                          ? "font-bold text-[#333333]"
+                          : "font-medium text-[#333333]"
+                      }
+                    >
+                      {fmtMoney(paymentSummary.outstandingAmount ?? 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Supplier payables link (detail) */}
             {!isNew && (status === "CLOSED" || status === "RECEIVED") && (
