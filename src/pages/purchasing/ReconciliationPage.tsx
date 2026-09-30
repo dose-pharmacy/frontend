@@ -282,9 +282,33 @@ export default function ReconciliationPage() {
     try {
       await confirmGoodsReceipt(id!);
       setSuccessMsg("Receipt confirmed! Stock has been updated.");
-      setTimeout(() => navigate("/purchasing/orders"), 1500);
+      // Keep `confirming` true (button stays disabled) until the refreshed
+      // receipt hides the Confirm button — no duplicate-submit window.
+      // Re-fetch the authoritative detail so `confirmedAt`/status reflect the
+      // latest backend state (no auto-navigation; the footer/breadcrumb
+      // buttons let the user leave whenever ready).
+      try {
+        const updated = await getGoodsReceipt(id!);
+        setReceipt(updated);
+      } catch {
+        // Non-critical refresh — keep showing the pre-confirm state on failure.
+      }
+      setConfirming(false);
     } catch (e) {
-      setActionError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to confirm receipt.");
+      if (e instanceof GoodsReceiptsApiError) {
+        if (e.status === 401) {
+          setActionError("Your session has expired. Please sign in again.");
+        } else if (e.status === 403) {
+          setActionError("You do not have permission to confirm receipts.");
+        } else if (e.status === 404) {
+          setActionError("The Goods Receipt could not be found.");
+        } else {
+          // Backend validation/business messages are surfaced as-is.
+          setActionError(e.message);
+        }
+      } else {
+        setActionError("Failed to confirm receipt. Please try again.");
+      }
       setConfirming(false);
     }
   }
@@ -333,7 +357,13 @@ export default function ReconciliationPage() {
     );
   }
 
-  const canConfirm = receipt.status === "MATCHED" || receipt.status === "RESOLVED";
+  // A receipt is confirmable only while it is NOT yet finalized. The backend
+  // keeps `status` as MATCHED/RESOLVED after confirmation, so `confirmedAt` is
+  // the authoritative "already confirmed" signal — never assume MATCHED means
+  // unconfirmed.
+  const isConfirmed = Boolean(receipt.confirmedAt);
+  const canConfirm =
+    !isConfirmed && (receipt.status === "MATCHED" || receipt.status === "RESOLVED");
 
   // Backend detail responses embed `items`; guard anyway so the page can never
   // crash (e.g. on a partial response shape) because the array is missing.

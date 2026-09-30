@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto, PurchaseOrdersApiError } from "../../features/purchasing/purchaseOrdersApi";
@@ -11,6 +11,7 @@ import { searchSuppliers } from "../../features/inventory/searchSelectors";
 import { IconWarningTriangle } from "../../components/ui/icons";
 import DatePicker from "../../components/ui/DatePicker";
 import ScanReceiptWorkflow from "./ScanReceiptWorkflow";
+import { Toast } from "./PurchaseOrdersPage";
 
 interface GRItemRow {
   purchaseOrderItemId: string;
@@ -62,7 +63,12 @@ export default function DeliveryRegistrationPage() {
   const [discrepancyNote, setDiscrepancyNote] = useState("");
   const [items, setItems] = useState<GRItemRow[]>([]);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState("");
   const [error, setError] = useState("");
+  // Delays the post-save navigation so the success toast is visible; cleared
+  // if the user leaves before the timer fires.
+  const navTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (navTimer.current) window.clearTimeout(navTimer.current); }, []);
 
   // Apply deep-link prefill once: select the supplier and remember to auto-pick
   // the PO once its items can be loaded (locations must already be available).
@@ -201,12 +207,28 @@ export default function DeliveryRegistrationPage() {
       setError("Please select a Purchase Order.");
       return;
     }
-    const missingBatch = items.some((i) => i.actualQty > 0 && !i.batchNumber.trim());
+    if (items.length === 0) {
+      setError("Add at least one receiving item before registering the receipt.");
+      return;
+    }
+    // Location and quantity checks first — the backend would reject these too,
+    // but surfacing them here lets the user correct the form immediately.
+    const missingLocation = items.some((i) => !i.locationId);
+    if (missingLocation) {
+      setError("Please select a receiving location for every item.");
+      return;
+    }
+    const invalidQty = items.some((i) => Number(i.deliveredQty) <= 0 || Number(i.actualQty) <= 0);
+    if (invalidQty) {
+      setError("Delivered and actual quantities must be greater than zero.");
+      return;
+    }
+    const missingBatch = items.some((i) => Number(i.actualQty) > 0 && !i.batchNumber.trim());
     if (missingBatch) {
       setError("Batch number is required for all items with actual quantity > 0.");
       return;
     }
-    const missingExpiry = items.some((i) => i.actualQty > 0 && !i.expiryDate.trim());
+    const missingExpiry = items.some((i) => Number(i.actualQty) > 0 && !i.expiryDate.trim());
     if (missingExpiry) {
       setError("Expiry date is required for all items with actual quantity > 0.");
       return;
@@ -228,10 +250,24 @@ export default function DeliveryRegistrationPage() {
         })),
       };
       const receipt = await createGoodsReceipt(selectedPoId, input);
-      navigate(`/purchasing/deliveries/${receipt.id}/reconcile`);
+      // Keep `saving` true so the buttons stay disabled (no duplicate submit)
+      // while the success message shows, then continue the existing flow.
+      setToast("Goods receipt registered successfully.");
+      navTimer.current = window.setTimeout(() => {
+        navigate(`/purchasing/deliveries/${receipt.id}/reconcile`);
+      }, 1000);
     } catch (err) {
       if (err instanceof GoodsReceiptsApiError) {
-        setError(err.message);
+        if (err.status === 401) {
+          setError("Your session has expired. Please sign in again.");
+        } else if (err.status === 403) {
+          setError("You do not have permission to register goods receipts.");
+        } else if (err.status === 404) {
+          setError("The selected Purchase Order was not found.");
+        } else {
+          // Backend quantity/validation messages are surfaced as-is.
+          setError(err.message);
+        }
       } else {
         setError("Failed to create goods receipt. Please try again.");
       }
@@ -547,6 +583,8 @@ export default function DeliveryRegistrationPage() {
       {mode === "scan" && (
         <ScanReceiptWorkflow onBackToMethods={() => setMode(null)} />
       )}
+
+      {toast && <Toast message={toast} onDone={() => setToast("")} />}
     </div>
   );
 }

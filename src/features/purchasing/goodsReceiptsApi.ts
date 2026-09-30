@@ -96,7 +96,7 @@ export interface GoodsReceiptDto {
 }
 
 export class GoodsReceiptsApiError extends Error {
-  constructor(public message: string, public code?: string) {
+  constructor(public message: string, public code?: string, public status?: number) {
     super(message)
     this.name = "GoodsReceiptsApiError"
   }
@@ -114,29 +114,35 @@ async function grRequest<T>(endpoint: string, options: RequestInit = {}): Promis
   })
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
+    let code: string | undefined
     try {
       const b = (await res.json()) as {
         message?: string
         error?: {
+          code?: string
           message?: string
-          details?: { issues?: { message?: string }[] }
+          details?: { issues?: { message?: string }[]; message?: string } | string
         }
       }
-      const issues = b?.error?.details?.issues
-      if (issues?.length) {
-        // Surface per-field backend validation messages (e.g. 422 quantity issues).
+      const err = b?.error
+      // Backend can report per-field validation failures either as
+      // `details.issues[]` (422) or a single `details.{field,message}` object.
+      const issues = err?.details && typeof err.details === "object" ? err.details.issues : undefined
+      if (Array.isArray(issues) && issues.length) {
         const joined = issues
           .map((i) => i.message)
           .filter((m): m is string => Boolean(m))
           .join("; ")
-        msg = joined || b.error?.message || b.message || `HTTP ${res.status}`
-      } else if (b?.error?.message) {
-        msg = b.error.message
-      } else if (b?.message) {
-        msg = b.message
+        if (joined) msg = joined
+      } else if (err?.details && typeof err.details === "object" && err.details.message) {
+        msg = err.details.message
+      } else if (err?.details && typeof err.details === "string") {
+        msg = err.details
       }
+      if (!msg || msg === `HTTP ${res.status}`) msg = err?.message ?? b?.message ?? `HTTP ${res.status}`
+      code = err?.code
     } catch {}
-    throw new GoodsReceiptsApiError(msg)
+    throw new GoodsReceiptsApiError(msg, code, res.status)
   }
   const text = await res.text()
   return (text ? JSON.parse(text) : null) as T
@@ -154,12 +160,35 @@ async function poGrRequest<T>(poId: string, endpoint: string, options: RequestIn
   })
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
+    let code: string | undefined
     try {
-      const b = await res.json()
-      if (b?.message) msg = b.message
-      if (b?.error?.message) msg = b.error.message
+      const b = (await res.json()) as {
+        message?: string
+        error?: {
+          code?: string
+          message?: string
+          details?: { issues?: { message?: string }[]; message?: string } | string
+        }
+      }
+      const err = b?.error
+      // Backend can report per-field validation failures either as
+      // `details.issues[]` (422) or a single `details.{field,message}` object.
+      const issues = err?.details && typeof err.details === "object" ? err.details.issues : undefined
+      if (Array.isArray(issues) && issues.length) {
+        const joined = issues
+          .map((i) => i.message)
+          .filter((m): m is string => Boolean(m))
+          .join("; ")
+        if (joined) msg = joined
+      } else if (err?.details && typeof err.details === "object" && err.details.message) {
+        msg = err.details.message
+      } else if (err?.details && typeof err.details === "string") {
+        msg = err.details
+      }
+      if (!msg || msg === `HTTP ${res.status}`) msg = err?.message ?? b?.message ?? `HTTP ${res.status}`
+      code = err?.code
     } catch {}
-    throw new GoodsReceiptsApiError(msg)
+    throw new GoodsReceiptsApiError(msg, code, res.status)
   }
   const text = await res.text()
   return (text ? JSON.parse(text) : null) as T
