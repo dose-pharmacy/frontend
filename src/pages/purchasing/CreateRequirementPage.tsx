@@ -4,9 +4,18 @@ import PurchasingSubNav from "./PurchasingSubNav";
 import PageHeader from "../../components/ui/PageHeader";
 import DatePicker from "../../components/ui/DatePicker";
 import Button from "../../components/ui/Button";
+import Modal from "../../components/ui/Modal";
 import ProductFormModal from "../../components/ui/ProductFormModal";
 import { listProducts, type ProductDto, type ProductDetailDto } from "../../features/inventory/productsApi";
-import { createRequirement, type CreateRequirementInput, type RequirementReasonCode } from "../../features/purchasing/requirementsApi";
+import {
+  createRequirement,
+  previewRequirement,
+  RequirementsApiError,
+  type CreateRequirementInput,
+  type RequirementReasonCode,
+  type RequirementPreviewResult,
+  type RequirementActionDto,
+} from "../../features/purchasing/requirementsApi";
 import { useProductUnits } from "../../features/inventory/useProductUnits";
 import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions";
 
@@ -16,6 +25,8 @@ interface ProductRow {
   productName: string;
   /** null = use the product's base unit. */
   unitId: string | null;
+  /** Display name of the resolved unit (base unit when unitId is null). */
+  unitName: string;
   quantityNeeded: number;
   reasonCode: RequirementReasonCode;
   notes: string;
@@ -32,6 +43,20 @@ function ProductUnitRowEditor({ row, onUpdate }: {
   const qty = row.quantityNeeded || 0
   const baseQty = toBaseQuantity(qty, productUnit)
 
+  // Keep the resolved unit display name on the row so the review modal can
+  // label quantities without refetching unit config. Runs when units finish
+  // loading or the selected unit changes; a no-op once the row is current.
+  const unitName =
+    productUnit?.unit?.name ||
+    productUnit?.unit?.symbol ||
+    baseUnit?.name ||
+    baseUnit?.symbol ||
+    ""
+  useEffect(() => {
+    if (loading) return
+    if (row.unitName !== unitName) onUpdate({ unitName })
+  }, [unitName, loading])
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
@@ -45,7 +70,14 @@ function ProductUnitRowEditor({ row, onUpdate }: {
         />
         <select
           value={unitId}
-          onChange={(e) => onUpdate({ unitId: e.target.value || null })}
+          onChange={(e) => {
+            const v = e.target.value || null
+            const u = units.find((x) => x.unitId === v)
+            onUpdate({
+              unitId: v,
+              unitName: u?.unit?.name || u?.unit?.symbol || "",
+            })
+          }}
           className="rounded border border-gray-200 px-2 py-1 text-xs max-w-[120px]"
         >
           {loading && <option value="">Loading units…</option>}
@@ -62,6 +94,125 @@ function ProductUnitRowEditor({ row, onUpdate }: {
       )}
     </div>
   )
+}
+
+function fmtQty(v: number): string {
+  return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+/** One product line inside the Review Purchase Requirement modal. The action
+ * (CREATE / UPDATE) always comes from the backend preview — never guessed. */
+function PreviewLine({ row, action }: { row: ProductRow; action?: RequirementActionDto }) {
+  const existing = action?.existingRequirement;
+  const productLabel = row.productName || existing?.product || existing?.productName || "Product";
+  const unitLabel = row.unitName || existing?.unit?.name || existing?.unit?.symbol || "";
+  const existingRef = existing?.requirementReference ?? existing?.reference;
+  const existingQtyNeeded = existing?.quantityNeeded ?? existing?.requiredQuantity;
+  const existingQtyOrdered = existing?.quantityOrdered ?? existing?.orderedQuantity;
+  const existingRemaining =
+    existing?.remainingToOrder ?? existing?.quantityRemaining ?? existing?.remainingQuantity;
+
+  const badge =
+    action?.action === "CREATE" ? (
+      <span className="shrink-0 rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+        CREATE NEW REQUIREMENT
+      </span>
+    ) : action?.action === "UPDATE" ? (
+      <span className="shrink-0 rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
+        UPDATE EXISTING REQUIREMENT
+      </span>
+    ) : (
+      <span className="shrink-0 rounded-full bg-[#E6ECE2] px-3 py-1 text-xs font-bold text-[#666666]">
+        PROCESSING
+      </span>
+    );
+
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        action?.action === "UPDATE" ? "border-orange-200 bg-orange-50/60" : "border-[#E6ECE2] bg-white"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-[#333333]">{productLabel}</p>
+          <div className="mt-0.5 space-y-0.5 text-xs text-[#666666]">
+            {unitLabel && <p>Unit: {unitLabel}</p>}
+            <p>
+              Requested quantity: {fmtQty(row.quantityNeeded)}
+              {unitLabel ? ` ${unitLabel}` : ""}
+            </p>
+          </div>
+        </div>
+        {badge}
+      </div>
+
+      {action?.action === "UPDATE" && (
+        <div className="mt-3 rounded-lg border border-orange-200 bg-white p-3">
+          <p className="text-sm font-semibold text-orange-800">Existing requirement found</p>
+          <p className="mt-0.5 text-xs text-[#666666]">
+            This product already has an open requirement. The existing requirement will be
+            updated instead of creating another open requirement.
+          </p>
+          {existing &&
+          (existingRef ||
+            existingQtyNeeded != null ||
+            existingQtyOrdered != null ||
+            existingRemaining != null ||
+            existing.status) ? (
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+              {existingRef && (
+                <div>
+                  <dt className="text-[#666666]">Requirement</dt>
+                  <dd className="font-semibold text-[#333333]">{existingRef}</dd>
+                </div>
+              )}
+              {existingQtyNeeded != null && (
+                <div>
+                  <dt className="text-[#666666]">Current quantity needed</dt>
+                  <dd className="font-semibold text-[#333333]">{fmtQty(existingQtyNeeded)}</dd>
+                </div>
+              )}
+              {existingQtyOrdered != null && (
+                <div>
+                  <dt className="text-[#666666]">Quantity ordered</dt>
+                  <dd className="font-semibold text-[#333333]">{fmtQty(existingQtyOrdered)}</dd>
+                </div>
+              )}
+              {existingRemaining != null && (
+                <div>
+                  <dt className="text-[#666666]">Remaining to order</dt>
+                  <dd className="font-semibold text-[#333333]">{fmtQty(existingRemaining)}</dd>
+                </div>
+              )}
+              {existing.status && (
+                <div>
+                  <dt className="text-[#666666]">Status</dt>
+                  <dd className="font-semibold text-[#333333]">{existing.status}</dd>
+                </div>
+              )}
+            </dl>
+          ) : (
+            <p className="mt-1.5 text-xs text-[#666666]">
+              Existing requirement found. The backend will update the existing requirement.
+            </p>
+          )}
+        </div>
+      )}
+
+      {action?.action === "CREATE" && (
+        <p className="mt-2 text-xs text-[#666666]">
+          No existing open requirement was found for this product. A new requirement will be created.
+        </p>
+      )}
+
+      {!action?.action && (
+        <p className="mt-2 text-xs text-[#666666]">
+          No preview decision was returned for this product — the backend could not determine an action.
+        </p>
+      )}
+    </div>
+  );
 }
 
 export default function CreateRequirementPage() {
@@ -84,6 +235,13 @@ export default function CreateRequirementPage() {
   
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Requirement preview review flow
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<RequirementPreviewResult | null>(null);
+  const [saveError, setSaveError] = useState("");
+  // Preview rejected by the backend (e.g. multiple active requirement lines) —
+  // shown inside the review modal alongside the products instead of a dead-end.
+  const [previewBlocked, setPreviewBlocked] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = setTimeout(async () => {
@@ -120,6 +278,7 @@ export default function CreateRequirementPage() {
         productId: product.id,
         productName: product.name,
         unitId: null,
+        unitName: "",
         quantityNeeded: addQty,
         reasonCode: addReason,
         notes: "",
@@ -142,6 +301,7 @@ export default function CreateRequirementPage() {
           productId: saved.id,
           productName: saved.name,
           unitId: null,
+          unitName: "",
           quantityNeeded: addQty,
           reasonCode: addReason,
           notes: "",
@@ -165,43 +325,118 @@ export default function CreateRequirementPage() {
 
   const totalQty = products.reduce((s, p) => s + p.quantityNeeded, 0);
 
-  async function handleSave() {
+  /** Build the POST body from the live form values (shared by preview + save). */
+  function buildBody(): CreateRequirementInput {
+    // requiredBy and notes are optional on the backend contract; reasonCode,
+    // notes and unitId are omitted (not sent as null) unless set, per line.
+    return {
+      ...(requiredBy ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() } : {}),
+      ...(notes.trim() ? { notes: notes.trim() } : {}),
+      lines: products.map((p) => ({
+        productId: p.productId,
+        quantityNeeded: p.quantityNeeded,
+        ...(p.unitId ? { unitId: p.unitId } : {}),
+        ...(p.reasonCode ? { reasonCode: p.reasonCode } : {}),
+        ...(p.notes?.trim() ? { notes: p.notes.trim() } : {}),
+      })),
+    };
+  }
+
+  /** Inline validation — runs before preview (and again implicitly on save). */
+  function validateForm(): string | null {
     if (products.length === 0) {
-      setError("Please add at least one product.");
-      return;
+      return "Please add at least one product.";
     }
     const duplicate = products.some(
       (p, i) => products.findIndex((x) => x.productId === p.productId) !== i,
     );
     if (duplicate) {
-      setError("Duplicate products are not allowed — each product can appear once.");
+      return "Duplicate products are not allowed — each product can appear once.";
+    }
+    for (const p of products) {
+      if (!p.productId) {
+        return "Select a product for every row.";
+      }
+      const qty = Number(p.quantityNeeded);
+      if (!p.quantityNeeded || !Number.isFinite(qty) || qty <= 0) {
+        return `Enter a valid quantity greater than zero for ${p.productName || "the selected product"}.`;
+      }
+    }
+    return null;
+  }
+
+  /** Step 1 — POST /requirements/preview. Nothing is saved at this point. */
+  async function handleReview() {
+    const problem = validateForm();
+    if (problem) {
+      setError(problem);
       return;
     }
     setError("");
-    setSaving(true);
-
+    setPreview(null);
+    setPreviewBlocked(null);
+    setSaveError("");
+    setPreviewing(true);
     try {
-      // POST /requirements — requiredBy and notes are optional on the backend
-      // contract; reasonCode/notes are omitted (not sent as null) per line.
-      const body = {
-        ...(requiredBy ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() } : {}),
-        ...(notes.trim() ? { notes: notes.trim() } : {}),
-        lines: products.map((p) => ({
-          productId: p.productId,
-          quantityNeeded: p.quantityNeeded,
-          ...(p.unitId ? { unitId: p.unitId } : {}),
-          ...(p.reasonCode ? { reasonCode: p.reasonCode } : {}),
-          ...(p.notes?.trim() ? { notes: p.notes.trim() } : {}),
-        })),
-      };
-      await createRequirement(body as CreateRequirementInput);
+      const result = await previewRequirement(buildBody());
+      setPreview(result);
+    } catch (err) {
+      if (err instanceof RequirementsApiError) {
+        if (err.status === 403) {
+          setError("You do not have permission to create purchase requirements.");
+        } else if (/multiple active requirement/i.test(err.message)) {
+          // The backend found overlapping open requirements and refuses to
+          // preview them. Show the added products next to a clear warning so
+          // the admin can adjust the list — never a dead-end error.
+          setPreviewBlocked(err.message);
+        } else {
+          // Prefer the backend message (session, validation, conflict, etc.).
+          setError(err.message);
+        }
+      } else {
+        setError("Unable to preview this purchase requirement. Please try again.");
+      }
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  /** Step 2 — admin confirmed: POST /requirements, then go back to the list. */
+  async function handleConfirm() {
+    if (saving) return;
+    setSaveError("");
+    setSaving(true);
+    try {
+      await createRequirement(buildBody());
+      setPreview(null);
+      setPreviewBlocked(null);
       navigate("/purchasing");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create requirement.");
-      setSaving(false);
-    } finally {
+      if (err instanceof RequirementsApiError) {
+        setSaveError(err.message);
+      } else {
+        setSaveError("Unable to save the purchase requirement. No changes were confirmed.");
+      }
       setSaving(false);
     }
+  }
+
+  /** Close the review modal, keeping all entered form data (no save request). */
+  function closeReview() {
+    if (saving) return;
+    setPreview(null);
+    setPreviewBlocked(null);
+  }
+
+  /** Match a preview action to a form row by productId + unitId (per the
+   * backend contract); falls back to productId alone for rows left on the
+   * base unit, which the backend resolves itself. */
+  function actionForRow(p: ProductRow): RequirementActionDto | undefined {
+    if (!preview) return undefined;
+    const byPair = preview.actions.find(
+      (a) => a.productId === p.productId && !!a.unitId && a.unitId === p.unitId,
+    );
+    return byPair ?? preview.actions.find((a) => a.productId === p.productId);
   }
 
   return (
@@ -349,13 +584,89 @@ export default function CreateRequirementPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E6ECE2] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
         <button onClick={() => navigate("/purchasing")} className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
         <button
-          onClick={handleSave}
-          disabled={products.length === 0 || saving}
+          onClick={handleReview}
+          disabled={products.length === 0 || previewing || saving}
           className="rounded-lg bg-[#B6C8AF] px-6 py-2.5 text-sm font-bold text-[#333333] hover:bg-[#A5B89E] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
         >
-          {saving ? "Saving…" : "Create Requirement →"}
+          {previewing ? "Checking Requirement…" : "Review Requirement →"}
         </button>
       </div>
+
+      {/* Review Purchase Requirement — per-line CREATE/UPDATE decisions from the
+          backend preview. Nothing is saved while this modal is open; the form
+          data stays intact so Back to Edit can return unchanged. */}
+      <Modal
+        open={preview !== null || previewBlocked !== null}
+        title="Review Purchase Requirement"
+        onClose={closeReview}
+        size="lg"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-[#666666]">
+            Review the changes before creating or updating the requirement.
+          </p>
+
+          {saveError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {saveError}
+            </div>
+          )}
+
+          {previewBlocked && (
+            <>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+                <p className="font-semibold text-amber-800">Unable to review these products</p>
+                <p className="mt-0.5 text-amber-700">{previewBlocked}</p>
+                <p className="mt-1 text-xs text-amber-700/80">
+                  No changes have been saved. Remove or adjust the affected product and try the
+                  review again.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                {products.map((p) => (
+                  <PreviewLine key={p.id} row={p} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {preview && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6ECE2] px-3 py-1 text-xs font-semibold text-[#7A9076]">
+                  {preview.actions.filter((a) => a.action === "CREATE").length} new ·{" "}
+                  {preview.actions.filter((a) => a.action === "UPDATE").length} update
+                </span>
+              </div>
+
+              {preview.actions.length === 0 && (
+                <div className="rounded-lg bg-[#E6ECE2]/60 p-3 text-sm text-[#666666]">
+                  The server returned no preview decisions for these lines. Each product
+                  will still be processed by the backend when you confirm.
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {products.map((p) => {
+                  const action = actionForRow(p);
+                  return <PreviewLine key={p.id} row={p} action={action} />;
+                })}
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center justify-end gap-3 border-t border-[#E6ECE2] pt-4">
+            <Button type="button" variant="secondary" onClick={closeReview} disabled={saving}>
+              Back to Edit
+            </Button>
+            {preview && !previewBlocked && (
+              <Button type="button" onClick={handleConfirm} loading={saving} disabled={previewing}>
+                {saving ? "Saving…" : "Confirm & Save"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Shared Inventory → Products → Add Product modal — opens inline over this
           page (no navigation), keeps form state intact, and auto-adds the

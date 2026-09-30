@@ -2,6 +2,7 @@
 // Talks to the pharmacy backend's purchasing requirement endpoints:
 //   GET    /api/v1/purchasing/requirements                        (list, filter)
 //   POST   /api/v1/purchasing/requirements                        (create)
+//   POST   /api/v1/purchasing/requirements/preview                (preview create/update, no save)
 //   GET    /api/v1/purchasing/requirements/{id}                   (detail)
 //   PATCH  /api/v1/purchasing/requirements/{id}                   (update header)
 //   POST   /api/v1/purchasing/requirements/{id}/close             (close)
@@ -194,6 +195,64 @@ export interface OrderPreviewDto {
   lineStatus: RequirementLineStatus;
 }
 
+// ─── Requirement preview types ───────────────────────────────────────────────
+// POST /requirements/preview (and the create response) lets the backend decide,
+// per product+unit line, whether saving will CREATE a new requirement or UPDATE
+// an existing open one. The frontend never guesses — it displays these actions.
+
+/** Per-line action computed by the backend: CREATE or UPDATE (open-ended). */
+export type RequirementPreviewAction = "CREATE" | "UPDATE" | (string & {});
+
+/**
+ * The open requirement the backend already has for a product+unit, attached to
+ * `actions[].existingRequirement`. Field names may vary slightly by backend
+ * version, so every field is optional and the frontend never invents values.
+ */
+export interface RequirementExistingDto {
+  id?: string;
+  requirementId?: string;
+  requirementReference?: string;
+  reference?: string;
+  productId?: string;
+  productName?: string;
+  /** The backend may send the product name as a plain string on previews. */
+  product?: string;
+  unitId?: string | null;
+  unit?: { id?: string; name?: string; symbol?: string } | null;
+  quantityNeeded?: number;
+  requiredQuantity?: number;
+  quantityOrdered?: number;
+  orderedQuantity?: number;
+  quantityRemaining?: number;
+  remainingToOrder?: number;
+  remainingQuantity?: number;
+  quantityDelivered?: number;
+  status?: string;
+  [key: string]: unknown;
+}
+
+/** One per-line decision from the preview/create response. */
+export interface RequirementActionDto {
+  productId?: string;
+  unitId?: string | null;
+  requestedQuantity?: number;
+  action?: RequirementPreviewAction;
+  existingRequirement?: RequirementExistingDto | null;
+  [key: string]: unknown;
+}
+
+/** Body returned by POST /requirements/preview (nothing is saved). */
+export interface RequirementPreviewResult {
+  createdRequirement?: Partial<RequirementDto> | null;
+  actions: RequirementActionDto[];
+}
+
+/** Shape returned by POST /requirements once the backend includes `actions`. */
+export interface RequirementCreateResult {
+  createdRequirement?: Partial<RequirementDto> | null;
+  actions: RequirementActionDto[];
+}
+
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 export class RequirementsApiError extends Error {
@@ -350,12 +409,39 @@ export async function listRequirementLinesByProduct(
   return result?.data ?? [];
 }
 
-/** POST /requirements — create a requirement with one or more product lines. */
-export async function createRequirement(input: CreateRequirementInput): Promise<RequirementDto> {
-  const result = await requirementsRequest<{ success: boolean; data: RequirementDto }>("", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+/**
+ * POST /requirements — create a requirement with one or more product lines.
+ * Once the backend supports per-line decisions, the response carries
+ * `{ createdRequirement, actions }`; legacy responses carry the `RequirementDto`
+ * directly. Either is unwrapped safely — callers read `actions` when present.
+ */
+export async function createRequirement(
+  input: CreateRequirementInput,
+): Promise<RequirementCreateResult> {
+  const result = await requirementsRequest<{
+    success: boolean;
+    data: RequirementCreateResult | RequirementDto | null;
+  }>("", { method: "POST", body: JSON.stringify(input) });
+  if (!result?.data) throw new RequirementsApiError("Unexpected response from the server.");
+  const data: RequirementCreateResult | RequirementDto = result.data;
+  if (typeof data === "object" && data !== null && "actions" in data) {
+    return data as RequirementCreateResult;
+  }
+  return { createdRequirement: data as RequirementDto, actions: [] };
+}
+
+/**
+ * POST /requirements/preview — ask the backend to evaluate the lines against
+ * existing open requirements WITHOUT saving. The backend decides per line
+ * whether it would CREATE a new requirement or UPDATE the existing one.
+ */
+export async function previewRequirement(
+  input: CreateRequirementInput,
+): Promise<RequirementPreviewResult> {
+  const result = await requirementsRequest<{
+    success: boolean;
+    data: RequirementPreviewResult | null;
+  }>("/preview", { method: "POST", body: JSON.stringify(input) });
   if (!result?.data) throw new RequirementsApiError("Unexpected response from the server.");
   return result.data;
 }

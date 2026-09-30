@@ -21,6 +21,7 @@ import { API_BASE_URL } from "../auth/authApi";
 export type POStatus =
   | "REGISTERED"
   | "AWAITING_DELIVERY"
+  | "PARTIALLY_RECEIVED"
   | "RECEIVED"
   | "CLOSED"
   | "CANCELLED"
@@ -160,6 +161,9 @@ export interface PurchaseOrdersQuery {
   limit?: number;
   supplierId?: string;
   status?: string;
+  /** When true, the backend returns only POs still receivable
+   * (at least one item with quantityRemaining > 0). */
+  receivable?: boolean;
   paymentStatus?: POPaymentStatus;
   search?: string;
 }
@@ -338,6 +342,7 @@ export async function listPurchaseOrders(
     limit: query.limit,
     supplierId: query.supplierId,
     status: query.status,
+    receivable: query.receivable ? "true" : undefined,
     paymentStatus: query.paymentStatus,
     search: query.search,
   })) {

@@ -43,6 +43,8 @@ export default function DeliveryRegistrationPage() {
   const [mode, setMode] = useState<"manual" | "scan" | null>(null);
   const [orders, setOrders] = useState<PurchaseOrderDto[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState("");
+  const [ordersReload, setOrdersReload] = useState(0);
   const [selectedPoId, setSelectedPoId] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
@@ -71,24 +73,29 @@ export default function DeliveryRegistrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSelectPending]);
 
+  // Load ONLY receivable purchase orders. The backend decides which POs still
+  // have remaining quantity via receivable=true (includes AWAITING_DELIVERY and
+  // PARTIALLY_RECEIVED) — no client-side status filtering. Selecting a supplier
+  // narrows the same receivable query to that supplier.
   useEffect(() => {
-    listPurchaseOrders({ limit: 100 })
+    const controller = new AbortController();
+    setOrdersLoading(true);
+    setOrdersError("");
+    listPurchaseOrders({ limit: 100, receivable: true, supplierId: supplierFilter || undefined })
       .then((r) => {
-        // Receipts can only be registered for orders in these two statuses.
-        setOrders(r.data.filter((o) => o.status === "AWAITING_DELIVERY" || o.status === "REGISTERED"))
+        if (controller.signal.aborted) return;
+        setOrders(r.data);
       })
-      .catch(() => {})
-      .finally(() => setOrdersLoading(false));
-  }, []);
-
-  // Reload POs filtered by selected supplier
-  useEffect(() => {
-    const controller = new AbortController()
-    listPurchaseOrders({ limit: 100, supplierId: supplierFilter || undefined })
-      .then((r) => { if (!controller.signal.aborted) setOrders(r.data.filter((o) => o.status === "AWAITING_DELIVERY" || o.status === "REGISTERED")) })
-      .catch(() => {})
-    return () => controller.abort()
-  }, [supplierFilter]);
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setOrdersError("Failed to load receivable purchase orders.");
+        setOrders([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setOrdersLoading(false);
+      });
+    return () => controller.abort();
+  }, [supplierFilter, ordersReload]);
 
   useEffect(() => {
     listSuppliers({ limit: 100, isActive: true })
@@ -303,13 +310,37 @@ export default function DeliveryRegistrationPage() {
                   disabled={ordersLoading}
                   className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
                 >
-                  <option value="">{ordersLoading ? "Loading…" : "— Select PO (Registered / Awaiting Delivery) —"}</option>
+                  <option value="">
+                    {ordersLoading
+                      ? "Loading purchase orders…"
+                      : ordersError
+                      ? "Failed to load purchase orders — retry below"
+                      : "— Select Purchase Order —"}
+                  </option>
                   {orders.map((o) => (
                     <option key={o.id} value={o.id}>
-                      {o.poNumber} — {o.supplier?.name ?? o.supplierId}
+                      {o.poNumber} —{" "}
+                      {o.supplier?.name ??
+                        suppliers.find((s) => s.id === o.supplierId)?.name ??
+                        o.supplierId}
                     </option>
                   ))}
                 </select>
+                {!ordersLoading && !ordersError && orders.length === 0 && (
+                  <p className="mt-1.5 text-xs text-[#666666]">No receivable purchase orders found.</p>
+                )}
+                {ordersError && (
+                  <p className="mt-1.5 flex items-center gap-2 text-xs text-red-600">
+                    {ordersError}
+                    <button
+                      type="button"
+                      onClick={() => setOrdersReload((t) => t + 1)}
+                      className="font-semibold underline underline-offset-2 hover:text-red-700"
+                    >
+                      Retry
+                    </button>
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm text-[#666666] mb-1">Supplier</label>

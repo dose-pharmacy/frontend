@@ -15,15 +15,17 @@ import {
   listSales,
   getSale,
   cancelSale,
+  recordSalePayment,
   SalesApiError,
   type SaleDto,
   type SaleItemDto,
   type SaleStatus,
+  type RecordSalePaymentMethod,
 } from "../../features/sales/salesApi"
 
 // ─── Types (UI view of a sale) ───────────────────────────────────────────────
 
-type PaymentMethod = "Cash" | "Card" | "Digital Transfer" | "Insurance"
+type PaymentMethod = "Cash" | "Card" | "Digital Transfer" | "Mobile Transfer" | "Credit" | "Check" | "Insurance"
 type SaleStatusUi = "completed" | "voided" | "refunded"
 
 interface SaleItem {
@@ -39,6 +41,8 @@ interface SaleItem {
 interface SalePayment {
   method: PaymentMethod
   amount: number
+  reference?: string
+  date?: string
 }
 
 interface Sale {
@@ -55,6 +59,7 @@ interface Sale {
   total: number
   paidAmount: number
   changeAmount: number
+  outstanding: number
   status: SaleStatusUi
 }
 
@@ -64,7 +69,10 @@ const METHOD_TO_UI: Record<string, PaymentMethod> = {
   CASH: "Cash",
   CARD: "Card",
   DIGITAL_TRANSFER: "Digital Transfer",
+  MOBILE_TRANSFER: "Mobile Transfer",
   INSURANCE: "Insurance",
+  CREDIT: "Credit",
+  CHECK: "Check",
 }
 
 function methodLabel(method: string): PaymentMethod {
@@ -105,6 +113,8 @@ function adaptSale(dto: SaleDto, detail?: SaleDto | null): Sale {
   const payments: SalePayment[] = paymentsSource.map((p) => ({
     method: methodLabel(p.method),
     amount: p.amount,
+    reference: p.reference ?? undefined,
+    date: p.createdAt,
   }))
   const { date, time } = fmtDateTime(dto.completedAt ?? dto.createdAt)
   return {
@@ -121,6 +131,7 @@ function adaptSale(dto: SaleDto, detail?: SaleDto | null): Sale {
     total: dto.totalAmount,
     paidAmount: dto.paidAmount,
     changeAmount: dto.changeAmount,
+    outstanding: Math.max(0, dto.totalAmount - dto.paidAmount),
     status: toUiStatus(dto.status),
   }
 }
@@ -142,7 +153,10 @@ export default function SalesPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [selected, setSelected] = useState<Sale | null>(null)
+  const [payTarget, setPayTarget] = useState<Sale | null>(null)
   const [reloadTick, setReloadTick] = useState(0)
+  const [saleView, setSaleView] = useState<"all" | "credit">("all")
+  const [toast, setToast] = useState<string | null>(null)
 
   // Fetch sales from backend with server-side pagination and filtering
   useEffect(() => {
@@ -187,8 +201,53 @@ export default function SalesPage() {
     setPage(1)
   }, [search, dateFilter, statusFilter])
 
+  // Auto-dismiss the success toast.
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  /** After a payment is recorded: refresh the list and the open detail view. */
+  function handleRecorded(dto: SaleDto) {
+    setPayTarget(null)
+    setReloadTick((t) => t + 1)
+    setToast("Payment recorded successfully.")
+    setSelected((prev) => {
+      if (!prev || prev.id !== dto.id) return prev
+      const payments = dto.payments.map((p) => ({
+        method: methodLabel(p.method),
+        amount: p.amount,
+        reference: p.reference ?? undefined,
+        date: p.createdAt,
+      }))
+      return {
+        ...prev,
+        paidAmount: dto.paidAmount,
+        changeAmount: dto.changeAmount,
+        outstanding: Math.max(0, dto.totalAmount - dto.paidAmount),
+        payments: payments.length > 0 ? payments : prev.payments,
+      }
+    })
+  }
+
+  // Visible rows depend on the selected tab. Credit Sales shows completed sales
+  // with an unpaid balance. That "outstanding" value is derived frontend display
+  // logic (totalAmount − paidAmount), NOT a backend field.
+  const visibleSales =
+    saleView === "credit"
+      ? sales.filter((s) => s.status === "completed" && s.outstanding > 0)
+      : sales
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      {/* Success toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-xl text-white text-sm font-semibold bg-green-600">
+          {toast}
+        </div>
+      )}
+
       <PageHeader
         breadcrumb="Dashboard / Sales"
         title="Sales"
@@ -212,6 +271,28 @@ export default function SalesPage() {
       />
 
       <DashboardSubNav />
+
+      {/* Sales view tabs */}
+      <div className="px-6 pt-4">
+        <div className="flex gap-1 rounded-xl bg-[#E6ECE2] p-1 w-fit">
+          <button
+            onClick={() => setSaleView("all")}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              saleView === "all" ? "bg-white text-[#333333] shadow-sm" : "text-[#666666] hover:text-[#333333]"
+            }`}
+          >
+            All Sales
+          </button>
+          <button
+            onClick={() => setSaleView("credit")}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              saleView === "credit" ? "bg-white text-orange-700 shadow-sm" : "text-[#666666] hover:text-[#333333]"
+            }`}
+          >
+            Credit Sales
+          </button>
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto p-6 pb-12 flex flex-col gap-6">
         {loadError && (
@@ -250,8 +331,15 @@ export default function SalesPage() {
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
             <LoadingSkeleton />
-          ) : sales.length === 0 ? (
-            <EmptyState title="No sales found" description="Adjust your search or filters." />
+          ) : visibleSales.length === 0 ? (
+            <EmptyState
+              title={saleView === "credit" ? "No outstanding credit sales" : "No sales found"}
+              description={
+                saleView === "credit"
+                  ? "All completed sales are fully paid."
+                  : "Adjust your search or filters."
+              }
+            />
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -266,12 +354,14 @@ export default function SalesPage() {
                       <th className="px-4 py-3 font-semibold text-[#333333] hidden lg:table-cell">Payment</th>
                       <th className="px-4 py-3 font-semibold text-[#333333] hidden xl:table-cell text-right">Discount</th>
                       <th className="px-4 py-3 font-semibold text-[#333333] text-right">Total</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">Paid</th>
+                      <th className="px-4 py-3 font-semibold text-[#333333] text-right">Outstanding</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Status</th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sales.map((sale, i) => (
+                    {visibleSales.map((sale, i) => (
                       <tr
                         key={sale.id}
                         onClick={() => setSelected(sale)}
@@ -306,16 +396,44 @@ export default function SalesPage() {
                         <td className="px-4 py-3 text-right font-semibold text-[#333333] whitespace-nowrap">
                           {sale.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
                         </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          {sale.paidAmount > 0 ? (
+                            <span className="text-[#333333]">
+                              {sale.paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
+                            </span>
+                          ) : (
+                            <span className="text-[#999]">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          {sale.status === "completed" && sale.outstanding > 0 ? (
+                            <span className="font-semibold text-orange-600">
+                              {sale.outstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
+                            </span>
+                          ) : (
+                            <span className="text-[#999]">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={sale.status} />
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setSelected(sale) }}
-                            className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
-                          >
-                            View
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {sale.status === "completed" && sale.outstanding > 0 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPayTarget(sale) }}
+                                className="text-xs font-semibold text-orange-700 hover:underline whitespace-nowrap"
+                              >
+                                Record Payment
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSelected(sale) }}
+                              className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                            >
+                              View
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -337,6 +455,16 @@ export default function SalesPage() {
             setSelected(null)
             setReloadTick((t) => t + 1)
           }}
+          onRecordPayment={() => setPayTarget(selected)}
+        />
+      )}
+
+      {/* Record Payment modal (later repayment on a credit/outstanding sale) */}
+      {payTarget && (
+        <RecordPaymentModal
+          sale={payTarget}
+          onClose={() => setPayTarget(null)}
+          onRecorded={handleRecorded}
         />
       )}
     </div>
@@ -349,10 +477,12 @@ function SaleDetailModal({
   sale,
   onClose,
   onVoided,
+  onRecordPayment,
 }: {
   sale: Sale
   onClose: () => void
   onVoided: () => void
+  onRecordPayment: () => void
 }) {
   // Always fetch the receipt detail — list rows can omit items/payments.
   const [detail, setDetail] = useState<Sale | null>(sale.items.length > 0 ? sale : null)
@@ -485,18 +615,49 @@ function SaleDetailModal({
               {view.changeAmount > 0 && (
                 <SummaryRow label="Change" value={`${view.changeAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ETB`} />
               )}
+              {view.outstanding > 0 && (
+                <SummaryRow
+                  label="Outstanding"
+                  value={`${view.outstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`}
+                  accent
+                />
+              )}
+              {view.status === "completed" && view.outstanding === 0 && (
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm text-[#666666]">Status</span>
+                  <span className="text-sm font-semibold text-green-600">✓ Fully Paid</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Payment breakdown */}
+          {/* Payment history */}
           <div className="bg-[#E6ECE2]/40 rounded-xl p-4 flex flex-col gap-2">
-            <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Payment</p>
+            <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide mb-1">Payment History</p>
             {view.payments.length === 0 ? (
               <p className="text-sm text-[#999]">No payments recorded.</p>
             ) : (
               <>
                 {view.payments.map((p, idx) => (
-                  <SummaryRow key={`${p.method}-${idx}`} label={p.method} value={`${p.amount.toLocaleString()} ETB`} />
+                  <div key={`${p.method}-${idx}`} className="flex items-start justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-[#333333]">{p.method}</p>
+                      <p className="text-xs text-[#999]">
+                        {p.date
+                          ? new Date(p.date).toLocaleString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                        {p.reference ? ` · ${p.reference}` : ""}
+                      </p>
+                    </div>
+                    <span className="font-semibold text-[#333333] whitespace-nowrap">
+                      {p.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB
+                    </span>
+                  </div>
                 ))}
                 <div className="border-t border-[#C6D4BF] pt-2 mt-1">
                   <SummaryRow
@@ -513,6 +674,9 @@ function SaleDetailModal({
         {/* Actions */}
         <div className="flex flex-wrap gap-2 justify-between border-t border-[#E6ECE2] pt-4">
           <div className="flex gap-2">
+            {view.status === "completed" && view.outstanding > 0 && (
+              <Button onClick={onRecordPayment}>Record Payment</Button>
+            )}
             <Button variant="secondary" onClick={() => window.print()}>
               <PrintIcon /> Print Receipt
             </Button>
@@ -599,7 +763,10 @@ function PaymentBadge({ method }: { method: PaymentMethod }) {
     Cash: "bg-green-100 text-green-700",
     Card: "bg-blue-100 text-blue-700",
     "Digital Transfer": "bg-purple-100 text-purple-700",
+    "Mobile Transfer": "bg-purple-100 text-purple-700",
     Insurance: "bg-[#E6ECE2] text-[#7A9076]",
+    Credit: "bg-orange-100 text-orange-700",
+    Check: "bg-teal-100 text-teal-700",
   }
   return (
     <span className={`text-xs font-semibold rounded-full px-2 py-0.5 whitespace-nowrap ${cfg[method]}`}>{method}</span>
@@ -627,5 +794,161 @@ function PrintIcon() {
     <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
       <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a1 1 0 001 1h8a1 1 0 001-1v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a1 1 0 00-1-1H6a1 1 0 00-1 1zm2 0h6v3H7V4zm-1 9v-1h8v1H6zm6-4a1 1 0 110-2 1 1 0 010 2z" clipRule="evenodd" />
     </svg>
+  )
+}
+
+// ─── Record Payment (later repayment on a credit / outstanding sale) ──────────
+
+/** Methods accepted by POST /pos/sales/{id}/payments — CARD is NOT supported. */
+const RECORD_METHODS: { value: RecordSalePaymentMethod; label: string }[] = [
+  { value: "CASH", label: "Cash" },
+  { value: "MOBILE_TRANSFER", label: "Mobile Transfer" },
+  { value: "CHECK", label: "Check" },
+]
+
+function RecordPaymentModal({
+  sale,
+  onClose,
+  onRecorded,
+}: {
+  sale: Sale
+  onClose: () => void
+  onRecorded: (dto: SaleDto) => void
+}) {
+  // Refetch the sale on open so the outstanding balance is authoritative,
+  // not a possibly-stale figure from the list row.
+  const [dto, setDto] = useState<SaleDto | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [method, setMethod] = useState<RecordSalePaymentMethod>("CASH")
+  const [amount, setAmount] = useState("")
+  const [reference, setReference] = useState("")
+  const [recording, setRecording] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getSale(sale.id)
+      .then((d) => { if (!cancelled) setDto(d) })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setError(err instanceof SalesApiError ? err.message : "Failed to load the sale.")
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [sale.id])
+
+  const total = dto ? dto.totalAmount : sale.total
+  const paid = dto ? dto.paidAmount : sale.paidAmount
+  const outstanding = Math.max(0, total - paid)
+
+  const fmtMoney = (v: number) =>
+    `${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`
+
+  async function handleRecord() {
+    setError(null)
+    const amt = parseFloat(amount)
+    if (!amount.trim() || !Number.isFinite(amt) || amt <= 0) {
+      setError("Enter a valid amount greater than zero.")
+      return
+    }
+    if (amt > outstanding) {
+      setError(
+        `Payment amount cannot exceed the outstanding balance of ${fmtMoney(outstanding)}.`
+      )
+      return
+    }
+    setRecording(true)
+    try {
+      const updated = await recordSalePayment(sale.id, {
+        method,
+        amount: amt,
+        reference: reference.trim() || undefined,
+      })
+      onRecorded(updated)
+    } catch (err) {
+      if (err instanceof SalesApiError) {
+        if (err.status === 404) {
+          setError("Sale not found.")
+        } else {
+          setError(err.message)
+          // 409 (not payable) / 422 (balance changed) → refetch the latest figures.
+          if (err.status === 409 || err.status === 422) {
+            setLoading(true)
+            getSale(sale.id)
+              .then(setDto)
+              .catch(() => undefined)
+              .finally(() => setLoading(false))
+          }
+        }
+      } else {
+        setError("Failed to record the payment. Please try again.")
+      }
+    } finally {
+      setRecording(false)
+    }
+  }
+
+  return (
+    <Modal open title="Record Payment" onClose={onClose} size="sm">
+      <div className="flex flex-col gap-4">
+        <FormError message={error} />
+
+        <p className="text-sm font-semibold text-[#333333]">Sale {sale.invoice}</p>
+
+        {/* Balance summary — authoritative from the latest sale fetch */}
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/30 p-3 text-center">
+          <div>
+            <p className="text-xs text-[#666666]">Total</p>
+            <p className="text-sm font-semibold text-[#333333]">{loading ? "…" : fmtMoney(total)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-[#666666]">Paid</p>
+            <p className="text-sm font-semibold text-[#333333]">{loading ? "…" : fmtMoney(paid)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-[#666666]">Outstanding</p>
+            <p className="text-sm font-bold text-orange-600">{loading ? "…" : fmtMoney(outstanding)}</p>
+          </div>
+        </div>
+
+        <Select
+          label="Payment Method"
+          value={method}
+          onChange={(e) => setMethod(e.target.value as RecordSalePaymentMethod)}
+        >
+          {RECORD_METHODS.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </Select>
+
+        <Input
+          label="Amount"
+          type="number"
+          min={0}
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0.00"
+        />
+
+        <Input
+          label="Reference (optional)"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder={method === "CHECK" ? "e.g. CHQ-12345" : "Optional (e.g. transfer ref)"}
+        />
+
+        <div className="flex gap-2 justify-end pt-1">
+          <Button variant="secondary" onClick={onClose} disabled={recording}>
+            Cancel
+          </Button>
+          <Button onClick={() => void handleRecord()} loading={recording}>
+            {recording ? "Recording…" : "Record Payment"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   )
 }

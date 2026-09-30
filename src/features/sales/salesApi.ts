@@ -13,7 +13,7 @@ import { API_BASE_URL } from "../auth/authApi";
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
 export type SaleStatus = "COMPLETED" | "DRAFT" | "CANCELLED" | (string & {});
-export type SalePaymentMethod = "CASH" | "CARD" | "DIGITAL_TRANSFER" | (string & {});
+export type SalePaymentMethod = "CASH" | "CARD" | "DIGITAL_TRANSFER" | "MOBILE_TRANSFER" | (string & {});
 export type SaleDiscountType = "PERCENTAGE" | "FIXED" | (string & {});
 
 export interface SaleUserDto {
@@ -148,6 +148,21 @@ export interface CompleteSaleInput {
   notes?: string;
 }
 
+/**
+ * Methods accepted by POST /pos/sales/{id}/payments (collecting a payment
+ * against an already completed sale, e.g. settling a credit balance).
+ * This endpoint uses MOBILE_TRANSFER (not the checkout's DIGITAL_TRANSFER).
+ * The backend does NOT accept CARD on this endpoint.
+ */
+export type RecordSalePaymentMethod = "CASH" | "MOBILE_TRANSFER" | "CHECK";
+
+export interface RecordSalePaymentInput {
+  method: RecordSalePaymentMethod;
+  amount: number;
+  /** Optional reference (e.g. cheque number or transfer ref). */
+  reference?: string;
+}
+
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 export class SalesApiError extends Error {
@@ -273,6 +288,23 @@ export async function completeSale(input: CompleteSaleInput): Promise<SaleDto> {
     method: "POST",
     body: JSON.stringify(input),
   });
+  if (!result?.data) throw new SalesApiError("Unexpected response from the server.");
+  return result.data;
+}
+
+/**
+ * POST /pos/sales/{id}/payments — record a payment against an existing sale
+ * (used to collect against a credit/outstanding balance).
+ * The backend applies this atomically with concurrency protection.
+ */
+export async function recordSalePayment(
+  saleId: string,
+  input: RecordSalePaymentInput,
+): Promise<SaleDto> {
+  const result = await salesRequest<{ success: boolean; data: SaleDto }>(
+    `/${encodeURIComponent(saleId)}/payments`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
   if (!result?.data) throw new SalesApiError("Unexpected response from the server.");
   return result.data;
 }
