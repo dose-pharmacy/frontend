@@ -30,6 +30,9 @@ import { useSearchableResource } from "../../hooks/useSearchableResource"
 import { searchProducts } from "../../features/inventory/searchSelectors"
 import { useProductUnits } from "../../features/inventory/useProductUnits"
 import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions"
+import OrderItemReceivingDetails, {
+  type ReceivingDetailsRow,
+} from "./OrderItemReceivingDetails"
 
 // ─── Shared local data ────────────────────────────────────────────────────────
 
@@ -102,61 +105,6 @@ function ReceivingProgress({
               style={{ width: `${pct}%` }}
             />
           </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Receiving balance strip ──────────────────────────────────────────────────
-
-function ReceivingBalanceStrip({
-  receivedQty,
-  receivedValue,
-  remainingQty,
-  remainingValue,
-  remainingToInvoice,
-}: {
-  receivedQty: number
-  receivedValue: number
-  remainingQty: number
-  remainingValue: number
-  remainingToInvoice: number
-}) {
-  return (
-    <div className="border-t border-[#E6ECE2] bg-[#E6ECE2]/30 px-5 py-4">
-      <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">
-        Receiving Balance
-      </p>
-      <div className="grid sm:grid-cols-3 gap-4">
-        <div className="rounded-xl bg-white border border-[#E6ECE2] px-4 py-3">
-          <p className="text-xs text-[#666666]">Arrived · Received</p>
-          <p className="text-lg font-bold text-[#333333] mt-0.5">
-            {receivedQty}
-          </p>
-          <p className="text-sm font-semibold text-[#7A9076]">
-            {fmtMoney(receivedValue)}
-          </p>
-          <p className="text-xs text-[#999] mt-1">units received</p>
-        </div>
-        <div className="rounded-xl bg-white border border-[#E6ECE2] px-4 py-3">
-          <p className="text-xs text-[#666666]">Balance · Remaining to Receive</p>
-          <p className="text-lg font-bold text-[#333333] mt-0.5">
-            {remainingQty}
-          </p>
-          <p className="text-sm font-semibold text-[#7A9076]">
-            {fmtMoney(remainingValue)}
-          </p>
-          <p className="text-xs text-[#999] mt-1">units still expected</p>
-        </div>
-        <div className="rounded-xl bg-white border border-[#E6ECE2] px-4 py-3">
-          <p className="text-xs text-[#666666]">Remaining to Invoice</p>
-          <p className="text-lg font-bold text-[#333333] mt-0.5">
-            {fmtMoney(remainingToInvoice)}
-          </p>
-          <p className="text-xs text-[#999] mt-1">
-            value of received goods not yet billed
-          </p>
         </div>
       </div>
     </div>
@@ -713,12 +661,14 @@ export default function CreatePurchaseOrderPage() {
     const quantities = searchParams.getAll("quantity")
     const costs = searchParams.getAll("unitCost")
     const names = searchParams.getAll("productName")
+    const units = searchParams.getAll("unitName")
     return ids
       .map((id, i) => ({
         requirementLineId: id,
         quantity: quantities[i] ?? "",
         unitCost: costs[i] ?? "",
         productName: names[i] ?? "",
+        unitName: units[i] ?? "",
       }))
       .filter((l) => l.requirementLineId && l.quantity && l.unitCost !== "")
   }, [searchParams])
@@ -783,7 +733,7 @@ export default function CreatePurchaseOrderPage() {
           productId: product?.id ?? "",
           product: pl.productName ?? "",
           unitId: null,
-          unitLabel: "",
+          unitLabel: pl.unitName ?? "",
           requirementLineId: pl.requirementLineId,
           quantity: parseFloat(pl.quantity),
           unitCost: parseFloat(pl.unitCost),
@@ -1101,6 +1051,29 @@ export default function CreatePurchaseOrderPage() {
   const paymentSummary = poState?.paymentSummary ?? null
   const receivingSummary = poState?.receivingSummary ?? null
   const goodsReceipts = poState?.goodsReceipts ?? []
+
+  /** Per-product rows for the "Receiving Details" boxes under the Order Items
+   *  table. Only meaningful once the real PO response is loaded. */
+  const receivingDetails = useMemo<ReceivingDetailsRow[]>(() => {
+    return items.map((item) => {
+      const product = products.find((p) => p.id === item.productId)
+      const dtoItem = poState?.items?.find((it) => it.id === item.id)
+      const ordered = dtoItem?.quantityOrdered ?? item.quantity
+      const received = dtoItem?.quantityReceived ?? 0
+      const short = dtoItem?.quantityShort ?? 0
+      return {
+        id: item.id,
+        name: product?.name ?? item.product ?? dtoItem?.product?.name ?? "—",
+        sku: dtoItem?.product?.sku ?? product?.sku ?? null,
+        unitLabel: item.unitLabel || dtoItem?.unit?.name || "—",
+        ordered,
+        received,
+        remaining: Math.max(0, ordered - received - short),
+        unitCost: item.unitCost,
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, poState, products])
 
   if (loadingPO) {
     return (
@@ -1600,29 +1573,9 @@ export default function CreatePurchaseOrderPage() {
                 </>
               )}
 
-              {/* Receiving balance (detail only) */}
-              {!isNew && receivingSummary && goodsSummary && (
-                <ReceivingBalanceStrip
-                  receivedQty={receivingSummary.receivedQuantity ?? 0}
-                  receivedValue={goodsSummary.receivedGoodsValue ?? 0}
-                  remainingQty={
-                    receivingSummary.remainingQuantity ??
-                    Math.max(
-                      0,
-                      (receivingSummary.orderedQuantity ?? 0) -
-                        (receivingSummary.receivedQuantity ?? 0) -
-                        (receivingSummary.shortQuantity ?? 0),
-                    )
-                  }
-                  remainingValue={Math.max(
-                    0,
-                    (goodsSummary.orderedGoodsValue ?? 0) -
-                      (goodsSummary.receivedGoodsValue ?? 0),
-                  )}
-                  remainingToInvoice={
-                    goodsSummary.remainingGoodsToInvoice ?? 0
-                  }
-                />
+              {/* Per-product receiving/value boxes (create + view + edit) */}
+              {receivingDetails.length > 0 && (
+                <OrderItemReceivingDetails items={receivingDetails} />
               )}
             </div>
 
@@ -1985,7 +1938,7 @@ export default function CreatePurchaseOrderPage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#666666]">Remaining Goods Value</span>
+                    <span className="text-[#666666]">Remaining to Receive</span>
                     <span className="text-[#333333] font-medium">
                       {fmtMoney(
                         Math.max(

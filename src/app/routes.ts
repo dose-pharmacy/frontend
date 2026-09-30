@@ -40,6 +40,7 @@ import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardP
 import SlowMovingPage from "../pages/reports/SlowMovingPage";
 import NarcoticReportPage from "../pages/reports/NarcoticReportPage";
 import AuditTrailPage from "../pages/admin/AuditTrailPage";
+import DebugReceivingDetails from "./DebugReceivingDetails";
 
 export const router = createBrowserRouter([
   {
@@ -53,6 +54,8 @@ export const router = createBrowserRouter([
       { path: "/signup", Component: SignupPage },
     ],
   },
+  // TEMPORARY debug route — remove after visual verification.
+  { path: "/debug/receiving-details", Component: DebugReceivingDetails },
   {
     Component: ProtectedLayout,
     children: [

@@ -755,6 +755,7 @@ function RequirementDetailScreen({
     params.set("requirementReference", req.reference)
     params.set("productName", line.product)
     params.set("productSku", line.sku)
+    if (line.unitName) params.set("unitName", line.unitName)
     window.location.href = `/purchasing/orders/new?${params.toString()}`
   }
 
@@ -2371,6 +2372,7 @@ function RequirementOrderModal({
       params.append("requirementReference", reference)
       params.append("productName", d.line.product)
       params.append("productSku", d.line.sku)
+      if (d.line.unitName) params.append("unitName", d.line.unitName)
     }
     window.location.href = `/purchasing/orders/new?${params.toString()}`
   }
