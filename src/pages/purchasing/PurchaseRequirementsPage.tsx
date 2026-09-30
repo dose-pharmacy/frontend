@@ -5,7 +5,7 @@ import SearchInput from "../../components/ui/SearchInput"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
 import DatePicker from "../../components/ui/DatePicker"
-import { IconPencil, IconTrash, IconBox } from "../../components/ui/icons"
+import { IconPencil, IconTrash } from "../../components/ui/icons"
 import {
   listRequirements,
   createRequirement,
@@ -602,11 +602,11 @@ function RequirementsListScreen({
                                 r.status === "PARTIALLY_FULFILLED") && (
                                 <button
                                   onClick={() => setOrderTarget(r)}
-                                  className="p-1.5 rounded-lg text-[#666666] hover:bg-[#E6ECE2] hover:text-[#7A9076] transition-colors"
+                                  className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
                                   aria-label={`Create purchase order for ${r.reference}`}
                                   title="Create purchase order"
                                 >
-                                  <IconBox className="w-4 h-4" />
+                                  Order
                                 </button>
                               )}
                           </div>
@@ -700,7 +700,9 @@ function RequirementDetailScreen({
           quantityNeeded: updated.quantityNeeded,
           unitId: updated.unitId ?? undefined,
           reasonCode: reasonCode(updated.reason),
-          notes: updated.notes || null,
+          // Optional note: omit when empty (never send null) to satisfy the
+          // backend's request validator.
+          ...(updated.notes?.trim() ? { notes: updated.notes.trim() } : {}),
         }),
       "Requirement item updated.",
     )
@@ -1778,7 +1780,9 @@ function AddProductModal({
         unitId,
         quantityNeeded: qty,
         reasonCode: reasonCode(reason),
-        notes: notes || null,
+        // Optional note: omit the field entirely when empty — the backend
+        // request validator rejects an explicit null ("Note is required").
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       })
       resetForm()
     } finally {
