@@ -29,6 +29,58 @@ interface ResolveItemState {
   expiryDate: string;
 }
 
+/** Per-field validation errors keyed as `<receiptItemId>:<field>`. */
+type ResolveFieldErrors = Record<string, string>;
+
+function resolveFieldKey(id: string, field: string): string {
+  return `${id}:${field}`;
+}
+
+/** Convert a "YYYY-MM-DD" (or ISO) date to the API's UTC ISO timestamp — or null when blank/invalid. */
+function toIsoTimestampOrNull(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value.includes("T") ? value : `${value}T00:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Maximum quantity accepted by the backend resolve contract. */
+const MAX_RESOLVE_QTY = 99999999999.999;
+
+/** Validate every resolution row. Returns a map of field errors (empty = OK). */
+function validateResolveItems(items: ResolveItemState[]): ResolveFieldErrors {
+  const errors: ResolveFieldErrors = {};
+  items.forEach((row) => {
+    const delivered = Number(row.deliveredQty);
+    const actual = Number(row.actualQty);
+    // Backend contract: both quantities MUST be > 0 and ≤ MAX_RESOLVE_QTY.
+    const qtyOk = (n: number) => Number.isFinite(n) && n > 0 && n <= MAX_RESOLVE_QTY;
+    if (!qtyOk(delivered)) {
+      errors[resolveFieldKey(row.id, "deliveredQty")] =
+        "Delivered quantity must be greater than zero and at most 99999999999.999.";
+    }
+    if (!qtyOk(actual)) {
+      errors[resolveFieldKey(row.id, "actualQty")] =
+        "Actual quantity must be greater than zero and at most 99999999999.999.";
+    }
+    const batch = (row.batchNumber ?? "").trim();
+    const mfg = (row.manufacturingDate ?? "").trim();
+    const expiry = (row.expiryDate ?? "").trim();
+    if (actual > 0 && !batch) {
+      errors[resolveFieldKey(row.id, "batchNumber")] =
+        "Batch number is required for quantities received.";
+    }
+    if (actual > 0 && !expiry) {
+      errors[resolveFieldKey(row.id, "expiryDate")] =
+        "Expiry date is required for quantities received.";
+    }
+    if (mfg && expiry && expiry < mfg) {
+      errors[resolveFieldKey(row.id, "dates")] =
+        "Expiry date cannot be before the manufacturing date.";
+    }
+  });
+  return errors;
+}
+
 const STATUS_BADGE: Record<string, string> = {
   MATCHED: "bg-green-100 text-green-700",
   DISCREPANCY: "bg-yellow-100 text-yellow-700",
@@ -128,10 +180,12 @@ export default function ReconciliationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [resolveNote, setResolveNote] = useState("");
+  const [noteError, setNoteError] = useState("");
   const [resolveItems, setResolveItems] = useState<ResolveItemState[]>([]);
   const [resolving, setResolving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [resolveErrors, setResolveErrors] = useState<ResolveFieldErrors>({});
   const [successMsg, setSuccessMsg] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -143,9 +197,11 @@ export default function ReconciliationPage() {
     try {
       const r = await getGoodsReceipt(id);
       setReceipt(r);
+      setResolveErrors({});
       if (r.status === "DISCREPANCY") {
+        const items = Array.isArray(r.items) ? r.items : [];
         setResolveItems(
-          r.items.map((item) => ({
+          items.map((item) => ({
             id: item.id,
             deliveredQty: item.deliveredQty,
             actualQty: item.actualQty,
@@ -168,27 +224,53 @@ export default function ReconciliationPage() {
 
   function updateResolveItem(itemId: string, field: keyof ResolveItemState, value: string | number) {
     setResolveItems((prev) => prev.map((r) => r.id === itemId ? { ...r, [field]: value } : r));
+    // Clear validation errors for the edited field (and the cross-field date check).
+    setResolveErrors((prev) => {
+      if (!prev[resolveFieldKey(itemId, field)] && !prev[resolveFieldKey(itemId, "dates")]) return prev;
+      const next = { ...prev };
+      delete next[resolveFieldKey(itemId, field)];
+      delete next[resolveFieldKey(itemId, "dates")];
+      return next;
+    });
   }
 
   async function handleResolve() {
     setActionError("");
+    const errors = validateResolveItems(resolveItems);
+    const noteMissing = !resolveNote.trim();
+    if (noteMissing) {
+      setNoteError("Resolution note is required before resolving.");
+    }
+    if (Object.keys(errors).length > 0 || noteMissing) {
+      setResolveErrors(errors);
+      return;
+    }
+    setNoteError("");
+    setResolveErrors({});
     setResolving(true);
     try {
-      const updated = await resolveGoodsReceipt(id!, {
-        discrepancyNote: resolveNote || undefined,
+      // 1) Record the resolution. The PATCH response is NOT guaranteed to be a
+      //    complete Goods Receipt (it may lack `items` or be empty) — never use
+      //    it as the authoritative page state.
+      await resolveGoodsReceipt(id!, {
+        discrepancyNote: resolveNote.trim() || undefined,
         items: resolveItems.map((item) => ({
           id: item.id,
           deliveredQty: Number(item.deliveredQty),
           actualQty: Number(item.actualQty),
-          batchNumber: item.batchNumber || null,
-          manufacturingDate: item.manufacturingDate ? new Date(item.manufacturingDate).toISOString() : null,
-          expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString() : null,
+          batchNumber: item.batchNumber.trim() || null,
+          manufacturingDate: toIsoTimestampOrNull(item.manufacturingDate),
+          expiryDate: toIsoTimestampOrNull(item.expiryDate),
         })),
       });
-      setReceipt(updated);
-      setSuccessMsg("Discrepancy resolved successfully.");
+
+      // 2) Resolution recorded — return to the Deliveries list. The list page
+      //    re-fetches on mount and displays the backend's current status.
+      //    Resolve and Confirm remain separate actions (Confirm is never called
+      //    automatically, and the user is not kept on the detail page).
+      navigate("/purchasing/deliveries");
     } catch (e) {
-      setActionError(e instanceof GoodsReceiptsApiError ? e.message : "Failed to resolve discrepancy.");
+      setActionError(e instanceof GoodsReceiptsApiError ? e.message : "Unable to resolve discrepancy. Please review the quantities and try again.");
     } finally {
       setResolving(false);
     }
@@ -253,9 +335,13 @@ export default function ReconciliationPage() {
 
   const canConfirm = receipt.status === "MATCHED" || receipt.status === "RESOLVED";
 
-  const totalOrdered = receipt.items.reduce((s, i) => s + i.expectedQty, 0);
-  const totalDelivered = receipt.items.reduce((s, i) => s + i.deliveredQty, 0);
-  const totalActual = receipt.items.reduce((s, i) => s + i.actualQty, 0);
+  // Backend detail responses embed `items`; guard anyway so the page can never
+  // crash (e.g. on a partial response shape) because the array is missing.
+  const receiptItems = Array.isArray(receipt.items) ? receipt.items : [];
+
+  const totalOrdered = receiptItems.reduce((s, i) => s + i.expectedQty, 0);
+  const totalDelivered = receiptItems.reduce((s, i) => s + i.deliveredQty, 0);
+  const totalActual = receiptItems.reduce((s, i) => s + i.actualQty, 0);
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -359,7 +445,7 @@ export default function ReconciliationPage() {
                 </tr>
               </thead>
               <tbody>
-                {receipt.items.map((item, i) => {
+                {receiptItems.map((item, i) => {
                   const variance = item.actualQty - item.expectedQty;
                   const isMatch = variance === 0;
                   return (
@@ -394,6 +480,17 @@ export default function ReconciliationPage() {
                 This receipt has a discrepancy. Review and adjust quantities below, then resolve before confirming.
               </p>
 
+              {Object.keys(resolveErrors).length > 0 && (
+                <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  <p className="font-semibold mb-1">Please fix the following before resolving:</p>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    {Array.from(new Set(Object.values(resolveErrors))).map((msg, i) => (
+                      <li key={i}>{msg}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[600px] mb-4">
                   <thead>
@@ -405,31 +502,58 @@ export default function ReconciliationPage() {
                   </thead>
                   <tbody>
                     {resolveItems.map((item, i) => {
-                      const originalItem = receipt.items.find((ri) => ri.id === item.id);
+                      const originalItem = receiptItems.find((ri) => ri.id === item.id);
+                      const actualErr = resolveErrors[resolveFieldKey(item.id, "actualQty")];
+                      const batchErr = resolveErrors[resolveFieldKey(item.id, "batchNumber")];
+                      const mfgErr = resolveErrors[resolveFieldKey(item.id, "manufacturingDate")];
+                      const expiryErr = resolveErrors[resolveFieldKey(item.id, "expiryDate")];
+                      const dateErr = resolveErrors[resolveFieldKey(item.id, "dates")];
+                      const inputCls = (hasErr: boolean) =>
+                        `w-full rounded border px-2 py-1 text-sm ${hasErr ? "border-red-400 bg-red-50" : "border-yellow-300"}`;
                       return (
                         <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-yellow-50/50"}>
                           <td className="px-3 py-2 font-medium text-[#333333]">
                             {originalItem?.purchaseOrderItem?.product?.name ?? `Item ${i + 1}`}
                           </td>
-                          <td className="px-3 py-2">
-                            <input type="number" min={0} value={item.actualQty} onChange={(e) => updateResolveItem(item.id, "actualQty", Number(e.target.value))} className="w-16 rounded border border-yellow-300 px-2 py-1 text-sm" />
+                          <td className="px-3 py-2 align-top">
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              value={item.actualQty}
+                              onChange={(e) => updateResolveItem(item.id, "actualQty", Number(e.target.value))}
+                              className={`w-24 ${inputCls(!!actualErr)}`}
+                              aria-invalid={!!actualErr}
+                            />
+                            {actualErr && <p className="text-[11px] text-red-500 mt-0.5">{actualErr}</p>}
                           </td>
-                          <td className="px-3 py-2">
-                            <input value={item.batchNumber} onChange={(e) => updateResolveItem(item.id, "batchNumber", e.target.value)} placeholder="BATCH-001" className="w-24 rounded border border-yellow-300 px-2 py-1 text-xs" />
+                          <td className="px-3 py-2 align-top">
+                            <input
+                              value={item.batchNumber}
+                              onChange={(e) => updateResolveItem(item.id, "batchNumber", e.target.value)}
+                              placeholder="Batch number"
+                              className={`w-28 text-xs ${inputCls(!!batchErr)}`}
+                              aria-invalid={!!batchErr}
+                            />
+                            {batchErr && <p className="text-[11px] text-red-500 mt-0.5">{batchErr}</p>}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 align-top">
                             <DatePicker
                               value={item.manufacturingDate}
                               onChange={(v) => updateResolveItem(item.id, "manufacturingDate", v)}
                               placeholder="Mfg date"
                             />
+                            {mfgErr && <p className="text-[11px] text-red-500 mt-0.5">{mfgErr}</p>}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 align-top">
                             <DatePicker
                               value={item.expiryDate}
                               onChange={(v) => updateResolveItem(item.id, "expiryDate", v)}
                               placeholder="Expiry date"
                             />
+                            {(expiryErr || dateErr) && (
+                              <p className="text-[11px] text-red-500 mt-0.5">{expiryErr || dateErr}</p>
+                            )}
                           </td>
                         </tr>
                       );
@@ -439,8 +563,22 @@ export default function ReconciliationPage() {
               </div>
 
               <div className="mb-3">
-                <label className="block text-sm text-yellow-800 mb-1">Resolution Note</label>
-                <textarea rows={2} value={resolveNote} onChange={(e) => setResolveNote(e.target.value)} placeholder="Explain how the discrepancy was resolved…" className="w-full rounded-lg border border-yellow-300 bg-white px-3 py-2 text-sm focus:outline-none resize-none" />
+                <label className="block text-sm text-yellow-800 mb-1">
+                  Resolution Note <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={resolveNote}
+                  onChange={(e) => {
+                    setResolveNote(e.target.value);
+                    if (noteError) setNoteError("");
+                  }}
+                  placeholder="Explain how the discrepancy was resolved…"
+                  aria-required="true"
+                  aria-invalid={!!noteError}
+                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none resize-none ${noteError ? "border-red-400 bg-red-50" : "border-yellow-300"}`}
+                />
+                {noteError && <p className="text-[11px] text-red-500 mt-1">{noteError}</p>}
               </div>
 
               <button
@@ -448,7 +586,7 @@ export default function ReconciliationPage() {
                 disabled={resolving}
                 className="rounded-lg bg-yellow-500 px-5 py-2 text-sm font-semibold text-white hover:bg-yellow-600 transition-colors disabled:opacity-40"
               >
-                {resolving ? "Resolving…" : "Mark as Resolved"}
+                {resolving ? "Resolving…" : "Resolve Discrepancy"}
               </button>
             </div>
           </div>

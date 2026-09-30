@@ -115,9 +115,26 @@ async function grRequest<T>(endpoint: string, options: RequestInit = {}): Promis
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
     try {
-      const b = await res.json()
-      if (b?.message) msg = b.message
-      if (b?.error?.message) msg = b.error.message
+      const b = (await res.json()) as {
+        message?: string
+        error?: {
+          message?: string
+          details?: { issues?: { message?: string }[] }
+        }
+      }
+      const issues = b?.error?.details?.issues
+      if (issues?.length) {
+        // Surface per-field backend validation messages (e.g. 422 quantity issues).
+        const joined = issues
+          .map((i) => i.message)
+          .filter((m): m is string => Boolean(m))
+          .join("; ")
+        msg = joined || b.error?.message || b.message || `HTTP ${res.status}`
+      } else if (b?.error?.message) {
+        msg = b.error.message
+      } else if (b?.message) {
+        msg = b.message
+      }
     } catch {}
     throw new GoodsReceiptsApiError(msg)
   }
