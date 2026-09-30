@@ -283,15 +283,6 @@ export default function ReconciliationPage() {
                 Delete Receipt
               </button>
             )}
-            {canConfirm && (
-              <button
-                onClick={handleConfirm}
-                disabled={confirming}
-                className="rounded-lg bg-green-500 border border-green-300 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm Receipt</span>}
-              </button>
-            )}
           </div>
         }
       />
@@ -458,25 +449,6 @@ export default function ReconciliationPage() {
                 className="rounded-lg bg-yellow-500 px-5 py-2 text-sm font-semibold text-white hover:bg-yellow-600 transition-colors disabled:opacity-40"
               >
                 {resolving ? "Resolving…" : "Mark as Resolved"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Confirm section */}
-        {canConfirm && (
-          <div className="px-4 sm:px-6 py-4">
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="font-bold text-green-800 mb-1">Ready to Confirm</p>
-              <p className="text-sm text-green-700 mb-3">
-                Confirming will update inventory stock levels with the actual quantities received.
-              </p>
-              <button
-                onClick={handleConfirm}
-                disabled={confirming}
-                className="rounded-lg bg-green-500 px-5 py-2 text-sm font-semibold text-white hover:bg-green-600 transition-colors disabled:opacity-40"
-              >
-                {confirming ? "Confirming…" : <span className="inline-flex items-center gap-2"><IconCheck className="h-4 w-4" />Confirm &amp; Update Stock</span>}
               </button>
             </div>
           </div>
