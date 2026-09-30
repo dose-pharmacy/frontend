@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
 import { listPurchaseOrders, getPurchaseOrder, type PurchaseOrderDto, type POItemDto, PurchaseOrdersApiError } from "../../features/purchasing/purchaseOrdersApi";
 import { createGoodsReceipt, type CreateGoodsReceiptInput, GoodsReceiptsApiError } from "../../features/purchasing/goodsReceiptsApi";
@@ -35,6 +35,11 @@ function fmtDate(d: string | null | undefined) {
 
 export default function DeliveryRegistrationPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Deep-link support: "Go to Deliveries / Receive Goods" on the PO detail page
+  // lands here with the PO (and supplier) already selected.
+  const prefillPOId = searchParams.get("purchaseOrderId") || "";
+  const prefillSupplierId = searchParams.get("supplierId") || "";
   const [mode, setMode] = useState<"manual" | "scan" | null>(null);
   const [orders, setOrders] = useState<PurchaseOrderDto[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
@@ -50,6 +55,21 @@ export default function DeliveryRegistrationPage() {
   const [items, setItems] = useState<GRItemRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Apply deep-link prefill once: select the supplier and remember to auto-pick
+  // the PO once its items can be loaded (locations must already be available).
+  useEffect(() => {
+    if (prefillSupplierId) setSupplierFilter(prefillSupplierId);
+  }, [prefillSupplierId]);
+
+  const autoSelectPending = prefillPOId && !selectedPoId && locations.length > 0;
+  useEffect(() => {
+    if (autoSelectPending) {
+      void handlePoSelect(prefillPOId);
+    }
+    // Auto-run only once the deep-linked PO is ready to load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSelectPending]);
 
   useEffect(() => {
     listPurchaseOrders({ limit: 100 })

@@ -1367,6 +1367,9 @@ export default function CreatePurchaseOrderPage() {
                           <th className="px-4 py-3 font-semibold text-[#333333] text-right">
                             Received Value
                           </th>
+                          <th className="px-4 py-3 font-semibold text-[#333333] text-right">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1434,6 +1437,18 @@ export default function CreatePurchaseOrderPage() {
                               <td className="px-4 py-3 text-right font-semibold text-[#333333]">
                                 {fmtMoney(received * item.unitCost)}
                               </td>
+                              <td className="px-4 py-3 text-right">
+                                {poState &&
+                                  status === "AWAITING_DELIVERY" &&
+                                  remaining > 0 && (
+                                    <button
+                                      onClick={() => openShortage(item)}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-[#C6D4BF] bg-white px-2.5 py-1 text-xs font-semibold text-[#7A9076] hover:bg-[#E6ECE2] transition-colors whitespace-nowrap"
+                                    >
+                                      See Shortage
+                                    </button>
+                                  )}
+                              </td>
                             </tr>
                           )
                         })}
@@ -1462,6 +1477,7 @@ export default function CreatePurchaseOrderPage() {
                               ),
                             )}
                           </td>
+                          <td className="px-4 py-3" />
                         </tr>
                       </tfoot>
                     </table>
@@ -1655,42 +1671,6 @@ export default function CreatePurchaseOrderPage() {
               )}
             </div>
 
-            {/* Delivery info panel for AWAITING_DELIVERY */}
-            {!isNew && status === "AWAITING_DELIVERY" && (
-              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
-                <div className="flex items-start gap-3">
-                  <svg
-                    className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <div className="flex-1">
-                    <p className="font-semibold text-yellow-800 text-sm">
-                      Delivery is pending
-                    </p>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      When the supplier delivers the goods, complete receiving
-                      and reconciliation from Purchasing to Deliveries.
-                    </p>
-                    <button
-                      onClick={() => navigate("/purchasing/deliveries/new")}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-yellow-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-yellow-800 transition-colors"
-                    >
-                      Go to Deliveries / Receive Goods{" "}
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Source relationship (detail only) */}
             {!isNew && (
               <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
@@ -1855,7 +1835,7 @@ export default function CreatePurchaseOrderPage() {
                     </Button>
                   </>
                 )}
-                {!isNew && !editMode && (
+                {!isNew && !editMode && poState && (
                   <>
                     {status === "REGISTERED" && (
                       <>
@@ -1907,6 +1887,30 @@ export default function CreatePurchaseOrderPage() {
                         Close Purchase Order
                       </button>
                     )}
+                    <button
+                      onClick={() =>
+                        navigate(
+                          `/purchasing/deliveries/new?purchaseOrderId=${poState.id}&supplierId=${encodeURIComponent(
+                            suppId || poState.supplierId || "",
+                          )}`,
+                        )
+                      }
+                      className="w-full rounded-xl bg-[#B6C8AF] px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#7A9076] transition-colors"
+                    >
+                      Go to Deliveries / Receive Goods
+                    </button>
+                    <button
+                      onClick={() =>
+                        navigate(
+                          `/purchasing/invoices/new?supplierId=${encodeURIComponent(
+                            suppId || poState.supplierId || "",
+                          )}&purchaseOrderId=${poState.id}`,
+                        )
+                      }
+                      className="w-full rounded-xl bg-[#7A9076] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#4A5A45] transition-colors"
+                    >
+                      Pay Now
+                    </button>
                     <button
                       onClick={() => navigate("/purchasing/orders")}
                       className="w-full inline-flex items-center justify-center gap-1 rounded-xl border border-[#C6D4BF] bg-white px-4 py-2.5 text-sm text-[#666666] hover:bg-[#E6ECE2] transition-colors"
