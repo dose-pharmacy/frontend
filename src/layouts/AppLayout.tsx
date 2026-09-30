@@ -2,10 +2,14 @@ import { useState, useEffect, useRef } from "react"
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router"
 import { useAuth } from "../features/auth/AuthContext"
 import {
-  IconBox as SharedIconBox,
-  IconCheckCircle,
-  IconWarningTriangle,
-} from "../components/ui/icons"
+  NotificationsProvider,
+  useNotifications,
+} from "../features/notifications/NotificationsContext"
+import {
+  notificationTypeLabel,
+  severityTone,
+  formatNotificationTime,
+} from "../features/notifications/notificationsApi"
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -153,6 +157,7 @@ const NAV: NavItem[] = [
       { to: "/inventory/units", label: "Units" },
       { to: "/inventory/locations", label: "Locations" },
       { to: "/settings/audit-trail", label: "Audit Trail" },
+      { to: "/settings/notifications", label: "Notifications" },
     ],
   },
 ]
@@ -504,6 +509,16 @@ function SidebarFooter({
 }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+    filters,
+    refresh,
+    markRead,
+    markAllRead,
+  } = useNotifications()
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
 
@@ -537,7 +552,11 @@ function SidebarFooter({
         >
           <span className="relative flex-shrink-0">
             <IconBell />
-            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </span>
           {!collapsed && (
             <span className="text-sm font-medium text-[#333333]">
@@ -547,46 +566,109 @@ function SidebarFooter({
         </button>
 
         {notifOpen && (
-          <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-lg border border-[#E6ECE2] shadow-lg z-50 overflow-hidden">
-            <div className="divide-y divide-[#E6ECE2]">
-              {[
-                {
-                  icon: <IconWarningTriangle className="h-4 w-4" />,
-                  iconColor: "text-yellow-500",
-                  text: "5 products near expiry date",
-                  time: "10m",
-                },
-                {
-                  icon: <SharedIconBox className="h-4 w-4" />,
-                  iconColor: "text-blue-500",
-                  text: "Reorder: Panadol 500mg",
-                  time: "1h",
-                },
-                {
-                  icon: <IconCheckCircle className="h-4 w-4" />,
-                  iconColor: "text-green-600",
-                  text: "PO-2026-0018 delivered",
-                  time: "3h",
-                },
-              ].map((n) => (
+          <div className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-lg border border-[#E6ECE2] shadow-lg z-50 overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-[#E6ECE2] px-3 py-2">
+              <p className="text-xs font-bold text-[#333333]">Notifications</p>
+              {unreadCount > 0 && (
                 <button
-                  key={n.text}
-                  className="w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#F5F5F0] text-left"
+                  onClick={() => void markAllRead()}
+                  className="text-[10px] font-semibold text-[#7A9076] hover:underline"
                 >
-                  <span className={`flex-shrink-0 mt-0.5 ${n.iconColor}`}>
-                    {n.icon}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-sm text-[#333333] leading-snug">
-                      {n.text}
-                    </span>
-                    <span className="block text-[10px] text-[#999999] mt-0.5">
-                      {n.time}
-                    </span>
-                  </span>
+                  Mark all as read
                 </button>
-              ))}
+              )}
             </div>
+
+            {error && (
+              <div className="px-3 py-3">
+                <p className="text-xs text-red-600">{error}</p>
+                <button
+                  onClick={() => void refresh()}
+                  className="text-[10px] font-semibold text-[#7A9076] underline mt-1"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!error && loading && notifications.length === 0 && (
+              <p className="px-3 py-4 text-center text-xs text-[#999999]">
+                Loading notifications…
+              </p>
+            )}
+
+            {!error && !loading && notifications.length === 0 && (
+              <p className="px-3 py-4 text-center text-xs text-[#999999]">
+                {filters.isRead === false
+                  ? "No unread notifications"
+                  : "No notifications"}
+              </p>
+            )}
+
+            {notifications.length > 0 && (
+              <div className="max-h-80 overflow-y-auto divide-y divide-[#E6ECE2]">
+                {notifications.slice(0, 8).map((n) => {
+                  const unread = !n.isRead
+                  const tone = severityTone(n.severity)
+                  return (
+                    <button
+                      key={n.id}
+                      onClick={() => void markRead(n.id)}
+                      className={`w-full flex items-start gap-2.5 px-3 py-2.5 hover:bg-[#F5F5F0] text-left ${
+                        unread ? "bg-[#FBFDF9]" : ""
+                      }`}
+                    >
+                      <span className="flex-shrink-0 mt-1.5 flex items-center">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            unread ? "bg-[#4F6B4A]" : "bg-gray-300"
+                          }`}
+                        />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span
+                          className={`block text-sm leading-snug ${
+                            unread
+                              ? "font-semibold text-[#333333]"
+                              : "font-medium text-[#555555]"
+                          }`}
+                        >
+                          {n.title}
+                        </span>
+                        {n.message && (
+                          <span className="block text-xs text-[#666666] mt-0.5 line-clamp-2">
+                            {n.message}
+                          </span>
+                        )}
+                        <span className="block text-[10px] text-[#999999] mt-1">
+                          {notificationTypeLabel(n.type)} ·{" "}
+                          {formatNotificationTime(n.createdAt)}
+                        </span>
+                      </span>
+                      <span
+                        className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                          tone === "danger"
+                            ? "bg-red-500"
+                            : tone === "warning"
+                              ? "bg-yellow-500"
+                              : "bg-[#B6C8AF]"
+                        }`}
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setNotifOpen(false)
+                navigate("/notifications")
+              }}
+              className="w-full border-t border-[#E6ECE2] px-3 py-2 text-xs font-semibold text-[#7A9076] hover:bg-[#F5F5F0]"
+            >
+              View all notifications
+            </button>
           </div>
         )}
       </div>
@@ -660,26 +742,28 @@ export default function AppLayout() {
   }, [])
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-[#FAF9F4]">
-      <Sidebar
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed((v) => !v)}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-      />
+    <NotificationsProvider>
+      <div className="flex h-dvh overflow-hidden bg-[#FAF9F4]">
+        <Sidebar
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((v) => !v)}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
+        />
 
-      {/* Mobile nav trigger (header removed) */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        aria-label="Open navigation"
-        className="md:hidden fixed top-3 left-3 z-40 rounded-lg p-2 bg-white border border-[#E6ECE2] text-[#666666] shadow-sm hover:bg-[#E6ECE2] transition-colors"
-      >
-        <IconMenu />
-      </button>
+        {/* Mobile nav trigger (header removed) */}
+        <button
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation"
+          className="md:hidden fixed top-3 left-3 z-40 rounded-lg p-2 bg-white border border-[#E6ECE2] text-[#666666] shadow-sm hover:bg-[#E6ECE2] transition-colors"
+        >
+          <IconMenu />
+        </button>
 
-      <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
-        <Outlet />
-      </main>
-    </div>
+        <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+          <Outlet />
+        </main>
+      </div>
+    </NotificationsProvider>
   )
 }

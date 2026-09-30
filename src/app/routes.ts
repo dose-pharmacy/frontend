@@ -40,6 +40,8 @@ import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardP
 import SlowMovingPage from "../pages/reports/SlowMovingPage";
 import NarcoticReportPage from "../pages/reports/NarcoticReportPage";
 import AuditTrailPage from "../pages/admin/AuditTrailPage";
+import NotificationsPage from "../pages/notifications/NotificationsPage";
+import NotificationSettingsPage from "../pages/settings/NotificationSettingsPage";
 import DebugReceivingDetails from "./DebugReceivingDetails";
 
 export const router = createBrowserRouter([
@@ -115,8 +117,11 @@ export const router = createBrowserRouter([
           { path: "/reports/profitability", loader: () => redirect("/dashboard/profitability") },
           { path: "/reports/slow-moving", Component: SlowMovingPage },
           { path: "/reports/narcotics", Component: NarcoticReportPage },
+          // Notifications
+          { path: "/notifications", Component: NotificationsPage },
           // Settings / admin
           { path: "/settings/audit-trail", Component: AuditTrailPage },
+          { path: "/settings/notifications", Component: NotificationSettingsPage },
         ],
       },
     ],
