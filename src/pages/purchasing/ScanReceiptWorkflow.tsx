@@ -15,27 +15,32 @@ import {
   getPurchaseOrder,
   type PurchaseOrderDto,
 } from "../../features/purchasing/purchaseOrdersApi";
-import { listSuppliers } from "../../features/purchasing/suppliersApi";
 import { listLocations, type LocationDto } from "../../features/inventory/locationsApi";
 import {
   previewInvoiceUpload,
   confirmInvoiceUpload,
+  extractInvoiceReceipt,
+  listMatchCandidates,
   InvoiceUploadReceivingError,
   type InvoiceUploadPreviewDto,
   type InvoiceUploadPreviewItemDto,
   type InvoiceUploadConfirmDto,
   type InvoiceUploadReceivingInput,
   type InvoiceUploadDiscrepancyDto,
+  type MatchCandidateDto,
 } from "../../features/purchasing/invoiceUploadReceivingApi";
 import {
   emptyExtractedReceipt,
   extractReceiptDocument,
+  extractedInvoiceToReceipt,
   calculateGrandTotal,
   toDateInput,
   toInvoiceUploadInput,
   type ExtractedReceipt,
   type ExtractedReceiptLine,
 } from "../../features/purchasing/receiptExtractor";
+import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi";
+import type { PaymentMethod } from "../../features/purchasing/supplierInvoicesApi";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -56,19 +61,50 @@ function fmtDate(d: string | null | undefined): string {
 
 const ACCEPTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 
+const PAYMENT_METHODS: PaymentMethod[] = [
+  "CASH",
+  "BANK_TRANSFER",
+  "CHECK",
+  "CREDIT_CARD",
+  "OTHER",
+];
+
+const PAYMENT_LABELS: Record<string, string> = {
+  CASH: "Cash",
+  BANK_TRANSFER: "Bank Transfer",
+  CHECK: "Cheque",
+  CREDIT_CARD: "Credit Card",
+  OTHER: "Other",
+};
+
+function normalizeName(s: string): string {
+  return (s ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
 function countMatchedProducts(
   po: PurchaseOrderDto | null,
   items: ExtractedReceiptLine[],
 ): number {
   if (!po) return 0;
-  const codes = new Set(
+  const skus = new Set(
     (po.items ?? [])
       .map((it) => (it.product?.sku ?? "").trim().toLowerCase())
       .filter(Boolean),
   );
-  return items.filter((it) =>
-    codes.has((it.productCode ?? "").trim().toLowerCase()),
-  ).length;
+  const names = new Set(
+    (po.items ?? [])
+      .map((it) => normalizeName(it.product?.name ?? ""))
+      .filter(Boolean),
+  );
+  return items.filter((it) => {
+    if (skus.has((it.productCode ?? "").trim().toLowerCase())) return true;
+    if (it.poItemId && (po.items ?? []).some((poi) => poi.id === it.poItemId))
+      return true;
+    return names.has(normalizeName(it.productName));
+  }).length;
 }
 
 // ─── Review draft line ──────────────────────────────────────────────────────
@@ -91,6 +127,9 @@ interface DraftLine {
   poOrdered: number;
   poReceived: number;
   poRemaining: number;
+  remainingAfterReceipt: number;
+  /** Suggested PO items for an unmatched line (Part 2 backend). */
+  suggestions?: { purchaseOrderItemId: string; productName: string; score: number }[];
   discrepancyCodes: string[];
 }
 
@@ -114,6 +153,8 @@ function toDraftLines(items: InvoiceUploadPreviewItemDto[]): DraftLine[] {
       poOrdered: it.poOrdered,
       poReceived: it.poReceived,
       poRemaining: it.poRemaining,
+      remainingAfterReceipt: it.remainingAfterReceipt,
+      suggestions: it.suggestions,
       discrepancyCodes: [],
     };
   });
@@ -189,6 +230,18 @@ export default function ScanReceiptWorkflow({
     emptyExtractedReceipt,
   );
 
+  // OCR extraction status (backend /invoice-upload/extract)
+  const [extracting, setExtracting] = useState(false);
+  const [extractWarnings, setExtractWarnings] = useState<string[]>([]);
+
+  // Supplier — required dropdown of active suppliers (never free-text).
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
+  const [supplierId, setSupplierId] = useState("");
+
+  // Payment (optional — absent means the invoice stays OPEN)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
+  const [paymentDate, setPaymentDate] = useState("");
+
   // Locations
   const [locations, setLocations] = useState<LocationDto[]>([]);
   const [locationId, setLocationId] = useState("");
@@ -238,6 +291,9 @@ export default function ScanReceiptWorkflow({
         if (r.data.length > 0) setLocationId(r.data[0].id);
       })
       .catch(() => {});
+    listSuppliers({ limit: 100, isActive: true })
+      .then((r) => setSuppliers(r.data))
+      .catch(() => {});
     return () => {
       // Stop any camera stream left running.
       if (streamRef.current) {
@@ -257,17 +313,29 @@ export default function ScanReceiptWorkflow({
       return;
     }
     setFlowError("");
+    setExtractWarnings([]);
     setDocFile(file);
-    extractReceiptDocument(file)
+    setExtracting(true);
+    // 1) Try the backend OCR endpoint. Every extracted field stays editable;
+    //    nothing is trusted as-is. If it is unavailable (not deployed yet) or
+    //    fails, fall back to the honest manual/JSON path below.
+    extractInvoiceReceipt(file)
       .then((extracted) => {
-        if (
-          extracted.items.some((it) => it.productCode || it.productName) ||
-          extracted.invoiceNumber
-        ) {
-          setReceipt(extracted);
-        }
+        setReceipt(extractedInvoiceToReceipt(extracted));
+        setExtractWarnings(extracted.warnings ?? []);
       })
-      .catch(() => {});
+      .catch(() => {
+        return extractReceiptDocument(file).then((extracted) => {
+          if (
+            extracted.items.some((it) => it.productCode || it.productName) ||
+            extracted.invoiceNumber
+          ) {
+            setReceipt(extracted);
+          }
+        });
+      })
+      .catch(() => {})
+      .finally(() => setExtracting(false));
   }
 
   async function stopCamera() {
@@ -375,31 +443,49 @@ export default function ScanReceiptWorkflow({
     setFlowError("");
     try {
       const found = new Map<string, PurchaseOrderDto>();
+      const serverCounts: Record<string, number> = {};
+      let usedServerRanking = false;
 
-      // 1) PO number embedded in the invoice reference (receipts often carry
-      //    the PO number — but do NOT assume they always do).
-      const poRef = (receipt.invoiceNumber.match(/PO-\d+/i) ?? [])[0];
-      if (poRef) {
-        const r = await listPurchaseOrders({ search: poRef, limit: 10 });
-        r.data.forEach((o) => found.set(o.id, o));
+      // 1) Server-ranked suggestions: open POs for the selected supplier whose
+      //    items match the extracted product names. The server's order is
+      //    authoritative (match count → remaining quantity).
+      const names = receipt.items
+        .map((it) => it.productName.trim())
+        .filter(Boolean);
+      if (supplierId && names.length > 0) {
+        try {
+          const candidates = await listMatchCandidates(supplierId, names);
+          if (candidates.length > 0) {
+            usedServerRanking = true;
+            await Promise.all(
+              candidates.slice(0, 6).map(async (c: MatchCandidateDto) => {
+                try {
+                  const detail = await getPurchaseOrder(c.purchaseOrder.id);
+                  found.set(detail.id, detail);
+                  serverCounts[detail.id] = c.matchCount;
+                } catch {
+                  // Skip candidates that can no longer be loaded.
+                }
+              }),
+            );
+          }
+        } catch {
+          // Endpoint not deployed yet — fall through to the legacy lookup.
+        }
       }
 
-      // 2) Supplier name from the receipt → match against known suppliers,
-      //    then list the candidate purchase orders for them.
-      const supplierName = receipt.supplierName.trim().toLowerCase();
-      if (supplierName) {
-        const suppliers = (await listSuppliers({ limit: 100, isActive: true }))
-          .data;
-        const matching = suppliers.filter(
-          (s) =>
-            s.name.toLowerCase().includes(supplierName) ||
-            supplierName.includes(s.name.toLowerCase()),
-        );
-        for (const s of matching.slice(0, 3)) {
-          const r = await listPurchaseOrders({
-            supplierId: s.id,
-            limit: 50,
-          });
+      if (!usedServerRanking) {
+        // 2) PO number embedded in the invoice reference (receipts often carry
+        //    the PO number — but do NOT assume they always do).
+        const poRef = (receipt.invoiceNumber.match(/PO-\d+/i) ?? [])[0];
+        if (poRef) {
+          const r = await listPurchaseOrders({ search: poRef, limit: 10 });
+          r.data.forEach((o) => found.set(o.id, o));
+        }
+
+        // 3) The selected supplier (authoritative) → list their open POs.
+        if (supplierId) {
+          const r = await listPurchaseOrders({ supplierId, limit: 50 });
           r.data.forEach((o) => found.set(o.id, o));
         }
       }
@@ -413,7 +499,8 @@ export default function ScanReceiptWorkflow({
         list.map(async (o) => {
           try {
             const detail = await getPurchaseOrder(o.id);
-            counts[o.id] = countMatchedProducts(detail, receipt.items);
+            counts[o.id] =
+              serverCounts[o.id] ?? countMatchedProducts(detail, receipt.items);
           } catch {
             counts[o.id] = 0;
           }
@@ -450,10 +537,10 @@ export default function ScanReceiptWorkflow({
 
   // ── Preview / review ─────────────────────────────────────────────────────
 
-  function buildReviewInput(): InvoiceUploadReceivingInput {
-    const reviewReceipt: ExtractedReceipt = {
+  function reviewReceiptFromLines(lines: DraftLine[]): ExtractedReceipt {
+    return {
       ...receipt,
-      items: draftLines.map((d) => ({
+      items: lines.map((d) => ({
         productCode: d.sku,
         productName: d.productName,
         unit: d.unit,
@@ -463,12 +550,48 @@ export default function ScanReceiptWorkflow({
         batchNumber: d.batchNumber,
         manufacturingDate: d.manufacturingDate,
         expiryDate: d.expiryDate,
+        poItemId: d.purchaseOrderItemId ?? undefined,
+        unitSymbol: d.unit,
       })),
     };
-    return toInvoiceUploadInput(reviewReceipt, locationId, {
+  }
+
+  function buildReviewInputFromLines(lines: DraftLine[]): InvoiceUploadReceivingInput {
+    return toInvoiceUploadInput(reviewReceiptFromLines(lines), locationId, {
       supplierName: selectedPo?.supplier?.name ?? undefined,
       ...(note.trim() ? { discrepancyNote: note.trim() } : {}),
+      ...(paymentMethod
+        ? { paymentMethod, paymentDate: paymentDate || receipt.receivedDate }
+        : {}),
     });
+  }
+
+  function buildReviewInput(): InvoiceUploadReceivingInput {
+    return buildReviewInputFromLines(draftLines);
+  }
+
+  /** Replace the review screen with a fresh preview result + its line statuses. */
+  function applyPreviewResult(result: InvoiceUploadPreviewDto) {
+    const lines = toDraftLines(result.items);
+    const byIndex = new Map<number, string[]>();
+    for (const d of result.discrepancies ?? []) {
+      if (d.lineIndex == null) continue;
+      const arr = byIndex.get(d.lineIndex) ?? [];
+      arr.push(d.code);
+      byIndex.set(d.lineIndex, arr);
+    }
+    const codeHits = (result.discrepancies ?? [])
+      .filter((d) => d.lineIndex == null)
+      .map((d) => d.code);
+    for (const line of lines) {
+      const idx = Number(line.key.replace("line-", ""));
+      line.discrepancyCodes = [
+        ...new Set([...(byIndex.get(idx) ?? []), ...codeHits]),
+      ];
+    }
+    setDraftLines(lines);
+    setPreview(result);
+    setReviewDirty(false);
   }
 
   async function runPreview(input: InvoiceUploadReceivingInput) {
@@ -482,6 +605,14 @@ export default function ScanReceiptWorkflow({
       setFlowError("Please scan or upload the supplier receipt first.");
       return;
     }
+    if (!supplierId) {
+      setFlowError("Please choose the supplier shown on the receipt.");
+      return;
+    }
+    if (!receipt.invoiceNumber.trim()) {
+      setFlowError("Please enter the invoice number.");
+      return;
+    }
     if (!selectedPo) {
       setFlowError("Please choose a Purchase Order before continuing.");
       return;
@@ -491,17 +622,20 @@ export default function ScanReceiptWorkflow({
       return;
     }
     const validItems = receipt.items.filter(
-      (it) => it.productCode.trim() && (Number(it.quantity) || 0) > 0,
+      (it) => it.productName.trim() && (Number(it.quantity) || 0) > 0,
     );
     if (validItems.length === 0) {
       setFlowError(
-        "Enter at least one receipt line with a product code and quantity.",
+        "Enter at least one receipt line with a product name and quantity.",
       );
       return;
     }
 
     const input = toInvoiceUploadInput(receipt, locationId, {
       supplierName: selectedPo?.supplier?.name ?? undefined,
+      ...(paymentMethod
+        ? { paymentMethod, paymentDate: paymentDate || receipt.receivedDate }
+        : {}),
     });
 
     setPreviewing(true);
@@ -509,27 +643,8 @@ export default function ScanReceiptWorkflow({
     try {
       const result = await runPreview(input);
       if (!result) throw new InvoiceUploadReceivingError("No purchase order selected.");
-      // Assign each preview line its discrepancy codes.
-      const lines = toDraftLines(result.items);
-      const byIndex = new Map<number, string[]>();
-      for (const d of result.discrepancies ?? []) {
-        if (d.lineIndex == null) continue;
-        const arr = byIndex.get(d.lineIndex) ?? [];
-        arr.push(d.code);
-        byIndex.set(d.lineIndex, arr);
-      }
-      for (const line of lines) {
-        const codes = byIndex.get(Number(line.key.replace("line-", ""))) ?? [];
-        // Fall back to matching by product code when lineIndex is absent.
-        const codeHits = (result.discrepancies ?? [])
-          .filter((d) => d.lineIndex == null)
-          .map((d) => d.code);
-        line.discrepancyCodes = [...new Set([...codes, ...codeHits])];
-      }
-      setDraftLines(lines);
-      setPreview(result);
+      applyPreviewResult(result);
       setNote("");
-      setReviewDirty(false);
       setStep(2);
     } catch (e) {
       setPreviewError(
@@ -556,24 +671,7 @@ export default function ScanReceiptWorkflow({
     try {
       const result = await runPreview(buildReviewInput());
       if (!result) return;
-      const lines = toDraftLines(result.items);
-      const codeHits = (result.discrepancies ?? [])
-        .filter((d) => d.lineIndex == null)
-        .map((d) => d.code);
-      const byIndex = new Map<number, string[]>();
-      for (const d of result.discrepancies ?? []) {
-        if (d.lineIndex == null) continue;
-        byIndex.set(d.lineIndex, [...(byIndex.get(d.lineIndex) ?? []), d.code]);
-      }
-      for (const line of lines) {
-        const idx = Number(line.key.replace("line-", ""));
-        line.discrepancyCodes = [
-          ...new Set([...(byIndex.get(idx) ?? []), ...codeHits]),
-        ];
-      }
-      setDraftLines(lines);
-      setPreview(result);
-      setReviewDirty(false);
+      applyPreviewResult(result);
     } catch (e) {
       setPreviewError(
         e instanceof InvoiceUploadReceivingError
@@ -595,24 +693,7 @@ export default function ScanReceiptWorkflow({
       if (reviewDirty) {
         fresh = await runPreview(buildReviewInput());
         if (!fresh) return;
-        const lines = toDraftLines(fresh.items);
-        const codeHits = (fresh.discrepancies ?? [])
-          .filter((d) => d.lineIndex == null)
-          .map((d) => d.code);
-        const byIndex = new Map<number, string[]>();
-        for (const d of fresh.discrepancies ?? []) {
-          if (d.lineIndex == null) continue;
-          byIndex.set(d.lineIndex, [...(byIndex.get(d.lineIndex) ?? []), d.code]);
-        }
-        for (const line of lines) {
-          const idx = Number(line.key.replace("line-", ""));
-          line.discrepancyCodes = [
-            ...new Set([...(byIndex.get(idx) ?? []), ...codeHits]),
-          ];
-        }
-        setDraftLines(lines);
-        setPreview(fresh);
-        setReviewDirty(false);
+        applyPreviewResult(fresh);
       }
       if (!fresh.canConfirm) {
         const blocking = (fresh.discrepancies ?? []).filter(
@@ -774,6 +855,12 @@ export default function ScanReceiptWorkflow({
                   String(confirmResult.receiving?.totalAccepted ?? "—"),
                 ],
                 ["Supplier Invoice", confirmResult.supplierInvoice.invoiceNumber],
+                [
+                  "Payment",
+                  paymentMethod
+                    ? `${PAYMENT_LABELS[paymentMethod] ?? paymentMethod}${paymentDate ? ` · ${fmtDate(paymentDate)}` : ""}`
+                    : "Invoice left OPEN",
+                ],
               ].map(([k, v]) => (
                 <div
                   key={k}
@@ -970,6 +1057,7 @@ export default function ScanReceiptWorkflow({
                       "SKU",
                       "PO Ordered",
                       "Previously Received",
+                      "Remaining",
                       "Invoice Qty",
                       "Accepted Qty",
                       "Unit",
@@ -1010,6 +1098,63 @@ export default function ScanReceiptWorkflow({
                       >
                         <td className="px-3 py-2.5 min-w-[200px] text-[#333333]">
                           {l.productName || "—"}
+                          {l.matched === false &&
+                            l.suggestions &&
+                            l.suggestions.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                <span className="text-[10px] text-[#999] w-full">
+                                  Suggested matches:
+                                </span>
+                                {l.suggestions.map((s) => (
+                                  <button
+                                    key={s.purchaseOrderItemId}
+                                    onClick={() => {
+                                      const next = draftLines.map((dl) =>
+                                        dl.key === l.key
+                                          ? {
+                                              ...dl,
+                                              purchaseOrderItemId:
+                                                s.purchaseOrderItemId,
+                                              sku:
+                                                (selectedPo?.items ?? []).find(
+                                                  (it) =>
+                                                    it.id ===
+                                                    s.purchaseOrderItemId,
+                                                )?.product?.sku ?? dl.sku,
+                                              productName: s.productName,
+                                            }
+                                          : dl,
+                                      );
+                                      setDraftLines(next);
+                                      setReviewDirty(true);
+                                      void (async () => {
+                                        if (!selectedPo) return;
+                                        setPreviewing(true);
+                                        setPreviewError("");
+                                        try {
+                                          const result = await runPreview(
+                                            buildReviewInputFromLines(next),
+                                          );
+                                          if (result) applyPreviewResult(result);
+                                        } catch (e) {
+                                          setPreviewError(
+                                            e instanceof
+                                              InvoiceUploadReceivingError
+                                              ? e.message
+                                              : "Unable to validate the suggested match against the purchase order.",
+                                          );
+                                        } finally {
+                                          setPreviewing(false);
+                                        }
+                                      })();
+                                    }}
+                                    className="text-[11px] rounded-md border border-[#B6C8AF] bg-[#E6ECE2]/40 px-2 py-0.5 text-[#4A6B46] hover:bg-[#E6ECE2] font-medium"
+                                  >
+                                    {s.productName}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                         </td>
                         <td className="px-3 py-2.5 min-w-[180px]">
                           <select
@@ -1042,6 +1187,12 @@ export default function ScanReceiptWorkflow({
                         </td>
                         <td className="px-3 py-2.5 text-[#666666] whitespace-nowrap">
                           {l.poReceived}
+                        </td>
+                        <td className="px-3 py-2.5 text-[#333333] whitespace-nowrap">
+                          {l.poRemaining}
+                          <p className="text-[10px] text-[#999]">
+                            after receipt: {l.remainingAfterReceipt}
+                          </p>
                         </td>
                         <td className="px-3 py-2.5 font-semibold text-[#333333] whitespace-nowrap">
                           {l.invoiceQuantity}
@@ -1355,23 +1506,57 @@ export default function ScanReceiptWorkflow({
             Extracted Receipt Information
           </h2>
           <p className="text-xs text-[#999] mt-0.5 mb-4">
-            No OCR engine is bundled with this build — enter the values shown
-            on the receipt. The system extracts/matches them against the
-            selected Purchase Order, so nothing needs to be typed twice later.
+            The receipt is read automatically when you upload or scan it — any
+            value it could not read reliably is left blank for you to fill in,
+            and everything below stays editable. The system extracts/matches
+            the values against the selected Purchase Order, so nothing needs to
+            be typed twice later.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+          {extracting && (
+            <p className="mb-4 text-xs font-semibold text-[#7A9076] flex items-center gap-2">
+              <span className="inline-block h-3 w-3 rounded-full border-2 border-[#B6C8AF] border-t-transparent animate-spin" />
+              Reading the receipt…
+            </p>
+          )}
+          {extractWarnings.length > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="font-semibold">Check these before continuing</p>
+              <ul className="mt-1 list-disc list-inside space-y-0.5">
+                {extractWarnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
             <div>
               <label className="block text-sm text-[#666666] mb-1">
-                Supplier <span className="text-[#999]">(helper only)</span>
+                Supplier <span className="text-red-500">*</span>
               </label>
-              <input
-                value={receipt.supplierName}
-                onChange={(e) =>
-                  setReceipt((r) => ({ ...r, supplierName: e.target.value }))
-                }
-                placeholder="Supplier on the receipt"
+              <select
+                value={supplierId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setSupplierId(id);
+                  const s = suppliers.find((x) => x.id === id);
+                  setReceipt((r) => ({
+                    ...r,
+                    supplierName: s?.name ?? "",
+                  }));
+                }}
                 className={SC}
-              />
+              >
+                <option value="">— Select supplier —</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[#999] mt-1">
+                The PO's supplier stays authoritative — this is used to find
+                the right Purchase Order.
+              </p>
             </div>
             <div>
               <label className="block text-sm text-[#666666] mb-1">
@@ -1434,6 +1619,55 @@ export default function ScanReceiptWorkflow({
               >
                 Auto-calculate from items
               </button>
+              {receipt.grandTotal > 0 &&
+                Math.abs(receipt.grandTotal - calculateGrandTotal(receipt.items)) >
+                  0.01 && (
+                  <p className="mt-1 text-[10px] text-amber-600">
+                    Differs from the sum of line totals by{" "}
+                    {fmtMoney(
+                      Math.abs(
+                        receipt.grandTotal - calculateGrandTotal(receipt.items),
+                      ),
+                    )}{" "}
+                    — verify or auto-calculate.
+                  </p>
+                )}
+            </div>
+            <div>
+              <label className="block text-sm text-[#666666] mb-1">
+                Payment Method{" "}
+                <span className="text-[#999]">(optional)</span>
+              </label>
+              <select
+                value={paymentMethod}
+                onChange={(e) =>
+                  setPaymentMethod(e.target.value as PaymentMethod | "")
+                }
+                className={SC}
+              >
+                <option value="">— Unpaid / credit —</option>
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {PAYMENT_LABELS[m] ?? m}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[#999] mt-1">
+                Leave empty to record the invoice as OPEN.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm text-[#666666] mb-1">
+                Payment Date
+              </label>
+              <DatePicker
+                value={paymentDate}
+                onChange={(v) => setPaymentDate(v)}
+                disabled={!paymentMethod}
+                placeholder={
+                  paymentMethod ? "Select payment date" : "Pick a method first"
+                }
+              />
             </div>
           </div>
 
@@ -1447,13 +1681,13 @@ export default function ScanReceiptWorkflow({
             </button>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1100px]">
+            <table className="w-full text-sm min-w-[1250px]">
               <thead>
                 <tr className="bg-[#E6ECE2]">
                   {[
                     "#",
-                    "Product Code",
                     "Product Name",
+                    "PO Item",
                     "UOM",
                     "Quantity",
                     "Accepted",
@@ -1461,6 +1695,7 @@ export default function ScanReceiptWorkflow({
                     "Mfg Date",
                     "Expiry Date",
                     "Unit Price",
+                    "Line Total",
                     "",
                   ].map((h) => (
                     <th
@@ -1473,130 +1708,200 @@ export default function ScanReceiptWorkflow({
                 </tr>
               </thead>
               <tbody>
-                {receipt.items.map((item, i) => (
-                  <tr
-                    key={i}
-                    className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/10"}
-                  >
-                    <td className="px-2.5 py-2 text-[#666666]">{i + 1}</td>
-                    <td className="px-2.5 py-2">
-                      <input
-                        value={item.productCode}
-                        onChange={(e) =>
-                          updateReceiptItem(i, { productCode: e.target.value })
-                        }
-                        placeholder="e.g. FINS-01"
-                        className="w-28 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <input
-                        value={item.productName}
-                        onChange={(e) =>
-                          updateReceiptItem(i, { productName: e.target.value })
-                        }
-                        placeholder="Item description"
-                        className="w-56 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <input
-                        value={item.unit}
-                        onChange={(e) =>
-                          updateReceiptItem(i, { unit: e.target.value })
-                        }
-                        placeholder="BOTTLE"
-                        className="w-24 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <input
-                        type="number"
-                        min={0}
-                        value={item.quantity || ""}
-                        onChange={(e) =>
-                          updateReceiptItem(i, {
-                            quantity: Number(e.target.value),
-                          })
-                        }
-                        placeholder="0"
-                        className="w-16 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <input
-                        type="number"
-                        min={0}
-                        value={item.acceptedQuantity || ""}
-                        onChange={(e) =>
-                          updateReceiptItem(i, {
-                            acceptedQuantity: Number(e.target.value),
-                          })
-                        }
-                        placeholder="0"
-                        className="w-16 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <input
-                        value={item.batchNumber}
-                        onChange={(e) =>
-                          updateReceiptItem(i, { batchNumber: e.target.value })
-                        }
-                        placeholder="BATCH-001"
-                        className="w-28 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <DatePicker
-                        value={item.manufacturingDate}
-                        onChange={(v) =>
-                          updateReceiptItem(i, { manufacturingDate: v })
-                        }
-                        placeholder="Mfg date"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <DatePicker
-                        value={item.expiryDate}
-                        onChange={(v) =>
-                          updateReceiptItem(i, { expiryDate: v })
-                        }
-                        placeholder="Expiry date"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={item.unitPrice || ""}
-                        onChange={(e) =>
-                          updateReceiptItem(i, {
-                            unitPrice: Number(e.target.value),
-                          })
-                        }
-                        placeholder="0.00"
-                        className="w-20 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
-                      />
-                    </td>
-                    <td className="px-2.5 py-2">
-                      {receipt.items.length > 1 ? (
-                        <button
-                          onClick={() => removeReceiptItem(i)}
-                          className="text-xs text-red-500 hover:underline whitespace-nowrap"
+                {receipt.items.map((item, i) => {
+                  const lowConf = item.confidence === "low";
+                  const matchedPoItem = item.poItemId
+                    ? (selectedPo?.items ?? []).find(
+                        (poi) => poi.id === item.poItemId,
+                      ) ?? null
+                    : null;
+                  const poItemOptions = (selectedPo?.items ?? []).map((poi) => ({
+                    value: poi.id,
+                    label: `${poi.product?.sku ? `${poi.product.sku} — ` : ""}${
+                      poi.product?.name ?? poi.productId.slice(0, 8)
+                    }`,
+                  }));
+                  const unit =
+                    matchedPoItem?.unit?.symbol || matchedPoItem?.unit?.name || "";
+                  const lineTotal =
+                    (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                  const cellCls = `rounded border bg-white px-2 py-1.5 text-sm focus:outline-none ${
+                    lowConf ? "border-amber-300" : "border-[#C6D4BF]"
+                  }`;
+                  return (
+                    <tr
+                      key={i}
+                      className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/10"}
+                    >
+                      <td className="px-2.5 py-2 text-[#666666]">{i + 1}</td>
+                      <td className="px-2.5 py-2">
+                        <input
+                          value={item.productName}
+                          onChange={(e) =>
+                            updateReceiptItem(i, { productName: e.target.value })
+                          }
+                          placeholder="Item description"
+                          className="w-56 rounded border border-[#C6D4BF] bg-white px-2 py-1.5 text-sm focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <select
+                          value={item.poItemId ?? ""}
+                          onChange={(e) => {
+                            const poItemId = e.target.value;
+                            const poi = (selectedPo?.items ?? []).find(
+                              (x) => x.id === poItemId,
+                            );
+                            updateReceiptItem(i, {
+                              poItemId: poItemId || undefined,
+                              productCode:
+                                poi?.product?.sku ?? item.productCode ?? "",
+                              unitSymbol:
+                                poi?.unit
+                                  ? poi.unit.symbol || poi.unit.name
+                                  : item.unitSymbol,
+                              ...(item.productName === "" && poi?.product?.name
+                                ? { productName: poi.product.name }
+                                : {}),
+                            });
+                          }}
+                          className={SC}
                         >
-                          Remove
-                        </button>
-                      ) : (
-                        <span className="text-xs text-[#C8C8C8]">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          <option value="">— select PO item —</option>
+                          {poItemOptions.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <select
+                          value={item.unitSymbol ?? ""}
+                          onChange={(e) =>
+                            updateReceiptItem(i, {
+                              unitSymbol: e.target.value || undefined,
+                            })
+                          }
+                          disabled={!matchedPoItem}
+                          className={SC}
+                        >
+                          <option value="">
+                            {matchedPoItem
+                              ? matchedPoItem.unit?.name || "— select UOM —"
+                              : "— select UOM —"}
+                          </option>
+                          {unit && (
+                            <option value={unit}>
+                              {matchedPoItem?.unit?.name && matchedPoItem.unit.symbol
+                                ? `${matchedPoItem.unit.name} (${matchedPoItem.unit.symbol})`
+                                : unit}
+                            </option>
+                          )}
+                        </select>
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.quantity || ""}
+                          onChange={(e) =>
+                            updateReceiptItem(i, {
+                              quantity: Number(e.target.value),
+                            })
+                          }
+                          placeholder="0"
+                          className={`w-16 ${cellCls}`}
+                        />
+                        {lowConf && (
+                          <p className="text-[9px] text-amber-600">verify</p>
+                        )}
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.acceptedQuantity || ""}
+                          onChange={(e) =>
+                            updateReceiptItem(i, {
+                              acceptedQuantity: Number(e.target.value),
+                            })
+                          }
+                          placeholder="0"
+                          className={`w-16 ${cellCls}`}
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <input
+                          value={item.batchNumber}
+                          onChange={(e) =>
+                            updateReceiptItem(i, { batchNumber: e.target.value })
+                          }
+                          placeholder="Batch number"
+                          className={`w-28 ${cellCls}`}
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <DatePicker
+                          value={item.manufacturingDate}
+                          onChange={(v) =>
+                            updateReceiptItem(i, { manufacturingDate: v })
+                          }
+                          placeholder="Mfg date (optional)"
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <DatePicker
+                          value={item.expiryDate}
+                          onChange={(v) =>
+                            updateReceiptItem(i, { expiryDate: v })
+                          }
+                          placeholder="Expiry date"
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={item.unitPrice || ""}
+                          onChange={(e) =>
+                            updateReceiptItem(i, {
+                              unitPrice: Number(e.target.value),
+                            })
+                          }
+                          placeholder="0.00"
+                          className={`w-20 ${cellCls}`}
+                        />
+                      </td>
+                      <td className="px-2.5 py-2 text-[#666666] whitespace-nowrap">
+                        {fmtMoney(lineTotal)}
+                      </td>
+                      <td className="px-2.5 py-2">
+                        {receipt.items.length > 1 ? (
+                          <button
+                            onClick={() => removeReceiptItem(i)}
+                            className="text-xs text-red-500 hover:underline whitespace-nowrap"
+                          >
+                            Remove
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[#C8C8C8]">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          {receipt.items.some((it) => it.confidence === "low") && (
+            <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5">
+              <IconWarningTriangle className="h-3.5 w-3.5 text-amber-500" />
+              Some cells were read with low confidence and are highlighted amber
+              — please verify them against the receipt.
+            </p>
+          )}
         </div>
 
         {/* Purchase order identification */}
@@ -1605,10 +1910,10 @@ export default function ScanReceiptWorkflow({
             Purchase Order
           </h2>
           <p className="text-xs text-[#999] mt-0.5 mb-4">
-            The receipt may not always carry a PO number — use the extracted
-            supplier / product information to find the matching Purchase Order.
-            You must confirm which PO this receipt belongs to; the PO remains
-            the source of truth.
+            The receipt may not always carry a PO number — use the selected
+            supplier and the extracted product names to find the matching
+            Purchase Order. PO selection is mandatory and never automatic; the
+            PO remains the source of truth.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mb-4">

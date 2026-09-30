@@ -1,27 +1,31 @@
 // ── Receipt extraction service ──────────────────────────────────────────────
-// The backend Invoice-Upload-Assisted Receiving API does NOT perform OCR. The
-// frontend must supply an already-extracted/normalized invoice payload.
+// The backend Invoice-Upload-Assisted Receiving API performs OCR on the server
+// (POST /api/v1/purchasing/invoice-upload/extract) and returns a normalized
+// `ExtractedInvoice`. This module:
+//   1. Maps the backend OCR result into the editable `ExtractedReceipt` shape —
+//      null fields (the model "could not read this") stay empty for the
+//      pharmacist to fill; nothing is ever guessed.
+//   2. Normalizes machine-readable JSON receipts into the same shape.
+//   3. For PDFs/images when the extract endpoint is unavailable (e.g. not yet
+//      deployed), returns a blank normalized template — the Scan / Upload
+//      workflow lets the user enter the values shown on the receipt.
 //
-// There is currently no OCR engine in the project, so this module:
-//   1. Normalizes machine-readable receipts (JSON) into the same shape that a
-//      future OCR engine would produce.
-//   2. For PDF/images (no frontend OCR), returns a blank normalized template;
-//      the Scan / Upload workflow lets the user enter the values shown on the
-//      receipt — the "extracted" object is what gets sent to the receiving API.
-//
-// If an OCR/extraction engine is added later, it plugs into
-// `extractReceiptDocument` and returns the same `ExtractedReceipt` shape — the
-// receiving API contract does not change.
+// OCR output is helper input only — the receiving API contract does not change
+// and the backend re-validates every line against the authoritative PO.
 
-import type { InvoiceUploadReceivingInput } from "./invoiceUploadReceivingApi";
+import type {
+  ExtractedInvoice,
+  ExtractedInvoiceLine,
+  InvoiceUploadReceivingInput,
+} from "./invoiceUploadReceivingApi";
 
 // ─── Normalized receipt model ───────────────────────────────────────────────
 
 export interface ExtractedReceiptLine {
-  /** Product code / SKU printed on the receipt. */
+  /** Product code / SKU on the receipt (legacy — no longer OCR'd; echoed from the matched PO item when selected). */
   productCode: string;
   productName: string;
-  /** Unit symbol / name (UOM) as printed on the receipt. */
+  /** Unit symbol / name as printed on the receipt (legacy, no longer OCR'd). */
   unit: string;
   /** Quantity written on the supplier document. */
   quantity: number;
@@ -33,6 +37,15 @@ export interface ExtractedReceiptLine {
   manufacturingDate: string;
   /** "YYYY-MM-DD" or "". */
   expiryDate: string;
+  /**
+   * PO item the pharmacist pinned for this line (UI-only). Drives the
+   * `purchaseOrderItemId` signal sent to the backend and the default UOM.
+   */
+  poItemId?: string;
+  /** UOM symbol/name chosen by the pharmacist (UI-only). Defaults to the matched PO item's unit. */
+  unitSymbol?: string;
+  /** OCR confidence — informational; drives amber highlighting. */
+  confidence?: "high" | "low";
 }
 
 export interface ExtractedReceipt {
@@ -45,6 +58,8 @@ export interface ExtractedReceipt {
   receivedDate: string;
   grandTotal: number;
   documentUrl?: string;
+  /** Informational notes from the OCR engine (e.g. date-format ambiguity). */
+  warnings?: string[];
   items: ExtractedReceiptLine[];
 }
 
@@ -106,6 +121,75 @@ export function calculateGrandTotal(items: ExtractedReceiptLine[]): number {
   );
 }
 
+// ─── Backend OCR result → editable receipt ──────────────────────────────────
+
+const isISODate = (s: string): boolean =>
+  /^\d{4}-\d{2}-\d{2}/.test(s);
+
+/** Normalize a backend-extracted date string to a "YYYY-MM-DD" input value. */
+function toEditableDate(v: string | null | undefined): string {
+  if (!v) return "";
+  const trimmed = v.trim();
+  if (!trimmed || trimmed.toLowerCase() === "null" || trimmed === "-") return "";
+  if (isISODate(trimmed)) return toDateInput(trimmed);
+  // Loose fallback for "MM/DD/YYYY" etc. — keep as typed, the DatePicker normalizes.
+  return trimmed;
+}
+
+function ocrLineToReceiptLine(line: ExtractedInvoiceLine): ExtractedReceiptLine {
+  const quantity = line.quantity ?? 0;
+  const unitPrice = line.unitPrice ?? 0;
+  const lineTotal = line.lineTotal ?? 0;
+  // Keep the printed line total when supplied; otherwise derive unitPrice from
+  // it only when unitPrice is missing and lineTotal reads cleanly.
+  const derivedPrice =
+    line.unitPrice ?? (quantity > 0 && lineTotal > 0 ? lineTotal / quantity : 0);
+  return {
+    productCode: "", // Product code is never extracted — column removed from UI.
+    productName: line.productName ?? "",
+    unit: "", // Printed UOM is never extracted — pharmacist picks the UOM.
+    quantity,
+    acceptedQuantity: quantity,
+    unitPrice: derivedPrice,
+    batchNumber: line.batchNumber ?? "",
+    manufacturingDate: toEditableDate(line.manufacturingDate),
+    expiryDate: toEditableDate(line.expiryDate),
+    confidence: line.confidence,
+  };
+}
+
+/**
+ * Map the backend OCR result (`ExtractedInvoice`) into the editable
+ * `ExtractedReceipt` shape. Fields the model returned as `null` stay empty so
+ * the pharmacist fills them — never a guess. When `fallback` is provided and an
+ * OCR line is blank at the header level, the fallback header values are kept.
+ */
+export function extractedInvoiceToReceipt(
+  extracted: ExtractedInvoice,
+  fallback?: ExtractedReceipt,
+): ExtractedReceipt {
+  const items = Array.isArray(extracted.items)
+    ? extracted.items.map(ocrLineToReceiptLine)
+    : extractedInvoiceToReceiptEmptyItems();
+  return {
+    supplierName: fallback?.supplierName ?? "",
+    invoiceNumber: extracted.invoiceNumber ?? fallback?.invoiceNumber ?? "",
+    invoiceDate: toEditableDate(extracted.invoiceDate) || fallback?.invoiceDate || localISODate(),
+    receivedDate: fallback?.receivedDate ?? localISODate(),
+    grandTotal: extracted.grandTotal ?? fallback?.grandTotal ?? 0,
+    documentUrl: extracted.documentUrl ?? fallback?.documentUrl ?? undefined,
+    warnings:
+      extracted.warnings && extracted.warnings.length > 0
+        ? extracted.warnings
+        : fallback?.warnings,
+    items,
+  };
+}
+
+function extractedInvoiceToReceiptEmptyItems(): ExtractedReceiptLine[] {
+  return emptyExtractedReceipt().items;
+}
+
 // ─── JSON normalizer (machine-readable receipts) ────────────────────────────
 
 function strField(obj: Record<string, unknown>, keys: string[]): string {
@@ -143,6 +227,10 @@ export function normalizeExtractedReceipt(data: unknown): ExtractedReceipt {
   out.receivedDate = strField(o, ["receivedDate", "received_date"]);
   const grandTotal = numField(o, ["grandTotal", "grand_total", "total"]);
   if (grandTotal != null) out.grandTotal = grandTotal;
+  if (Array.isArray(o.warnings)) {
+    const warnings = o.warnings.filter((w): w is string => typeof w === "string");
+    if (warnings.length > 0) out.warnings = warnings;
+  }
 
   const rawItems = o.items;
   if (Array.isArray(rawItems)) {
@@ -210,6 +298,10 @@ export interface ToInvoiceInputOptions {
   documentUrl?: string;
   /** Authoritative supplier name (from the selected PO) when available. */
   supplierName?: string;
+  /** When a non-credit payment method is chosen, create the payment with the confirm transaction. */
+  paymentMethod?: "CASH" | "BANK_TRANSFER" | "CHECK" | "CREDIT_CARD" | "OTHER";
+  /** "YYYY-MM-DD" — defaults to the received date when a method is chosen. */
+  paymentDate?: string;
 }
 
 /**
@@ -232,13 +324,19 @@ export function toInvoiceUploadInput(
       toISOTimestamp(receipt.receivedDate) || new Date().toISOString(),
     ...(options.documentUrl ? { documentUrl: options.documentUrl } : {}),
     ...(options.discrepancyNote ? { discrepancyNote: options.discrepancyNote } : {}),
+    ...(options.paymentMethod ? { paymentMethod: options.paymentMethod } : {}),
+    ...(options.paymentMethod && options.paymentDate
+      ? { paymentDate: toISOTimestamp(options.paymentDate) }
+      : {}),
     items: receipt.items.map((it) => ({
       quantity: Number(it.quantity) || 0,
       acceptedQuantity: Number(it.acceptedQuantity) || 0,
       productCode: it.productCode?.trim() ?? "",
       productName: it.productName?.trim() ?? "",
-      unit: it.unit?.trim() ?? "",
+      unit: (it.unitSymbol ?? it.unit)?.trim() ?? "",
       unitPrice: Number(it.unitPrice) || 0,
+      ...(it.poItemId ? { purchaseOrderItemId: it.poItemId } : {}),
+      ...(it.confidence ? { confidence: it.confidence } : {}),
       batchNumber: it.batchNumber?.trim() ?? "",
       ...(it.manufacturingDate ? { manufacturingDate: toISOTimestamp(it.manufacturingDate) } : {}),
       expiryDate: toISOTimestamp(it.expiryDate),
