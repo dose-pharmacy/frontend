@@ -393,9 +393,17 @@ export async function createPurchaseOrder(input: CreatePurchaseOrderInput): Prom
   return data;
 }
 
-/** GET /purchase-orders/{id} — full PO with supplier contact and items. */
-export async function getPurchaseOrder(id: string): Promise<PurchaseOrderDto> {
-  const raw = await poRequest<unknown>(`/${encodeURIComponent(id)}`);
+/** GET /purchase-orders/{id} — full PO with supplier contact and items.
+ * Pass `{ receivableItems: true }` to restrict `items` to lines that still
+ * have quantity remaining (> 0) — the backend decides, never the client. */
+export async function getPurchaseOrder(
+  id: string,
+  query?: { receivableItems?: boolean },
+): Promise<PurchaseOrderDto> {
+  const params = new URLSearchParams();
+  if (query?.receivableItems) params.set("receivableItems", "true");
+  const qs = params.toString();
+  const raw = await poRequest<unknown>(`/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`);
   const data = unwrapEnvelope<PurchaseOrderDto>(raw, null as unknown as PurchaseOrderDto);
   if (!data?.id) throw new PurchaseOrdersApiError("Unexpected response from the server.");
   return data;

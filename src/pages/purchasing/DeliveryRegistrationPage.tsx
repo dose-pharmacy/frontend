@@ -46,6 +46,12 @@ export default function DeliveryRegistrationPage() {
   const [ordersError, setOrdersError] = useState("");
   const [ordersReload, setOrdersReload] = useState(0);
   const [selectedPoId, setSelectedPoId] = useState("");
+  // Receivable-item preview for the currently selected PO (hover card). Fetched
+  // once per PO and cached — reused until a different PO is selected.
+  const [poProducts, setPoProducts] = useState<POItemDto[] | null>(null);
+  const [poProductsLoading, setPoProductsLoading] = useState(false);
+  const [poProductsError, setPoProductsError] = useState(false);
+  const [showPoPreview, setShowPoPreview] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const supplierSearch = useSearchableResource(searchSuppliers, true);
@@ -96,6 +102,36 @@ export default function DeliveryRegistrationPage() {
       });
     return () => controller.abort();
   }, [supplierFilter, ordersReload]);
+
+  // Fetch the selected PO's receivable items for the hover preview. Cached per
+  // PO: re-requested only when the selected PO changes, never on hover itself.
+  useEffect(() => {
+    if (!selectedPoId) {
+      setPoProducts(null);
+      setPoProductsError(false);
+      setPoProductsLoading(false);
+      return;
+    }
+    setPoProducts(null);
+    setPoProductsError(false);
+    setPoProductsLoading(true);
+    const controller = new AbortController();
+    getPurchaseOrder(selectedPoId, { receivableItems: true })
+      .then((dto) => {
+        if (controller.signal.aborted) return;
+        // The backend already returns only receivable items (quantityRemaining
+        // > 0) — display them exactly as returned, no client-side filtering.
+        setPoProducts(dto.items ?? []);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setPoProductsError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPoProductsLoading(false);
+      });
+    return () => controller.abort();
+  }, [selectedPoId]);
 
   useEffect(() => {
     listSuppliers({ limit: 100, isActive: true })
@@ -302,11 +338,19 @@ export default function DeliveryRegistrationPage() {
                   noResultsMessage="No suppliers matching your search"
                 />
               </div>
-              <div>
+              <div
+                className="relative"
+                onMouseEnter={() => {
+                  if (selectedPoId) setShowPoPreview(true);
+                }}
+                onMouseLeave={() => setShowPoPreview(false)}
+              >
                 <label className="block text-sm text-[#666666] mb-1">Purchase Order</label>
                 <select
                   value={selectedPoId}
                   onChange={(e) => handlePoSelect(e.target.value)}
+                  onFocus={() => setShowPoPreview(false)}
+                  onBlur={() => setShowPoPreview(false)}
                   disabled={ordersLoading}
                   className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
                 >
@@ -340,6 +384,33 @@ export default function DeliveryRegistrationPage() {
                       Retry
                     </button>
                   </p>
+                )}
+                {showPoPreview && selectedPoId && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-[#C6D4BF] bg-white shadow-lg">
+                    <div className="border-b border-[#E6ECE2] px-3 py-2 text-xs font-semibold text-[#7A9076]">
+                      Products in this PO
+                    </div>
+                    <div className="max-h-56 overflow-y-auto p-2">
+                      {poProductsLoading ? (
+                        <p className="px-2 py-1.5 text-sm text-[#666666]">Loading products...</p>
+                      ) : poProductsError ? (
+                        <p className="px-2 py-1.5 text-sm text-red-600">Unable to load PO products.</p>
+                      ) : poProducts && poProducts.length > 0 ? (
+                        <ul className="flex flex-col">
+                          {poProducts.map((item, idx) => (
+                            <li key={item.product?.id ?? idx} className="px-2 py-1.5">
+                              <p className="text-sm font-semibold text-[#333333]">
+                                {item.product?.name ?? "Unnamed product"}
+                              </p>
+                              <p className="text-xs text-[#666666]">SKU: {item.product?.sku ?? "—"}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="px-2 py-1.5 text-sm text-[#666666]">No receivable products found.</p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
               <div>
