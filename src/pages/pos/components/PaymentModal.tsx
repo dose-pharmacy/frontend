@@ -5,7 +5,7 @@ import { NARCOTIC_SALE_REMINDER } from "../../../components/ui/NarcoticBadge";
 import type { CartItem } from "../../../features/pos/useCart";
 import type { BillDiscount } from "../../../features/pos/useCart";
 
-type BackendMethod = "CASH" | "CARD" | "DIGITAL_TRANSFER";
+type BackendMethod = "CASH" | "CARD" | "MOBILE_TRANSFER";
 
 interface PaymentRow {
   id: string;
@@ -21,14 +21,17 @@ interface Props {
   billDiscount: BillDiscount | null;
   items: CartItem[];
   lineTotal: (item: CartItem) => number;
-  onComplete: (payments: { method: BackendMethod; amount: number; reference?: string }[]) => Promise<void>;
+  onComplete: (
+    payments: { method: BackendMethod; amount: number; reference?: string }[],
+    customer: { customername?: string; customerphonenumber?: string },
+  ) => Promise<void>;
   onBack: () => void;
 }
 
 const METHOD_LABELS: Record<BackendMethod, string> = {
   CASH: "Cash",
   CARD: "Card",
-  DIGITAL_TRANSFER: "Digital Transfer",
+  MOBILE_TRANSFER: "Digital Transfer",
 };
 
 export default function PaymentModal({
@@ -46,14 +49,25 @@ export default function PaymentModal({
   ]);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Customer responsible for the outstanding balance — required for underpaid
+  // (credit) sales, ignored when the sale is fully paid.
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   const totalPaid = paymentRows.reduce((s, r) => {
     const v = parseFloat(r.amount);
     return s + (isNaN(v) ? 0 : v);
   }, 0);
-  const remaining = Math.max(0, total - totalPaid);
+  // A sale may be completed when Paid < Total — the difference becomes the
+  // customer's outstanding (credit) balance, not a separate payment method.
+  const outstanding = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
-  const isFullyPaid = totalPaid >= total && total > 0;
+  const hasPayment = totalPaid > 0;
+  const isUnderpaid = outstanding > 0;
+  const customerNameValid = customerName.trim().length > 0;
+  // Complete Sale requires: at least one valid payment, and (for underpaid
+  // sales) the customer name. Fully paid / overpaid sales need no customer.
+  const canComplete = hasPayment && (!isUnderpaid || customerNameValid);
   const hasNarcotic = items.some((item) => item.product.isNarcotic);
 
   function addRow() {
@@ -83,13 +97,19 @@ export default function PaymentModal({
       setError("Add at least one payment.");
       return;
     }
-    if (!isFullyPaid) {
-      setError(`Remaining balance: ${fmt(remaining)}. Add more payment.`);
+    if (isUnderpaid && !customerNameValid) {
+      setError("Customer name is required for credit sales.");
       return;
     }
+    // Partial payments are allowed: when Paid < Total the difference is the
+    // outstanding balance the backend records against the sale. The backend is
+    // the source of truth — if it rejects the sale, its error is surfaced below.
     setCompleting(true);
     try {
-      await onComplete(parsed);
+      await onComplete(parsed, {
+        customername: isUnderpaid ? customerName.trim() : undefined,
+        customerphonenumber: customerPhone.trim() || undefined,
+      });
     } catch (err: any) {
       setError(err?.message ?? "Failed to complete sale. Please try again.");
     } finally {
@@ -118,7 +138,9 @@ export default function PaymentModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-4 flex flex-col gap-4">
+        {/* min-h-0 lets this flex child shrink below its content height so
+            overflow-y-auto actually scrolls instead of being clipped. */}
+        <div className="overflow-y-auto flex-1 min-h-0 p-4 flex flex-col gap-4">
           {/* Sale summary */}
           <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
             <div className="bg-[#E6ECE2] px-4 py-2">
@@ -216,7 +238,7 @@ export default function PaymentModal({
             ))}
           </div>
 
-          {/* Paid / Remaining / Change */}
+          {/* Paid / Outstanding / Change */}
           <div className="rounded-xl border border-[#E6ECE2] px-4 py-3 flex flex-col gap-1.5 text-sm">
             <div className="flex justify-between">
               <span className="text-[#666666]">Total</span>
@@ -227,10 +249,10 @@ export default function PaymentModal({
               <span className="font-semibold text-[#333333]">{fmt(totalPaid)}</span>
             </div>
             <div className="flex justify-between border-t border-[#E6ECE2] pt-1.5 mt-0.5">
-              {remaining > 0 ? (
+              {outstanding > 0 ? (
                 <>
-                  <span className="font-semibold text-orange-600">Remaining</span>
-                  <span className="font-bold text-orange-600">{fmt(remaining)}</span>
+                  <span className="font-semibold text-orange-600">Outstanding</span>
+                  <span className="font-bold text-orange-600">{fmt(outstanding)}</span>
                 </>
               ) : (
                 <>
@@ -240,6 +262,63 @@ export default function PaymentModal({
               )}
             </div>
           </div>
+
+          {/* Outstanding balance notice — communicates the customer still owes */}
+          {outstanding > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-2">
+              <svg className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <p className="text-xs font-medium text-amber-800">
+                Completing this sale leaves an outstanding balance of{" "}
+                <strong>{fmt(outstanding)}</strong> — the customer will owe this
+                amount.
+              </p>
+            </div>
+          )}
+
+          {/* Customer capture — shown only when the sale is underpaid; the
+              customer is responsible for the outstanding balance. */}
+          {isUnderpaid && (
+            <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+              <div className="bg-[#E6ECE2] px-4 py-2">
+                <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide">
+                  Customer
+                </p>
+              </div>
+              <div className="px-4 py-3 flex flex-col gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#333333] mb-1">
+                    Customer Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Customer name"
+                    className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
+                  />
+                  {!customerNameValid && (
+                    <p className="text-xs text-[#999999] mt-1">
+                      Required — this customer owes the outstanding balance.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#333333] mb-1">
+                    Customer Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="Phone number"
+                    className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -259,9 +338,9 @@ export default function PaymentModal({
           </button>
           <button
             onClick={handleComplete}
-            disabled={!isFullyPaid || completing}
+            disabled={!canComplete || completing}
             className={`rounded-lg px-8 py-2.5 text-sm font-bold text-white transition-all disabled:cursor-not-allowed ${
-              isFullyPaid && !completing
+              canComplete && !completing
                 ? "bg-green-600 hover:bg-green-700 shadow-md"
                 : "bg-gray-300"
             }`}

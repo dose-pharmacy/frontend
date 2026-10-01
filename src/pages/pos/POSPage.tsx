@@ -9,7 +9,7 @@ import type { PosProductsMeta } from "../../features/pos/posApi"
 import { listProductGroups } from "../../features/inventory/productGroupsApi"
 import type { ProductGroupDto } from "../../features/inventory/productGroupsApi"
 import { listLocations } from "../../features/inventory/locationsApi"
-import { completeSale } from "../../features/sales/salesApi"
+import { completeSale, type CompleteSaleInput } from "../../features/sales/salesApi"
 import { fmt } from "../../features/pos/posService"
 import { useCart, type BillDiscount } from "../../features/pos/useCart"
 import { useAuth } from "../../features/auth/AuthContext"
@@ -217,16 +217,17 @@ export default function POSPage() {
 
   async function handleCompleteSale(
     payments: {
-      method: "CASH" | "CARD" | "DIGITAL_TRANSFER"
+      method: "CASH" | "CARD" | "MOBILE_TRANSFER"
       amount: number
       reference?: string
     }[],
+    customer: { customername?: string; customerphonenumber?: string },
   ) {
     if (!selectedLocation) {
       setToast({ message: "Please select a location first.", type: "error" })
       return
     }
-    const input = {
+    const input: CompleteSaleInput = {
       locationId: selectedLocation,
       items: cart.cart.items.map((item) => ({
         productId: item.product.id,
@@ -237,6 +238,12 @@ export default function POSPage() {
       })),
       payments,
       billDiscount: cart.cart.billDiscount ?? undefined,
+      // Exact backend field names — the customer is only present for
+      // underpaid (credit) sales, where they owe the outstanding balance.
+      ...(customer?.customername ? { customername: customer.customername } : {}),
+      ...(customer?.customerphonenumber
+        ? { customerphonenumber: customer.customerphonenumber }
+        : {}),
     }
     await completeSale(input)
     cart.clearCart()

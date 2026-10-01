@@ -129,7 +129,13 @@ export interface CompleteSaleItemInput {
   actualUnitPrice?: number;
 }
 
-export type CompleteSalePaymentMethod = "CASH" | "CARD" | "DIGITAL_TRANSFER";
+/**
+ * Methods accepted by POST /pos/sales at checkout. The backend contract
+ * supports CASH / CARD / MOBILE_TRANSFER — "Digital Transfer" is sent as
+ * MOBILE_TRANSFER. There is NO credit payment method: an underpaid sale's
+ * difference is recorded by the backend as the customer's outstanding balance.
+ */
+export type CompleteSalePaymentMethod = "CASH" | "CARD" | "MOBILE_TRANSFER";
 
 export interface CompleteSalePaymentInput {
   method: CompleteSalePaymentMethod;
@@ -145,14 +151,20 @@ export interface CompleteSaleInput {
   payments: CompleteSalePaymentInput[];
   /** Optional bill-level discount applied after summing all line totals. */
   billDiscount?: { type: "PERCENTAGE" | "FIXED_AMOUNT"; value: number };
+  /** Cashier notes. */
   notes?: string;
+  /**
+   * Customer responsible for the outstanding balance. Required by the backend
+   * for underpaid (credit) sales. Field names must match the backend exactly.
+   */
+  customername?: string;
+  customerphonenumber?: string;
 }
 
 /**
  * Methods accepted by POST /pos/sales/{id}/payments (collecting a payment
  * against an already completed sale, e.g. settling a credit balance).
- * This endpoint uses MOBILE_TRANSFER (not the checkout's DIGITAL_TRANSFER).
- * The backend does NOT accept CARD on this endpoint.
+ * This endpoint accepts MOBILE_TRANSFER and CHECK but NOT CARD.
  */
 export type RecordSalePaymentMethod = "CASH" | "MOBILE_TRANSFER" | "CHECK";
 
