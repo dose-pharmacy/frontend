@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useParams, useNavigate, useSearchParams } from "react-router"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import PageHeader from "../../components/ui/PageHeader"
@@ -24,6 +24,7 @@ import {
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
+import { listProductBatches } from "../../features/inventory/batchesApi"
 import { listRequirementLinesByProduct } from "../../features/purchasing/requirementsApi"
 import type { POItem, POStatus } from "./PurchaseOrdersPage"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
@@ -227,6 +228,16 @@ function AddProductModal({ open, products, existingProductIds, onClose, onAdd }:
   const [reqLineId, setReqLineId] = useState("")
   const [error, setError] = useState("")
 
+  // Batches for the product dropdown labels. Each product's batches are fetched
+  // once (GET /inventory/products/{id}/batches) and cached by productId, so
+  // reopening the modal or rerendering never repeats the requests. The chosen
+  // batch has NO effect on the purchase-order payload — the user selects a
+  // product, not a batch.
+  const batchCacheRef = useRef<Record<string, string[]>>({})
+  const [batchStates, setBatchStates] = useState<
+    Record<string, "loading" | "error">
+  >({})
+
   // Requirement-line options for the currently selected product. Fetched on
   // demand from GET /requirements/lines?productId= — never loaded for all
   // products up front.
@@ -265,6 +276,70 @@ function AddProductModal({ open, products, existingProductIds, onClose, onAdd }:
       setError("")
     }
   }, [open])
+
+  // Fetch + cache batches for every product in the dropdown. Results are cached
+  // per productId, so reopening the modal or rerendering never repeats the
+  // requests. A bounded-concurrency loop keeps the initial load tidy.
+  useEffect(() => {
+    if (!open || products.length === 0) return
+
+    const pending = products.filter((p) => !(p.id in batchCacheRef.current))
+    if (pending.length === 0) return
+
+    let active = true
+    const queue = [...pending]
+    for (const p of queue) {
+      setBatchStates((s) => (p.id in s ? s : { ...s, [p.id]: "loading" }))
+    }
+
+    const CONCURRENCY = 6
+    let inFlight = 0
+
+    function pump() {
+      if (!active) return
+      while (inFlight < CONCURRENCY && queue.length > 0) {
+        const item = queue.shift()!
+        inFlight += 1
+        listProductBatches(item.id, { limit: 20 })
+          .then((res) => {
+            if (!active) return
+            batchCacheRef.current[item.id] = res.data.map((b) => b.batchNumber)
+            // No entry = done; drop the "loading" marker.
+            setBatchStates((s) => {
+              if (!(item.id in s)) return s
+              const next = { ...s }
+              delete next[item.id]
+              return next
+            })
+          })
+          .catch(() => {
+            if (!active) return
+            setBatchStates((s) => ({ ...s, [item.id]: "error" }))
+          })
+          .finally(() => {
+            inFlight -= 1
+            pump()
+          })
+      }
+    }
+    pump()
+
+    return () => {
+      active = false
+    }
+  }, [open, products])
+
+  /** Bracket suffix for one product option: batches, or a state placeholder. */
+  function batchSuffix(pid: string): string {
+    const st = batchStates[pid]
+    if (st === "loading") return " [Loading batches...]"
+    if (st === "error") return " [Unable to load batches]"
+    const cached = batchCacheRef.current[pid]
+    // Not fetched yet (initial render before the effect / never attempted).
+    if (cached === undefined) return " [Loading batches...]"
+    if (cached.length === 0) return " [No batches]"
+    return ` [${cached.join(", ")}]`
+  }
 
   // Fetch the requirement lines for the selected product. Before a product is
   // chosen nothing is fetched and the field stays disabled. When the product
@@ -364,6 +439,7 @@ function AddProductModal({ open, products, existingProductIds, onClose, onAdd }:
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
+                {batchSuffix(p.id)}
               </option>
             ))}
           </select>
