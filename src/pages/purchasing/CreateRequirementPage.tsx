@@ -117,6 +117,14 @@ function ProductUnitRowEditor({
   )
 }
 
+/** Unique UI id for a requirement row. The same product can be added on more
+ * than one unit, so the id must not rely on Date.now() alone. */
+let rowSeq = 0
+function newRowId(): string {
+  rowSeq += 1
+  return `${Date.now()}-${rowSeq}`
+}
+
 export default function CreateRequirementPage() {
   const navigate = useNavigate()
   const [requiredBy, setRequiredBy] = useState(
@@ -172,13 +180,13 @@ export default function CreateRequirementPage() {
   }
 
   function addProduct(product: ProductDto) {
-    if (products.some((p) => p.productId === product.id)) {
-      return // Already added
-    }
+    // The same product may be added more than once (e.g. once per unit). True
+    // duplicates — same product AND same unit — are caught by validateForm()
+    // before the preview request, so there is no need to block the row here.
     setProducts((prev) => [
       ...prev,
       {
-        id: Date.now().toString(),
+        id: newRowId(),
         productId: product.id,
         productName: product.name,
         unitId: null,
@@ -201,7 +209,7 @@ export default function CreateRequirementPage() {
       setProducts((prev) => [
         ...prev,
         {
-          id: Date.now().toString(),
+          id: newRowId(),
           productId: saved.id,
           productName: saved.name,
           unitId: null,
@@ -257,11 +265,18 @@ export default function CreateRequirementPage() {
     if (products.length === 0) {
       return "Please add at least one product."
     }
-    const duplicate = products.some(
-      (p, i) => products.findIndex((x) => x.productId === p.productId) !== i,
-    )
-    if (duplicate) {
-      return "Duplicate products are not allowed — each product can appear once."
+    // A duplicate is the same product AND the same unit twice in one form.
+    // The same product on a different unit is a distinct requirement line, so
+    // it is allowed through to the preview.
+    const seen = new Set<string>()
+    for (const p of products) {
+      const key = `${p.productId}::${p.unitId ?? ""}`
+      if (seen.has(key)) {
+        const dupName = p.productName || "This product"
+        const dupUnit = p.unitName ? ` with unit ${p.unitName}` : ""
+        return `${dupName}${dupUnit} has already been added. Please edit the existing row instead of adding it again.`
+      }
+      seen.add(key)
     }
     for (const p of products) {
       if (!p.productId) {

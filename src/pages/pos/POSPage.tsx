@@ -238,8 +238,8 @@ export default function POSPage() {
       })),
       payments,
       billDiscount: cart.cart.billDiscount ?? undefined,
-      // Exact backend field names — the customer is only present for
-      // underpaid (credit) sales, where they owe the outstanding balance.
+      // Exact backend field names. Both are OPTIONAL per the backend contract,
+      // so empty values are omitted from the body rather than sent as "".
       ...(customer?.customername ? { customername: customer.customername } : {}),
       ...(customer?.customerphonenumber
         ? { customerphonenumber: customer.customerphonenumber }

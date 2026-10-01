@@ -440,10 +440,19 @@ export async function previewRequirement(
 ): Promise<RequirementPreviewResult> {
   const result = await requirementsRequest<{
     success: boolean;
-    data: RequirementPreviewResult | null;
+    data: (RequirementPreviewResult & { actions?: unknown }) | null;
   }>("/preview", { method: "POST", body: JSON.stringify(input) });
   if (!result?.data) throw new RequirementsApiError("Unexpected response from the server.");
-  return result.data;
+  // The contract documents `data.actions`, but a response that omits it (or sends
+  // null) must not take the review screen down with it — the UI calls
+  // `.filter()`/`.length` on this. Normalise to an array so the review renders
+  // "no decisions returned" instead of throwing during render.
+  return {
+    ...(result.data as RequirementPreviewResult),
+    actions: Array.isArray(result.data.actions)
+      ? (result.data.actions as RequirementActionDto[])
+      : [],
+  };
 }
 
 /** GET /requirements/{id} — full requirement with its lines. */

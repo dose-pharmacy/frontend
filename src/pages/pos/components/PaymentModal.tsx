@@ -49,8 +49,9 @@ export default function PaymentModal({
   ]);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Customer responsible for the outstanding balance — required for underpaid
-  // (credit) sales, ignored when the sale is fully paid.
+  // Customer details are OPTIONAL metadata about who owes the outstanding
+  // balance. The backend contract makes both fields optional, so an underpaid
+  // (credit) sale is completed exactly like any other sale.
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
@@ -64,10 +65,9 @@ export default function PaymentModal({
   const change = totalPaid > total ? totalPaid - total : 0;
   const hasPayment = totalPaid > 0;
   const isUnderpaid = outstanding > 0;
-  const customerNameValid = customerName.trim().length > 0;
-  // Complete Sale requires: at least one valid payment, and (for underpaid
-  // sales) the customer name. Fully paid / overpaid sales need no customer.
-  const canComplete = hasPayment && (!isUnderpaid || customerNameValid);
+  // Complete Sale depends only on a real payment existing — never on the
+  // optional customer fields.
+  const canComplete = hasPayment;
   const hasNarcotic = items.some((item) => item.product.isNarcotic);
 
   function addRow() {
@@ -97,17 +97,15 @@ export default function PaymentModal({
       setError("Add at least one payment.");
       return;
     }
-    if (isUnderpaid && !customerNameValid) {
-      setError("Customer name is required for credit sales.");
-      return;
-    }
     // Partial payments are allowed: when Paid < Total the difference is the
     // outstanding balance the backend records against the sale. The backend is
     // the source of truth — if it rejects the sale, its error is surfaced below.
+    // Customer details are optional; empty values are omitted by POSPage
+    // (never sent as empty strings).
     setCompleting(true);
     try {
       await onComplete(parsed, {
-        customername: isUnderpaid ? customerName.trim() : undefined,
+        customername: customerName.trim() || undefined,
         customerphonenumber: customerPhone.trim() || undefined,
       });
     } catch (err: any) {
@@ -277,45 +275,57 @@ export default function PaymentModal({
             </div>
           )}
 
-          {/* Customer capture — shown only when the sale is underpaid; the
-              customer is responsible for the outstanding balance. */}
+          {/* Customer capture — optional metadata, shown when the sale is
+              underpaid so the cashier can note who owes the balance. Neither
+              field is required; the fields are stacked so the phone input is
+              never overlapped or clipped. */}
           {isUnderpaid && (
             <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
-              <div className="bg-[#E6ECE2] px-4 py-2">
+              <div className="bg-[#E6ECE2] px-4 py-2 flex items-center gap-2">
                 <p className="text-xs font-semibold text-[#666666] uppercase tracking-wide">
                   Customer
                 </p>
+                <span className="text-[10px] font-medium text-[#7A9076] bg-white border border-[#C6D4BF] rounded-full px-2 py-0.5">
+                  Optional
+                </span>
               </div>
               <div className="px-4 py-3 flex flex-col gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-[#333333] mb-1">
-                    Customer Name <span className="text-red-500">*</span>
+                  <label
+                    htmlFor="pos-customer-name"
+                    className="block text-sm font-medium text-[#333333] mb-1"
+                  >
+                    Customer Name
                   </label>
                   <input
+                    id="pos-customer-name"
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Customer name"
+                    placeholder="Optional"
                     className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                   />
-                  {!customerNameValid && (
-                    <p className="text-xs text-[#999999] mt-1">
-                      Required — this customer owes the outstanding balance.
-                    </p>
-                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#333333] mb-1">
+                  <label
+                    htmlFor="pos-customer-phone"
+                    className="block text-sm font-medium text-[#333333] mb-1"
+                  >
                     Customer Phone
                   </label>
                   <input
+                    id="pos-customer-phone"
                     type="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="Phone number"
+                    placeholder="Optional"
                     className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20"
                   />
                 </div>
+                <p className="text-[11px] text-[#999999]">
+                  The outstanding balance is recorded on the sale whether or not
+                  a customer is recorded here.
+                </p>
               </div>
             </div>
           )}
