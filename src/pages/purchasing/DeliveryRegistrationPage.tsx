@@ -8,7 +8,7 @@ import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppl
 import SearchableSelect, { type SearchableOption } from "../../components/ui/SearchableSelect";
 import { useSearchableResource } from "../../hooks/useSearchableResource";
 import { searchSuppliers } from "../../features/inventory/searchSelectors";
-import { IconWarningTriangle } from "../../components/ui/icons";
+import { IconWarningTriangle, IconTrash } from "../../components/ui/icons";
 import DatePicker from "../../components/ui/DatePicker";
 import ScanReceiptWorkflow from "./ScanReceiptWorkflow";
 import { Toast } from "./PurchaseOrdersPage";
@@ -193,6 +193,10 @@ export default function DeliveryRegistrationPage() {
     setItems((prev) =>
       prev.map((item) => item.purchaseOrderItemId === purchaseOrderItemId ? { ...item, [field]: value } : item)
     );
+  }
+
+  function removeItem(purchaseOrderItemId: string) {
+    setItems((prev) => prev.filter((item) => item.purchaseOrderItemId !== purchaseOrderItemId));
   }
 
   const hasDiscrepancy = items.some((item) => item.actualQty !== item.deliveredQty);
@@ -488,6 +492,7 @@ export default function DeliveryRegistrationPage() {
                     {["#", "Product", "Ordered", "Received", "Location", "Delivered Qty", "Actual Qty", "Batch #", "Mfg Date", "Expiry Date"].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                     ))}
+                    <th key="__actions" className="px-3 py-2.5" aria-label="Actions"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -542,6 +547,17 @@ export default function DeliveryRegistrationPage() {
                             onChange={(v) => updateItem(item.purchaseOrderItemId, "expiryDate", v)}
                             placeholder="Expiry date"
                           />
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => removeItem(item.purchaseOrderItemId)}
+                            title="Remove item"
+                            aria-label={`Remove ${item.productName}`}
+                            className="rounded-lg p-1.5 text-[#B6575A] hover:bg-red-50 hover:text-red-600 transition-colors"
+                          >
+                            <IconTrash className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     );
