@@ -6,9 +6,11 @@ import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
 import DatePicker from "../../components/ui/DatePicker"
 import { IconPencil, IconTrash } from "../../components/ui/icons"
+import RequirementPreviewCard from "../../components/purchasing/RequirementPreviewCard"
 import {
   listRequirements,
   createRequirement,
+  previewRequirement,
   getRequirement,
   updateRequirement,
   closeRequirement,
@@ -24,6 +26,9 @@ import {
   type RequirementStatus as RequirementStatusType,
   type OrderPreviewDto,
   type RequirementAllocationDto,
+  type CreateRequirementInput,
+  type RequirementPreviewResult,
+  type RequirementActionDto,
 } from "../../features/purchasing/requirementsApi"
 import {
   listSuppliers,
@@ -623,7 +628,8 @@ function RequirementsListScreen({
                 label={
                   <>
                     Showing {Math.min((page - 1) * 20 + 1, totalCount)}–
-                    {Math.min(page * 20, totalCount)} of {totalCount} requirements
+                    {Math.min(page * 20, totalCount)} of {totalCount}{" "}
+                    requirements
                   </>
                 }
               />
@@ -1221,7 +1227,14 @@ function NewRequirementModal({
     },
   ])
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  // ── Two-stage create flow ──────────────────────────────────────────────
+  // Stage 1 (form):    "Create Requirement" → POST /requirements/preview only.
+  // Stage 2 (review):  "Create Requirement" → POST /requirements (the real save).
+  // Nothing is ever saved before the admin has seen the backend's decisions.
+  const [previewing, setPreviewing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [preview, setPreview] = useState<RequirementPreviewResult | null>(null)
+  const [saveError, setSaveError] = useState("")
 
   useEffect(() => {
     if (!open) return
@@ -1255,46 +1268,98 @@ function NewRequirementModal({
     )
   }
 
-  async function handleCreate() {
-    if (lines.length === 0) {
-      setError("Add at least one product.")
-      return
+  /** Build the POST body from the live form values (shared by preview + save). */
+  function buildBody(): CreateRequirementInput {
+    // requiredBy and notes are optional; per-line reasonCode/notes are omitted
+    // (never sent as null) to satisfy the backend's request validator.
+    return {
+      ...(requiredBy
+        ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() }
+        : {}),
+      ...(notes.trim() ? { notes: notes.trim() } : {}),
+      lines: lines.map((l) => ({
+        productId: l.productId,
+        quantityNeeded: parseInt(l.quantity),
+        ...(reasonCode(l.reason) ? { reasonCode: reasonCode(l.reason)! } : {}),
+        ...(l.notes.trim() ? { notes: l.notes.trim() } : {}),
+      })),
     }
+  }
+
+  /**
+   * Frontend validation only. This is intentionally NOT the backend's
+   * duplicate-OPEN-requirement rule — the same product appearing twice in one
+   * form is rejected here, while "product already has an OPEN requirement" is
+   * resolved by the backend preview (→ UPDATE).
+   */
+  function validateLines(): string | null {
+    if (lines.length === 0) return "Add at least one product."
     for (const l of lines) {
-      if (!l.productId) {
-        setError("Select a product for each row.")
-        return
-      }
+      if (!l.productId) return "Select a product for each row."
       if (!l.quantity || parseInt(l.quantity) <= 0) {
-        setError("Quantity must be greater than zero.")
-        return
+        return "Quantity must be greater than zero."
       }
     }
     const ids = lines.map((l) => l.productId)
     if (new Set(ids).size !== ids.length) {
-      setError("Duplicate products are not allowed.")
+      return "Duplicate products are not allowed — each product can appear once. Please edit the existing row instead of adding it again."
+    }
+    return null
+  }
+
+  /**
+   * Stage 1 — POST /requirements/preview. This NEVER saves: the backend only
+   * reports, per product+unit, whether the real POST would CREATE a new
+   * requirement or UPDATE the existing open one.
+   */
+  async function handleReview() {
+    const problem = validateLines()
+    if (problem) {
+      setError(problem)
       return
     }
     setError("")
-    setLoading(true)
+    setSaveError("")
+    setPreviewing(true)
     try {
-      // POST /requirements — requiredBy and notes are optional; per-line
-      // reasonCode/notes are omitted (never sent as null) to satisfy the
-      // backend's request validator.
-      await createRequirement({
-        ...(requiredBy
-          ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() }
-          : {}),
-        ...(notes.trim() ? { notes: notes.trim() } : {}),
-        lines: lines.map((l) => ({
-          productId: l.productId,
-          quantityNeeded: parseInt(l.quantity),
-          ...(reasonCode(l.reason)
-            ? { reasonCode: reasonCode(l.reason)! }
-            : {}),
-          ...(l.notes.trim() ? { notes: l.notes.trim() } : {}),
-        })),
-      } as Parameters<typeof createRequirement>[0])
+      const result = await previewRequirement(buildBody())
+      setPreview(result)
+    } catch (e) {
+      if (e instanceof RequirementsApiError && e.status === 403) {
+        setError("You do not have permission to create purchase requirements.")
+      } else {
+        setError(errMessage(e))
+      }
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
+  /** Back from the review screen — keep every entered value, no save request. */
+  function handleBackToForm() {
+    if (saving) return
+    setPreview(null)
+    setSaveError("")
+  }
+
+  /**
+   * Stage 2 — the admin confirmed the review: POST /requirements with the
+   * ORIGINAL form payload (never the preview response).
+   */
+  async function handleConfirm() {
+    if (saving) return
+    const problem = validateLines()
+    if (problem) {
+      setError(problem)
+      setPreview(null)
+      return
+    }
+    setError("")
+    setSaveError("")
+    setSaving(true)
+    try {
+      await createRequirement(buildBody())
+      setPreview(null)
       setRequiredBy("")
       setNotes("")
       setLines([
@@ -1308,173 +1373,286 @@ function NewRequirementModal({
       ])
       onCreated()
     } catch (e) {
-      setError(errMessage(e))
-    } finally {
-      setLoading(false)
+      if (e instanceof RequirementsApiError && e.status === 403) {
+        setSaveError(
+          "You do not have permission to create purchase requirements.",
+        )
+      } else {
+        setSaveError(errMessage(e))
+      }
+      setSaving(false)
     }
+  }
+
+  /** Match a preview action to a form line (per the backend contract's
+   * productId + unitId pair), falling back to productId alone. */
+  function actionForLine(l: NewLine): RequirementActionDto | undefined {
+    if (!preview) return undefined
+    return preview.actions.find((a) => a.productId === l.productId)
   }
 
   return (
     <Modal
       open={open}
-      title="Create Purchase Requirement"
-      onClose={onClose}
+      title={
+        preview ? "Review Purchase Requirement" : "Create Purchase Requirement"
+      }
+      onClose={preview ? handleBackToForm : onClose}
       size="2xl"
     >
-      <div className="flex flex-col gap-5">
-        {error && (
-          <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
-            {error}
+      {preview ? (
+        /* ── Stage 2: review the backend's CREATE / UPDATE decisions ──────
+           Nothing is saved yet — the admin must confirm below. */
+        <div className="flex flex-col gap-5">
+          <p className="text-sm text-[#666666]">
+            Review what will happen before anything is saved. The backend
+            decides each line.
           </p>
-        )}
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Fw label="Required By">
-            <DatePicker
-              value={requiredBy}
-              onChange={setRequiredBy}
-              placeholder="Select required-by date..."
-            />
-          </Fw>
-          <Fw label="Notes">
-            <input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add notes about this purchase requirement..."
-              className={SC}
-            />
-          </Fw>
-        </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold text-[#333333]">Products</p>
-            <button
-              onClick={addLine}
-              className="text-xs font-semibold text-[#7A9076] hover:underline"
-            >
-              + Add Row
-            </button>
+          {saveError && (
+            <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+              {saveError}
+            </p>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Fw label="Required By">
+              <p className="text-sm text-[#333333] py-2.5">
+                {requiredBy
+                  ? new Date(`${requiredBy}T00:00:00`).toLocaleDateString(
+                      undefined,
+                      { year: "numeric", month: "long", day: "numeric" },
+                    )
+                  : "—"}
+              </p>
+            </Fw>
+            <Fw label="Notes">
+              <p className="text-sm text-[#333333] py-2.5 break-words">
+                {notes.trim() || "—"}
+              </p>
+            </Fw>
           </div>
-          <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#E6ECE2]">
-                    {["Product", "Qty Needed", "Reason", "Notes", ""].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="px-3 py-2.5 text-left font-semibold text-[#333333] text-xs"
-                        >
-                          {h}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line, i) => (
-                    <tr
-                      key={i}
-                      className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}
-                    >
-                      <td className="px-3 py-2 min-w-[300px]">
-                        <SearchableSelect
-                          value={line.productId || null}
-                          onChange={(v) => {
-                            const p = products.find((x) => x.id === v) ?? null
-                            updateLine(i, "productId", v)
-                            updateLine(i, "product", p)
-                          }}
-                          options={products.map((p) => ({
-                            value: p.id,
-                            label: p.brand ? `${p.name} (${p.brand})` : p.name,
-                          }))}
-                          placeholder="Select product..."
-                          searchPlaceholder="Search products..."
-                          emptyMessage="No products found"
-                          noResultsMessage="No products matching your search"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={1}
-                          value={line.quantity}
-                          onChange={(e) =>
-                            updateLine(i, "quantity", e.target.value)
-                          }
-                          className={`${SC} w-20`}
-                          placeholder="0"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={line.reason}
-                          onChange={(e) =>
-                            updateLine(
-                              i,
-                              "reason",
-                              e.target.value as LineReason,
-                            )
-                          }
-                          className={SC}
-                        >
-                          <option value="">No reason</option>
-                          <option>Low Stock</option>
-                          <option>Reorder Alert</option>
-                          <option>Manual</option>
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          value={line.notes}
-                          onChange={(e) =>
-                            updateLine(i, "notes", e.target.value)
-                          }
-                          className={SC}
-                          placeholder="Optional..."
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        {lines.length > 1 && (
-                          <button
-                            onClick={() => removeLine(i)}
-                            className="text-red-400 hover:text-red-600 p-1"
-                            title="Remove"
-                          >
-                            <svg
-                              className="h-4 w-4"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                              aria-hidden
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold text-[#333333]">Products</p>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6ECE2] px-3 py-1 text-xs font-semibold text-[#7A9076]">
+                {preview.actions.filter((a) => a.action === "CREATE").length}{" "}
+                new
+                {" · "}
+                {preview.actions.filter((a) => a.action === "UPDATE").length}{" "}
+                update
+              </span>
+            </div>
+
+            {preview.actions.length === 0 && (
+              <p className="text-xs text-[#666666] bg-[#E6ECE2]/60 rounded-lg px-3 py-2 mb-3">
+                The server returned no per-line preview decisions. Each product
+                will still be processed by the backend when you confirm.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {lines.map((l, i) => (
+                <RequirementPreviewCard
+                  key={i}
+                  productLabel={l.product?.name ?? ""}
+                  quantity={parseInt(l.quantity) || 0}
+                  action={actionForLine(l)}
+                />
+              ))}
             </div>
           </div>
-        </div>
 
-        <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleCreate} loading={loading}>
-            Create Requirement
-          </Button>
+          <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
+            <Button
+              variant="secondary"
+              onClick={handleBackToForm}
+              disabled={saving}
+            >
+              Back
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              loading={saving}
+              disabled={previewing}
+            >
+              {saving ? "Saving…" : "Create Requirement"}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* ── Stage 1: the form. "Create Requirement" only PREVIEWS. ────── */
+        <>
+          <div className="flex flex-col gap-5">
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Fw label="Required By">
+                <DatePicker
+                  value={requiredBy}
+                  onChange={setRequiredBy}
+                  placeholder="Select required-by date..."
+                />
+              </Fw>
+              <Fw label="Notes">
+                <input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add notes about this purchase requirement..."
+                  className={SC}
+                />
+              </Fw>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold text-[#333333]">Products</p>
+                <button
+                  onClick={addLine}
+                  className="text-xs font-semibold text-[#7A9076] hover:underline"
+                >
+                  + Add Row
+                </button>
+              </div>
+              <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-[#E6ECE2]">
+                        {["Product", "Qty Needed", "Reason", "Notes", ""].map(
+                          (h) => (
+                            <th
+                              key={h}
+                              className="px-3 py-2.5 text-left font-semibold text-[#333333] text-xs"
+                            >
+                              {h}
+                            </th>
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line, i) => (
+                        <tr
+                          key={i}
+                          className={
+                            i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
+                          }
+                        >
+                          <td className="px-3 py-2 min-w-[300px]">
+                            <SearchableSelect
+                              value={line.productId || null}
+                              onChange={(v) => {
+                                const p =
+                                  products.find((x) => x.id === v) ?? null
+                                updateLine(i, "productId", v)
+                                updateLine(i, "product", p)
+                              }}
+                              options={products.map((p) => ({
+                                value: p.id,
+                                label: p.brand
+                                  ? `${p.name} (${p.brand})`
+                                  : p.name,
+                              }))}
+                              placeholder="Select product..."
+                              searchPlaceholder="Search products..."
+                              emptyMessage="No products found"
+                              noResultsMessage="No products matching your search"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={1}
+                              value={line.quantity}
+                              onChange={(e) =>
+                                updateLine(i, "quantity", e.target.value)
+                              }
+                              className={`${SC} w-20`}
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={line.reason}
+                              onChange={(e) =>
+                                updateLine(
+                                  i,
+                                  "reason",
+                                  e.target.value as LineReason,
+                                )
+                              }
+                              className={SC}
+                            >
+                              <option value="">No reason</option>
+                              <option>Low Stock</option>
+                              <option>Reorder Alert</option>
+                              <option>Manual</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              value={line.notes}
+                              onChange={(e) =>
+                                updateLine(i, "notes", e.target.value)
+                              }
+                              className={SC}
+                              placeholder="Optional..."
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            {lines.length > 1 && (
+                              <button
+                                onClick={() => removeLine(i)}
+                                className="text-red-400 hover:text-red-600 p-1"
+                                title="Remove"
+                              >
+                                <svg
+                                  className="h-4 w-4"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                  aria-hidden
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
+              <Button
+                variant="secondary"
+                onClick={onClose}
+                disabled={previewing}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReview}
+                loading={previewing}
+                disabled={saving || previewing}
+              >
+                {previewing ? "Checking Requirement…" : "Create Requirement"}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }
@@ -2511,7 +2689,9 @@ function RequirementOrderModal({
                         min={0}
                         step="any"
                         value={d.unitCost}
-                        onChange={(e) => update(i, { unitCost: e.target.value })}
+                        onChange={(e) =>
+                          update(i, { unitCost: e.target.value })
+                        }
                         disabled={!d.selected}
                         placeholder="0.00"
                         className="w-28 rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none disabled:opacity-50"

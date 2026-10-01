@@ -1,12 +1,16 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
-import PurchasingSubNav from "./PurchasingSubNav";
-import PageHeader from "../../components/ui/PageHeader";
-import DatePicker from "../../components/ui/DatePicker";
-import Button from "../../components/ui/Button";
-import Modal from "../../components/ui/Modal";
-import ProductFormModal from "../../components/ui/ProductFormModal";
-import { listProducts, type ProductDto, type ProductDetailDto } from "../../features/inventory/productsApi";
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router"
+import PurchasingSubNav from "./PurchasingSubNav"
+import PageHeader from "../../components/ui/PageHeader"
+import DatePicker from "../../components/ui/DatePicker"
+import Button from "../../components/ui/Button"
+import Modal from "../../components/ui/Modal"
+import ProductFormModal from "../../components/ui/ProductFormModal"
+import {
+  listProducts,
+  type ProductDto,
+  type ProductDetailDto,
+} from "../../features/inventory/productsApi"
 import {
   createRequirement,
   previewRequirement,
@@ -15,29 +19,38 @@ import {
   type RequirementReasonCode,
   type RequirementPreviewResult,
   type RequirementActionDto,
-} from "../../features/purchasing/requirementsApi";
-import { useProductUnits } from "../../features/inventory/useProductUnits";
-import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions";
+} from "../../features/purchasing/requirementsApi"
+import { useProductUnits } from "../../features/inventory/useProductUnits"
+import {
+  toBaseQuantity,
+  formatFactor,
+} from "../../features/inventory/unitOptions"
+import RequirementPreviewCard from "../../components/purchasing/RequirementPreviewCard"
 
 interface ProductRow {
-  id: string; // Temporary UI id
-  productId: string;
-  productName: string;
+  id: string // Temporary UI id
+  productId: string
+  productName: string
   /** null = use the product's base unit. */
-  unitId: string | null;
+  unitId: string | null
   /** Display name of the resolved unit (base unit when unitId is null). */
-  unitName: string;
-  quantityNeeded: number;
-  reasonCode: RequirementReasonCode;
-  notes: string;
+  unitName: string
+  quantityNeeded: number
+  reasonCode: RequirementReasonCode
+  notes: string
 }
 
 /** Compact per-row quantity + unit picker with a base-unit conversion preview. */
-function ProductUnitRowEditor({ row, onUpdate }: {
+function ProductUnitRowEditor({
+  row,
+  onUpdate,
+}: {
   row: ProductRow
   onUpdate: (patch: Partial<ProductRow>) => void
 }) {
-  const { units, baseUnit, options, loading, error } = useProductUnits(row.productId)
+  const { units, baseUnit, options, loading, error } = useProductUnits(
+    row.productId,
+  )
   const unitId = row.unitId ?? baseUnit?.id ?? ""
   const productUnit = units.find((u) => u.unitId === unitId)
   const qty = row.quantityNeeded || 0
@@ -83,193 +96,84 @@ function ProductUnitRowEditor({ row, onUpdate }: {
           {loading && <option value="">Loading units…</option>}
           {error && <option value="">Error loading units</option>}
           {options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
           ))}
         </select>
       </div>
-      {qty > 0 && row.unitId && baseQty !== null && baseUnit && productUnit && !productUnit.isBaseUnit && (
-        <p className="text-[10px] text-[#7A9076]">
-          = {baseQty} {baseUnit.name} ({formatFactor(productUnit.conversionFactor)}×)
-        </p>
-      )}
+      {qty > 0 &&
+        row.unitId &&
+        baseQty !== null &&
+        baseUnit &&
+        productUnit &&
+        !productUnit.isBaseUnit && (
+          <p className="text-[10px] text-[#7A9076]">
+            = {baseQty} {baseUnit.name} (
+            {formatFactor(productUnit.conversionFactor)}×)
+          </p>
+        )}
     </div>
   )
 }
 
-function fmtQty(v: number): string {
-  return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-}
-
-/** One product line inside the Review Purchase Requirement modal. The action
- * (CREATE / UPDATE) always comes from the backend preview — never guessed. */
-function PreviewLine({ row, action }: { row: ProductRow; action?: RequirementActionDto }) {
-  const existing = action?.existingRequirement;
-  const productLabel = row.productName || existing?.product || existing?.productName || "Product";
-  const unitLabel = row.unitName || existing?.unit?.name || existing?.unit?.symbol || "";
-  const existingRef = existing?.requirementReference ?? existing?.reference;
-  const existingQtyNeeded = existing?.quantityNeeded ?? existing?.requiredQuantity;
-  const existingQtyOrdered = existing?.quantityOrdered ?? existing?.orderedQuantity;
-  const existingRemaining =
-    existing?.remainingToOrder ?? existing?.quantityRemaining ?? existing?.remainingQuantity;
-
-  const badge =
-    action?.action === "CREATE" ? (
-      <span className="shrink-0 rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-        CREATE NEW REQUIREMENT
-      </span>
-    ) : action?.action === "UPDATE" ? (
-      <span className="shrink-0 rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
-        UPDATE EXISTING REQUIREMENT
-      </span>
-    ) : (
-      <span className="shrink-0 rounded-full bg-[#E6ECE2] px-3 py-1 text-xs font-bold text-[#666666]">
-        PROCESSING
-      </span>
-    );
-
-  return (
-    <div
-      className={`rounded-xl border p-4 ${
-        action?.action === "UPDATE" ? "border-orange-200 bg-orange-50/60" : "border-[#E6ECE2] bg-white"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-[#333333]">{productLabel}</p>
-          <div className="mt-0.5 space-y-0.5 text-xs text-[#666666]">
-            {unitLabel && <p>Unit: {unitLabel}</p>}
-            <p>
-              Requested quantity: {fmtQty(row.quantityNeeded)}
-              {unitLabel ? ` ${unitLabel}` : ""}
-            </p>
-          </div>
-        </div>
-        {badge}
-      </div>
-
-      {action?.action === "UPDATE" && (
-        <div className="mt-3 rounded-lg border border-orange-200 bg-white p-3">
-          <p className="text-sm font-semibold text-orange-800">Existing requirement found</p>
-          <p className="mt-0.5 text-xs text-[#666666]">
-            This product already has an open requirement. The existing requirement will be
-            updated instead of creating another open requirement.
-          </p>
-          {existing &&
-          (existingRef ||
-            existingQtyNeeded != null ||
-            existingQtyOrdered != null ||
-            existingRemaining != null ||
-            existing.status) ? (
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-              {existingRef && (
-                <div>
-                  <dt className="text-[#666666]">Requirement</dt>
-                  <dd className="font-semibold text-[#333333]">{existingRef}</dd>
-                </div>
-              )}
-              {existingQtyNeeded != null && (
-                <div>
-                  <dt className="text-[#666666]">Current quantity needed</dt>
-                  <dd className="font-semibold text-[#333333]">{fmtQty(existingQtyNeeded)}</dd>
-                </div>
-              )}
-              {existingQtyOrdered != null && (
-                <div>
-                  <dt className="text-[#666666]">Quantity ordered</dt>
-                  <dd className="font-semibold text-[#333333]">{fmtQty(existingQtyOrdered)}</dd>
-                </div>
-              )}
-              {existingRemaining != null && (
-                <div>
-                  <dt className="text-[#666666]">Remaining to order</dt>
-                  <dd className="font-semibold text-[#333333]">{fmtQty(existingRemaining)}</dd>
-                </div>
-              )}
-              {existing.status && (
-                <div>
-                  <dt className="text-[#666666]">Status</dt>
-                  <dd className="font-semibold text-[#333333]">{existing.status}</dd>
-                </div>
-              )}
-            </dl>
-          ) : (
-            <p className="mt-1.5 text-xs text-[#666666]">
-              Existing requirement found. The backend will update the existing requirement.
-            </p>
-          )}
-        </div>
-      )}
-
-      {action?.action === "CREATE" && (
-        <p className="mt-2 text-xs text-[#666666]">
-          No existing open requirement was found for this product. A new requirement will be created.
-        </p>
-      )}
-
-      {!action?.action && (
-        <p className="mt-2 text-xs text-[#666666]">
-          No preview decision was returned for this product — the backend could not determine an action.
-        </p>
-      )}
-    </div>
-  );
-}
-
 export default function CreateRequirementPage() {
-  const navigate = useNavigate();
-  const [requiredBy, setRequiredBy] = useState(new Date().toISOString().split("T")[0]);
-  const [notes, setNotes] = useState("");
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  
+  const navigate = useNavigate()
+  const [requiredBy, setRequiredBy] = useState(
+    new Date().toISOString().split("T")[0],
+  )
+  const [notes, setNotes] = useState("")
+  const [products, setProducts] = useState<ProductRow[]>([])
+
   // Search state
-  const [search, setSearch] = useState("");
-  const [suggestions, setSuggestions] = useState<ProductDto[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  
+  const [search, setSearch] = useState("")
+  const [suggestions, setSuggestions] = useState<ProductDto[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
   // Add row state
-  const [addQty, setAddQty] = useState(50);
-  const [addReason, setAddReason] = useState<RequirementReasonCode>("LOW_STOCK");
-  
+  const [addQty, setAddQty] = useState(50)
+  const [addReason, setAddReason] = useState<RequirementReasonCode>("LOW_STOCK")
+
   // Shared Add Product modal (reuses Inventory > Products Add Product)
-  const [addProductOpen, setAddProductOpen] = useState(false);
-  
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [addProductOpen, setAddProductOpen] = useState(false)
+
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
   // Requirement preview review flow
-  const [previewing, setPreviewing] = useState(false);
-  const [preview, setPreview] = useState<RequirementPreviewResult | null>(null);
-  const [saveError, setSaveError] = useState("");
+  const [previewing, setPreviewing] = useState(false)
+  const [preview, setPreview] = useState<RequirementPreviewResult | null>(null)
+  const [saveError, setSaveError] = useState("")
   // Preview rejected by the backend (e.g. multiple active requirement lines) —
   // shown inside the review modal alongside the products instead of a dead-end.
-  const [previewBlocked, setPreviewBlocked] = useState<string | null>(null);
+  const [previewBlocked, setPreviewBlocked] = useState<string | null>(null)
 
   useEffect(() => {
     const handler = setTimeout(async () => {
       if (search.length < 2) {
-        setSuggestions([]);
-        return;
+        setSuggestions([])
+        return
       }
-      setIsSearching(true);
+      setIsSearching(true)
       try {
-        const result = await listProducts({ search, limit: 10, isActive: true });
-        setSuggestions(result.data);
+        const result = await listProducts({ search, limit: 10, isActive: true })
+        setSuggestions(result.data)
       } catch (err) {
-        console.error("Failed to fetch products:", err);
+        console.error("Failed to fetch products:", err)
       } finally {
-        setIsSearching(false);
+        setIsSearching(false)
       }
-    }, 300);
+    }, 300)
 
-    return () => clearTimeout(handler);
-  }, [search]);
+    return () => clearTimeout(handler)
+  }, [search])
 
   function handleSearchChange(v: string) {
-    setSearch(v);
+    setSearch(v)
   }
 
   function addProduct(product: ProductDto) {
     if (products.some((p) => p.productId === product.id)) {
-      return; // Already added
+      return // Already added
     }
     setProducts((prev) => [
       ...prev,
@@ -283,11 +187,11 @@ export default function CreateRequirementPage() {
         reasonCode: addReason,
         notes: "",
       },
-    ]);
-    setSearch("");
-    setSuggestions([]);
-    setAddQty(50);
-    setAddReason("LOW_STOCK");
+    ])
+    setSearch("")
+    setSuggestions([])
+    setAddQty(50)
+    setAddReason("LOW_STOCK")
   }
 
   /** Product created in the shared Add Product modal — add it straight into the
@@ -306,31 +210,37 @@ export default function CreateRequirementPage() {
           reasonCode: addReason,
           notes: "",
         },
-      ]);
+      ])
     }
-    setAddProductOpen(false);
+    setAddProductOpen(false)
   }
 
   function removeProduct(id: string) {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setProducts((prev) => prev.filter((p) => p.id !== id))
   }
 
   function updateProduct(id: string, field: keyof ProductRow, value: any) {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
+    )
   }
 
   function patchProduct(id: string, patch: Partial<ProductRow>) {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    )
   }
 
-  const totalQty = products.reduce((s, p) => s + p.quantityNeeded, 0);
+  const totalQty = products.reduce((s, p) => s + p.quantityNeeded, 0)
 
   /** Build the POST body from the live form values (shared by preview + save). */
   function buildBody(): CreateRequirementInput {
     // requiredBy and notes are optional on the backend contract; reasonCode,
     // notes and unitId are omitted (not sent as null) unless set, per line.
     return {
-      ...(requiredBy ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() } : {}),
+      ...(requiredBy
+        ? { requiredBy: new Date(`${requiredBy}T00:00:00Z`).toISOString() }
+        : {}),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
       lines: products.map((p) => ({
         productId: p.productId,
@@ -339,104 +249,110 @@ export default function CreateRequirementPage() {
         ...(p.reasonCode ? { reasonCode: p.reasonCode } : {}),
         ...(p.notes?.trim() ? { notes: p.notes.trim() } : {}),
       })),
-    };
+    }
   }
 
   /** Inline validation — runs before preview (and again implicitly on save). */
   function validateForm(): string | null {
     if (products.length === 0) {
-      return "Please add at least one product.";
+      return "Please add at least one product."
     }
     const duplicate = products.some(
       (p, i) => products.findIndex((x) => x.productId === p.productId) !== i,
-    );
+    )
     if (duplicate) {
-      return "Duplicate products are not allowed — each product can appear once.";
+      return "Duplicate products are not allowed — each product can appear once."
     }
     for (const p of products) {
       if (!p.productId) {
-        return "Select a product for every row.";
+        return "Select a product for every row."
       }
-      const qty = Number(p.quantityNeeded);
+      const qty = Number(p.quantityNeeded)
       if (!p.quantityNeeded || !Number.isFinite(qty) || qty <= 0) {
-        return `Enter a valid quantity greater than zero for ${p.productName || "the selected product"}.`;
+        return `Enter a valid quantity greater than zero for ${p.productName || "the selected product"}.`
       }
     }
-    return null;
+    return null
   }
 
   /** Step 1 — POST /requirements/preview. Nothing is saved at this point. */
   async function handleReview() {
-    const problem = validateForm();
+    const problem = validateForm()
     if (problem) {
-      setError(problem);
-      return;
+      setError(problem)
+      return
     }
-    setError("");
-    setPreview(null);
-    setPreviewBlocked(null);
-    setSaveError("");
-    setPreviewing(true);
+    setError("")
+    setPreview(null)
+    setPreviewBlocked(null)
+    setSaveError("")
+    setPreviewing(true)
     try {
-      const result = await previewRequirement(buildBody());
-      setPreview(result);
+      const result = await previewRequirement(buildBody())
+      setPreview(result)
     } catch (err) {
       if (err instanceof RequirementsApiError) {
         if (err.status === 403) {
-          setError("You do not have permission to create purchase requirements.");
+          setError(
+            "You do not have permission to create purchase requirements.",
+          )
         } else if (/multiple active requirement/i.test(err.message)) {
           // The backend found overlapping open requirements and refuses to
           // preview them. Show the added products next to a clear warning so
           // the admin can adjust the list — never a dead-end error.
-          setPreviewBlocked(err.message);
+          setPreviewBlocked(err.message)
         } else {
           // Prefer the backend message (session, validation, conflict, etc.).
-          setError(err.message);
+          setError(err.message)
         }
       } else {
-        setError("Unable to preview this purchase requirement. Please try again.");
+        setError(
+          "Unable to preview this purchase requirement. Please try again.",
+        )
       }
     } finally {
-      setPreviewing(false);
+      setPreviewing(false)
     }
   }
 
   /** Step 2 — admin confirmed: POST /requirements, then go back to the list. */
   async function handleConfirm() {
-    if (saving) return;
-    setSaveError("");
-    setSaving(true);
+    if (saving) return
+    setSaveError("")
+    setSaving(true)
     try {
-      await createRequirement(buildBody());
-      setPreview(null);
-      setPreviewBlocked(null);
-      navigate("/purchasing");
+      await createRequirement(buildBody())
+      setPreview(null)
+      setPreviewBlocked(null)
+      navigate("/purchasing")
     } catch (err) {
       if (err instanceof RequirementsApiError) {
-        setSaveError(err.message);
+        setSaveError(err.message)
       } else {
-        setSaveError("Unable to save the purchase requirement. No changes were confirmed.");
+        setSaveError(
+          "Unable to save the purchase requirement. No changes were confirmed.",
+        )
       }
-      setSaving(false);
+      setSaving(false)
     }
   }
 
   /** Close the review modal, keeping all entered form data (no save request). */
   function closeReview() {
-    if (saving) return;
-    setPreview(null);
-    setPreviewBlocked(null);
+    if (saving) return
+    setPreview(null)
+    setPreviewBlocked(null)
   }
 
   /** Match a preview action to a form row by productId + unitId (per the
    * backend contract); falls back to productId alone for rows left on the
    * base unit, which the backend resolves itself. */
   function actionForRow(p: ProductRow): RequirementActionDto | undefined {
-    if (!preview) return undefined;
+    if (!preview) return undefined
     const byPair = preview.actions.find(
       (a) => a.productId === p.productId && !!a.unitId && a.unitId === p.unitId,
-    );
-    return byPair ?? preview.actions.find((a) => a.productId === p.productId);
+    )
+    return byPair ?? preview.actions.find((a) => a.productId === p.productId)
   }
 
   return (
@@ -445,7 +361,7 @@ export default function CreateRequirementPage() {
         title="Create Purchase Requirement"
         subtitle="Purchasing → Requirements → New"
       />
-      
+
       <div className="flex-1 overflow-y-auto pb-24">
         {error && (
           <div className="mx-4 sm:mx-6 mt-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
@@ -456,10 +372,14 @@ export default function CreateRequirementPage() {
         {/* Requirement details form */}
         <div className="px-4 sm:px-6 py-4">
           <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-            <h2 className="text-base font-bold text-[#333333] mb-4">Requirement Details</h2>
+            <h2 className="text-base font-bold text-[#333333] mb-4">
+              Requirement Details
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-[#666666] mb-1">Required By Date</label>
+                <label className="block text-sm text-[#666666] mb-1">
+                  Required By Date
+                </label>
                 <DatePicker
                   value={requiredBy}
                   onChange={setRequiredBy}
@@ -467,8 +387,16 @@ export default function CreateRequirementPage() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-sm text-[#666666] mb-1">Notes</label>
-                <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes..." className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none resize-none" />
+                <label className="block text-sm text-[#666666] mb-1">
+                  Notes
+                </label>
+                <textarea
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Optional notes..."
+                  className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none resize-none"
+                />
               </div>
             </div>
           </div>
@@ -480,26 +408,53 @@ export default function CreateRequirementPage() {
             <div className="flex items-center justify-between pb-3 border-b border-[#C6D4BF] mb-3">
               <div>
                 <p className="font-bold text-[#333333]">Products</p>
-                <p className="text-xs text-[#666666]">Add products to this requirement</p>
+                <p className="text-xs text-[#666666]">
+                  Add products to this requirement
+                </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-[#7A9076]">{products.length} products added</span>
-                <Button type="button" onClick={() => setAddProductOpen(true)}>+ Add New Product</Button>
+                <span className="text-sm font-medium text-[#7A9076]">
+                  {products.length} products added
+                </span>
+                <Button type="button" onClick={() => setAddProductOpen(true)}>
+                  + Add New Product
+                </Button>
               </div>
             </div>
 
             {/* Add product row */}
             <div className="flex flex-wrap gap-3 items-end mb-4">
               <div className="relative flex-1 min-w-[180px]">
-                <label className="block text-xs text-[#666666] mb-1">Product Search</label>
+                <label className="block text-xs text-[#666666] mb-1">
+                  Product Search
+                </label>
                 <div className="relative">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#666666]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd"/></svg>
-                  <input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Search for a product..." className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-8 pr-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+                  <svg
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#666666]"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <input
+                    value={search}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    placeholder="Search for a product..."
+                    className="w-full rounded-lg border border-[#C6D4BF] bg-white pl-8 pr-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+                  />
                 </div>
                 {suggestions.length > 0 && (
                   <div className="absolute top-full left-0 right-0 z-20 bg-white border border-[#C6D4BF] rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
                     {suggestions.map((s) => (
-                      <button key={s.id} onClick={() => addProduct(s)} className="w-full text-left px-3 py-2 text-sm text-[#333333] hover:bg-[#E6ECE2] transition-colors">
+                      <button
+                        key={s.id}
+                        onClick={() => addProduct(s)}
+                        className="w-full text-left px-3 py-2 text-sm text-[#333333] hover:bg-[#E6ECE2] transition-colors"
+                      >
                         <span className="font-medium">{s.name}</span>
                       </button>
                     ))}
@@ -507,12 +462,28 @@ export default function CreateRequirementPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs text-[#666666] mb-1">Qty Needed</label>
-                <input type="number" value={addQty} min={1} onChange={(e) => setAddQty(Number(e.target.value))} className="w-24 rounded-lg border border-[#C6D4BF] bg-white px-2 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none" />
+                <label className="block text-xs text-[#666666] mb-1">
+                  Qty Needed
+                </label>
+                <input
+                  type="number"
+                  value={addQty}
+                  min={1}
+                  onChange={(e) => setAddQty(Number(e.target.value))}
+                  className="w-24 rounded-lg border border-[#C6D4BF] bg-white px-2 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+                />
               </div>
               <div>
-                <label className="block text-xs text-[#666666] mb-1">Reason</label>
-                <select value={addReason} onChange={(e) => setAddReason(e.target.value as RequirementReasonCode)} className="w-36 rounded-lg border border-[#C6D4BF] bg-white px-2 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none">
+                <label className="block text-xs text-[#666666] mb-1">
+                  Reason
+                </label>
+                <select
+                  value={addReason}
+                  onChange={(e) =>
+                    setAddReason(e.target.value as RequirementReasonCode)
+                  }
+                  className="w-36 rounded-lg border border-[#C6D4BF] bg-white px-2 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+                >
                   <option value="LOW_STOCK">Low Stock</option>
                   <option value="REORDER_ALERT">Reorder Alert</option>
                   <option value="MANUAL">Manual</option>
@@ -526,32 +497,80 @@ export default function CreateRequirementPage() {
                 <table className="w-full text-sm min-w-[600px]">
                   <thead>
                     <tr className="bg-[#C6D4BF]">
-                      {["#", "Product", "Qty & Unit", "Reason", "Notes", ""].map((h) => (
-                        <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
+                      {[
+                        "#",
+                        "Product",
+                        "Qty & Unit",
+                        "Reason",
+                        "Notes",
+                        "",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap"
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {products.map((p, i) => (
-                      <tr key={p.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}>
+                      <tr
+                        key={p.id}
+                        className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/40"}
+                      >
                         <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
-                        <td className="px-3 py-2.5 font-medium text-[#333333]">{p.productName}</td>
-                        <td className="px-3 py-2.5">
-                          <ProductUnitRowEditor row={p} onUpdate={(patch) => patchProduct(p.id, patch)} />
+                        <td className="px-3 py-2.5 font-medium text-[#333333]">
+                          {p.productName}
                         </td>
                         <td className="px-3 py-2.5">
-                          <select value={p.reasonCode} onChange={(e) => updateProduct(p.id, "reasonCode", e.target.value)} className="rounded border border-gray-200 px-2 py-1 text-xs">
+                          <ProductUnitRowEditor
+                            row={p}
+                            onUpdate={(patch) => patchProduct(p.id, patch)}
+                          />
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <select
+                            value={p.reasonCode}
+                            onChange={(e) =>
+                              updateProduct(p.id, "reasonCode", e.target.value)
+                            }
+                            className="rounded border border-gray-200 px-2 py-1 text-xs"
+                          >
                             <option value="LOW_STOCK">Low Stock</option>
                             <option value="REORDER_ALERT">Reorder Alert</option>
                             <option value="MANUAL">Manual</option>
                           </select>
                         </td>
                         <td className="px-3 py-2.5">
-                          <input type="text" value={p.notes} onChange={(e) => updateProduct(p.id, "notes", e.target.value)} placeholder="Optional note" className="w-full rounded border border-gray-200 px-2 py-1 text-xs" />
+                          <input
+                            type="text"
+                            value={p.notes}
+                            onChange={(e) =>
+                              updateProduct(p.id, "notes", e.target.value)
+                            }
+                            placeholder="Optional note"
+                            className="w-full rounded border border-gray-200 px-2 py-1 text-xs"
+                          />
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <button onClick={() => removeProduct(p.id)} className="text-red-400 hover:text-red-600" aria-label="Remove">
-                            <svg className="h-4 w-4 inline-block" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd"/></svg>
+                          <button
+                            onClick={() => removeProduct(p.id)}
+                            className="text-red-400 hover:text-red-600"
+                            aria-label="Remove"
+                          >
+                            <svg
+                              className="h-4 w-4 inline-block"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
                           </button>
                         </td>
                       </tr>
@@ -572,8 +591,20 @@ export default function CreateRequirementPage() {
           <div className="px-4 sm:px-6 py-4">
             <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 flex items-center justify-between flex-wrap gap-4">
               <div className="flex gap-8">
-                <div><p className="text-xs text-[#666666]">Total Items</p><p className="text-sm font-bold text-[#333333]">{products.length} products</p></div>
-                <div><p className="text-xs text-[#666666]">Total Quantity Needed</p><p className="text-sm font-bold text-[#333333]">{totalQty} units</p></div>
+                <div>
+                  <p className="text-xs text-[#666666]">Total Items</p>
+                  <p className="text-sm font-bold text-[#333333]">
+                    {products.length} products
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-[#666666]">
+                    Total Quantity Needed
+                  </p>
+                  <p className="text-sm font-bold text-[#333333]">
+                    {totalQty} units
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -582,7 +613,12 @@ export default function CreateRequirementPage() {
 
       {/* Footer actions */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E6ECE2] px-4 sm:px-6 py-3 flex items-center justify-end gap-3 z-30">
-        <button onClick={() => navigate("/purchasing")} className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">Cancel</button>
+        <button
+          onClick={() => navigate("/purchasing")}
+          className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors"
+        >
+          Cancel
+        </button>
         <button
           onClick={handleReview}
           disabled={products.length === 0 || previewing || saving}
@@ -615,16 +651,23 @@ export default function CreateRequirementPage() {
           {previewBlocked && (
             <>
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
-                <p className="font-semibold text-amber-800">Unable to review these products</p>
+                <p className="font-semibold text-amber-800">
+                  Unable to review these products
+                </p>
                 <p className="mt-0.5 text-amber-700">{previewBlocked}</p>
                 <p className="mt-1 text-xs text-amber-700/80">
-                  No changes have been saved. Remove or adjust the affected product and try the
-                  review again.
+                  No changes have been saved. Remove or adjust the affected
+                  product and try the review again.
                 </p>
               </div>
               <div className="flex flex-col gap-3">
                 {products.map((p) => (
-                  <PreviewLine key={p.id} row={p} />
+                  <RequirementPreviewCard
+                    key={p.id}
+                    productLabel={p.productName}
+                    unitLabel={p.unitName}
+                    quantity={p.quantityNeeded}
+                  />
                 ))}
               </div>
             </>
@@ -634,33 +677,51 @@ export default function CreateRequirementPage() {
             <>
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6ECE2] px-3 py-1 text-xs font-semibold text-[#7A9076]">
-                  {preview.actions.filter((a) => a.action === "CREATE").length} new ·{" "}
-                  {preview.actions.filter((a) => a.action === "UPDATE").length} update
+                  {preview.actions.filter((a) => a.action === "CREATE").length}{" "}
+                  new ·{" "}
+                  {preview.actions.filter((a) => a.action === "UPDATE").length}{" "}
+                  update
                 </span>
               </div>
 
               {preview.actions.length === 0 && (
                 <div className="rounded-lg bg-[#E6ECE2]/60 p-3 text-sm text-[#666666]">
-                  The server returned no preview decisions for these lines. Each product
-                  will still be processed by the backend when you confirm.
+                  The server returned no preview decisions for these lines. Each
+                  product will still be processed by the backend when you
+                  confirm.
                 </div>
               )}
 
               <div className="flex flex-col gap-3">
-                {products.map((p) => {
-                  const action = actionForRow(p);
-                  return <PreviewLine key={p.id} row={p} action={action} />;
-                })}
+                {products.map((p) => (
+                  <RequirementPreviewCard
+                    key={p.id}
+                    productLabel={p.productName}
+                    unitLabel={p.unitName}
+                    quantity={p.quantityNeeded}
+                    action={actionForRow(p)}
+                  />
+                ))}
               </div>
             </>
           )}
 
           <div className="flex items-center justify-end gap-3 border-t border-[#E6ECE2] pt-4">
-            <Button type="button" variant="secondary" onClick={closeReview} disabled={saving}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={closeReview}
+              disabled={saving}
+            >
               Back to Edit
             </Button>
             {preview && !previewBlocked && (
-              <Button type="button" onClick={handleConfirm} loading={saving} disabled={previewing}>
+              <Button
+                type="button"
+                onClick={handleConfirm}
+                loading={saving}
+                disabled={previewing}
+              >
                 {saving ? "Saving…" : "Confirm & Save"}
               </Button>
             )}
@@ -677,5 +738,5 @@ export default function CreateRequirementPage() {
         onSaved={handleProductSaved}
       />
     </div>
-  );
+  )
 }
