@@ -52,6 +52,14 @@ export default function DatePicker({
     null,
   )
 
+  // Year range offered by the calendar's year dropdown. Defaults to ±5 years
+  // around the current year, widened when the selected date falls outside that
+  // window so the chosen date never disappears from the dropdown.
+  const thisYear = new Date().getFullYear()
+  const selYear = selected?.getFullYear()
+  const startYear = Math.min(thisYear - 5, (selYear ?? thisYear) - 1)
+  const endYear = Math.max(thisYear + 5, (selYear ?? thisYear) + 1)
+
   // Sync external value → internal
   useEffect(() => {
     setSelected(fromISO(value))
@@ -149,13 +157,18 @@ export default function DatePicker({
               onChange(d ? toISO(d) : "")
               setOpen(false)
             }}
+            captionLayout="dropdown"
+            startMonth={new Date(startYear, 0, 1)}
+            endMonth={new Date(endYear, 11, 31)}
             showOutsideDays
             classNames={{
               months: "flex flex-col",
               month: "space-y-3",
               month_caption: "flex justify-center pt-1 relative items-center",
-              caption_label: "text-sm font-bold text-[#4A4A4A]",
+              caption_label:
+                "text-sm font-bold text-[#4A4A4A] inline-flex items-center whitespace-nowrap",
               nav: "flex items-center gap-1",
+              chevron: "fill-[#7A9076]",
               button_previous:
                 "h-7 w-7 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors",
               button_next:
