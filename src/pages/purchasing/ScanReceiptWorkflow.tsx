@@ -463,6 +463,9 @@ export default function ScanReceiptWorkflow({
 
   function handleFile(file: File | undefined | null) {
     if (!file) return;
+    // Never start a second extraction while one is running (e.g. a second
+    // drop/select while OCR is still in flight).
+    if (extracting) return;
     const ext = "." + (file.name.split(".").pop() ?? "").toLowerCase();
     if (!ACCEPTED_EXTENSIONS.includes(ext)) {
       setFlowError(
@@ -1690,9 +1693,12 @@ export default function ScanReceiptWorkflow({
             it with the camera. Maximum 10 MB.
           </p>
           <div className="flex flex-wrap gap-3 mb-4">
-            <Button onClick={handleScan}>Scan Receipt</Button>
+            <Button onClick={handleScan} disabled={extracting}>
+              Scan Receipt
+            </Button>
             <Button
               variant="secondary"
+              disabled={extracting}
               onClick={() => fileInputRef.current?.click()}
             >
               Upload Receipt
@@ -1721,7 +1727,9 @@ export default function ScanReceiptWorkflow({
               handleFile(e.dataTransfer.files?.[0]);
             }}
             className={`rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-              dragOver
+              extracting
+                ? "border-[#C6D4BF] bg-[#E6ECE2]/20 opacity-60 cursor-not-allowed"
+                : dragOver
                 ? "border-[#7A9076] bg-[#E6ECE2]/60"
                 : "border-[#C6D4BF] bg-[#E6ECE2]/20"
             }`}
@@ -1751,10 +1759,27 @@ export default function ScanReceiptWorkflow({
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
+                disabled={extracting}
+                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
               >
                 Replace
               </button>
+            </div>
+          )}
+
+          {/* ── Extraction in progress ── */}
+          {extracting && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mt-4 rounded-xl border border-[#C6D4BF] bg-white px-4 py-5 flex flex-col items-center text-center gap-3"
+            >
+              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
+              <p className="text-sm font-bold text-[#333333]">Reading receipt...</p>
+              <p className="text-xs text-[#666666] max-w-md">
+                We&apos;re extracting the supplier, invoice, dates, amounts, and
+                receipt items. This may take a moment.
+              </p>
             </div>
           )}
         </div>
@@ -2470,7 +2495,7 @@ export default function ScanReceiptWorkflow({
         <Button
           onClick={handleContinue}
           loading={previewing}
-          disabled={!!previewing}
+          disabled={!!previewing || extracting}
         >
           Review &amp; Preview →
         </Button>

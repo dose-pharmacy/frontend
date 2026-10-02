@@ -10,7 +10,6 @@ import { useSearchableResource } from "../../hooks/useSearchableResource";
 import { searchSuppliers } from "../../features/inventory/searchSelectors";
 import { IconWarningTriangle, IconTrash } from "../../components/ui/icons";
 import DatePicker from "../../components/ui/DatePicker";
-import ScanReceiptWorkflow from "./ScanReceiptWorkflow";
 import { Toast } from "./PurchaseOrdersPage";
 
 interface GRItemRow {
@@ -41,7 +40,9 @@ export default function DeliveryRegistrationPage() {
   // lands here with the PO (and supplier) already selected.
   const prefillPOId = searchParams.get("purchaseOrderId") || "";
   const prefillSupplierId = searchParams.get("supplierId") || "";
-  const [mode, setMode] = useState<"manual" | "scan" | null>(null);
+  // "scan" is no longer a mode here — Scan / Upload Receipt is its own page
+  // (/purchasing/deliveries/new/scan).
+  const [mode, setMode] = useState<"manual" | null>(null);
   const [orders, setOrders] = useState<PurchaseOrderDto[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState("");
@@ -321,7 +322,7 @@ export default function DeliveryRegistrationPage() {
                 Continue Manually
               </button>
             </div>
-            <div className={`rounded-xl border p-5 flex flex-col gap-3 transition-colors ${mode === "scan" ? "border-[#7A9076] bg-[#E6ECE2]/40" : "border-[#E6ECE2] bg-white"}`}>
+            <div className={`rounded-xl border p-5 flex flex-col gap-3 transition-colors border-[#E6ECE2] bg-white`}>
               <div>
                 <p className="font-bold text-[#333333]">Scan / Upload Receipt</p>
                 <p className="text-sm text-[#666666] mt-1">
@@ -329,7 +330,7 @@ export default function DeliveryRegistrationPage() {
                 </p>
               </div>
               <button
-                onClick={() => setMode("scan")}
+                onClick={() => navigate("/purchasing/deliveries/new/scan")}
                 className="mt-auto rounded-lg bg-[#C6D4BF] border border-[#C6D4BF] px-4 py-2 text-sm font-semibold text-[#333333] hover:bg-[#B5C6AE] transition-colors"
               >
                 Scan / Upload Receipt
@@ -594,10 +595,6 @@ export default function DeliveryRegistrationPage() {
         </button>
       </div>
         </>
-      )}
-
-      {mode === "scan" && (
-        <ScanReceiptWorkflow onBackToMethods={() => setMode(null)} />
       )}
 
       {toast && <Toast message={toast} onDone={() => setToast("")} />}

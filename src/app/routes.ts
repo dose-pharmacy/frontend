@@ -36,6 +36,7 @@ import PurchaseReturnDetailPage from "../pages/purchasing/PurchaseReturnDetailPa
 import PurchaseOrdersPage from "../pages/purchasing/PurchaseOrdersPage";
 import CreatePurchaseOrderPage from "../pages/purchasing/CreatePurchaseOrderPage";
 import DeliveryRegistrationPage from "../pages/purchasing/DeliveryRegistrationPage";
+import ScanReceiptPage from "../pages/purchasing/ScanReceiptPage";
 import FinancePage from "../pages/finance/FinancePage";
 import SlowMovingPage from "../pages/reports/SlowMovingPage";
 import NarcoticsPage from "../pages/narcotics/NarcoticsPage";
@@ -105,6 +106,7 @@ export const router = createBrowserRouter([
 
           { path: "/purchasing/deliveries", Component: GoodsReceiptsPage },
           { path: "/purchasing/deliveries/new", Component: DeliveryRegistrationPage },
+          { path: "/purchasing/deliveries/new/scan", Component: ScanReceiptPage },
           { path: "/purchasing/deliveries/:id/reconcile", Component: ReconciliationPage },
 
           { path: "/purchasing/invoices", Component: SupplierInvoicesPage },
