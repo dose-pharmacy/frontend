@@ -172,6 +172,44 @@ export async function getSupplierInvoice(id: string): Promise<SupplierInvoiceDto
   return result.data
 }
 
+/** Page size used when walking the full unpaid-invoice set. */
+const OUTSTANDING_PAGE_SIZE = 100
+
+/**
+ * Total outstanding supplier payable balance, in the invoice currency (ETB).
+ *
+ * The backend exposes no payables aggregate endpoint. `outstandingBalance` is
+ * the documented payables column ("totalAmount minus payments minus returns
+ * applied to this invoice... Finance reads payables from this column"), so the
+ * total is summed from the real invoice rows across every page of the two
+ * unpaid statuses. Nothing is estimated or inferred.
+ *
+ * The two statuses are walked concurrently, and pages within a status stay
+ * sequential because each response reports `totalPages`.
+ */
+export async function sumOutstandingPayables(): Promise<number> {
+  const unpaidStatuses: SupplierInvoiceStatus[] = ["OPEN", "PARTIALLY_PAID"]
+
+  const perStatus = await Promise.all(
+    unpaidStatuses.map(async (status) => {
+      let total = 0
+      let page = 1
+      let totalPages = 1
+
+      do {
+        const result = await listSupplierInvoices({ status, page, limit: OUTSTANDING_PAGE_SIZE })
+        for (const invoice of result.data) total += invoiceOutstanding(invoice)
+        totalPages = result.meta?.totalPages ?? 1
+        page += 1
+      } while (page <= totalPages)
+
+      return total
+    }),
+  )
+
+  return perStatus.reduce((sum, n) => sum + n, 0)
+}
+
 /**
  * Body for POST /supplier-invoices.
  * PO-linked invoices (purchaseOrderId present) MUST allocate their goods via

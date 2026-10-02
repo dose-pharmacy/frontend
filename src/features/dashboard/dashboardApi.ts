@@ -8,6 +8,10 @@
 // The frontend renders the returned values as-is — it never derives stock
 // value, low stock, expiring soon, outstanding invoices, sales totals, etc.
 //
+// NOTE on `totalStock`: the backend contract declares it as a plain `number`
+// and never states whether it is a monetary value or a quantity. It is
+// therefore rendered with a neutral label and NEVER formatted as currency.
+//
 // All requests require the authenticated ADMIN session cookie
 // (HTTP-only — sent automatically with `credentials: "include"`).
 
@@ -15,36 +19,18 @@ import { API_BASE_URL } from "../auth/authApi";
 
 // ─── Types (mirror the backend response shapes) ──────────────────────────────
 
-export interface DashboardSales {
-  today: number;
-  transactions: number;
-  averageTransaction: number;
-}
-
-export interface DashboardInventory {
-  stockValue: number;
-  lowStockCount: number;
-  outOfStockCount: number;
-  expiringSoonCount: number;
-  expiredCount: number;
-}
-
-export interface DashboardPurchasing {
-  openRequirements: number;
-  awaitingDelivery: number;
-  partiallyReceived: number;
-  outstandingInvoices: number;
-}
-
-export interface DashboardSlowMoving {
-  flaggedCount: number;
-}
-
+/** `data` of GET /dashboard/summary — flat operational counts. */
 export interface DashboardSummary {
-  sales: DashboardSales;
-  inventory: DashboardInventory;
-  purchasing: DashboardPurchasing;
-  slowMoving: DashboardSlowMoving;
+  totalProducts: number;
+  /** Quantity/amount — the API does not specify. Never label as money. */
+  totalStock: number;
+  lowStock: number;
+  outOfStock: number;
+  nearExpiry: number;
+  expiredBatches: number;
+  criticalExpiry: number;
+  expiringWithin6Months: number;
+  expiringWithin1Year: number;
 }
 
 export interface LowStockAttentionItem {
@@ -53,6 +39,7 @@ export interface LowStockAttentionItem {
   sku: string;
   availableStock: number;
   reorderPoint: number;
+  baseUnitName: string;
 }
 
 export interface ExpiringSoonAttentionItem {
@@ -62,12 +49,14 @@ export interface ExpiringSoonAttentionItem {
   batchNumber: string;
   expiryDate: string;
   remainingQuantity: number;
+  baseUnitName: string;
 }
 
 export interface AwaitingDeliveryAttentionItem {
   purchaseOrderId: string;
   poNumber: string;
   supplierName: string;
+  /** Documented as nullable — the PO may have no expected delivery date. */
   expectedDeliveryDate: string | null;
 }
 
@@ -75,10 +64,13 @@ export interface OutstandingInvoiceAttentionItem {
   invoiceId: string;
   invoiceNumber: string;
   supplierName: string;
+  /** Explicitly a monetary balance (rendered as currency). */
   outstandingBalance: number;
+  /** Documented as nullable — the invoice may have no due date. */
   dueDate: string | null;
 }
 
+/** `data` of GET /dashboard/attention — small actionable lists (≤ 5 each). */
 export interface DashboardAttention {
   lowStock: LowStockAttentionItem[];
   expiringSoon: ExpiringSoonAttentionItem[];
@@ -86,6 +78,10 @@ export interface DashboardAttention {
   outstandingInvoices: OutstandingInvoiceAttentionItem[];
 }
 
+/**
+ * Documented values. Kept open so an unrecognised future type still renders
+ * instead of crashing the dashboard.
+ */
 export type RecentActivityType =
   | "SALE_COMPLETED"
   | "GOODS_RECEIVED"
@@ -183,22 +179,37 @@ async function dashboardRequest<T>(path: string, init: RequestInit = {}): Promis
   }
 }
 
+/**
+ * The backend marks no dashboard field as `required`, so a well-formed 200 can
+ * still omit one. Normalising to `[]` keeps the UI renderable; individual
+ * scalars are deliberately left untouched so `fmtNumber` can render "—"
+ * (an honest "not reported") instead of a fabricated `0`.
+ */
+function attentionOr(result: { data?: Partial<DashboardAttention> } | null): DashboardAttention {
+  return {
+    lowStock: result?.data?.lowStock ?? [],
+    expiringSoon: result?.data?.expiringSoon ?? [],
+    awaitingDelivery: result?.data?.awaitingDelivery ?? [],
+    outstandingInvoices: result?.data?.outstandingInvoices ?? [],
+  };
+}
+
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-/** GET /dashboard/summary — today's activity + current operational counts. */
+/** GET /dashboard/summary — compact operational KPI counts. */
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   const result = await dashboardRequest<{ success: boolean; data: DashboardSummary }>("/summary");
   if (!result?.data) throw new DashboardApiError("Unexpected response from the server.");
   return result.data;
 }
 
-/** GET /dashboard/attention — actionable lists (max 5 per category). */
+/** GET /dashboard/attention — actionable lists (≤5 per category). */
 export async function getDashboardAttention(): Promise<DashboardAttention> {
   const result = await dashboardRequest<{ success: boolean; data: DashboardAttention }>(
     "/attention",
   );
   if (!result?.data) throw new DashboardApiError("Unexpected response from the server.");
-  return result.data;
+  return attentionOr(result);
 }
 
 /** GET /dashboard/recent-activity — latest merged activity events (max 10). */
@@ -207,5 +218,5 @@ export async function getDashboardRecentActivity(): Promise<RecentActivityItem[]
     "/recent-activity",
   );
   if (!result?.data) throw new DashboardApiError("Unexpected response from the server.");
-  return result.data;
+  return Array.isArray(result.data) ? result.data : [];
 }

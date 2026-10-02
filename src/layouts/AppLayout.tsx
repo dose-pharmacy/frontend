@@ -47,6 +47,13 @@ function IconTruck() {
     </svg>
   )
 }
+function IconReport() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path d="M3 3.5A1.5 1.5 0 014.5 2h11A1.5 1.5 0 0117 3.5v13a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 16.5v-13zm3 3a1 1 0 000 2h8a1 1 0 100-2H6zm0 3.5a1 1 0 000 2h8a1 1 0 100-2H6zm0 3.5a1 1 0 000 2h5a1 1 0 100-2H6z" />
+    </svg>
+  )
+}
 function IconCog() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -145,6 +152,15 @@ const NAV: NavItem[] = [
       { to: "/purchasing/invoices", label: "Supplier Invoices" },
       { to: "/purchasing/payables", label: "Supplier Payables" },
       { to: "/purchasing/returns", label: "Returns" },
+    ],
+  },
+  {
+    to: "/reports/narcotics",
+    label: "Reports",
+    icon: <IconReport />,
+    dividerBefore: true,
+    children: [
+      { to: "/reports/narcotics", label: "Narcotics" },
     ],
   },
   {
