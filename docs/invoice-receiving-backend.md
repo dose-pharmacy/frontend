@@ -2,7 +2,7 @@
 
 The frontend (`figma-make-app`, `src/features/purchasing/`) is contract-ready for
 this spec. This document is the implementation target for the API repo
-(`backend-p89g.onrender.com`). Numbers in parentheses reference frozen business
+(`dose-backend-ky5q.onrender.com`). Numbers in parentheses reference frozen business
 rules from the task; the frontend already implements the UI side.
 
 > **Where the receiving endpoints live today**

@@ -17,7 +17,7 @@
 
 export const API_BASE_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "") ||
-  "https://backend-p89g.onrender.com";
+  "https://dose-backend-ky5q.onrender.com";
 
 export interface AuthUser {
   id: string;

@@ -85,6 +85,43 @@ export interface LocationStockSummaryDto {
   quantity: number;
 }
 
+/**
+ * Pricing / target-margin warning, exactly as published by the backend.
+ *
+ * This is a WARNING layer only — the backend never reprices a product. Every
+ * value here is computed server-side:
+ *
+ *  - `sellingPrice` ....... base ProductUnit.sellPrice, per base unit
+ *  - `targetMargin` ....... ProductGroup.defaultProfitMargin, ALREADY a
+ *                           percentage (10 means 10%). Do NOT divide by 100.
+ *  - `costBasis` .......... highest received purchase cost, in base units
+ *  - `targetSellingPrice`  price needed to hit `targetMargin`
+ *
+ * The four money fields are nullable in the contract: null means "not
+ * computable", which is a real state (an unpriced product, a group with no
+ * usable margin, or no received purchase cost yet). Never substitute 0 for a
+ * null — render it as missing.
+ */
+export type PricingStatus =
+  | "OK"
+  | "BELOW_TARGET"
+  | "BELOW_COST"
+  | "NO_MARGIN_CONFIG"
+  | "NO_PURCHASE_COST";
+
+export interface ProductPricing {
+  /** Base-unit selling price. Null = unpriced. */
+  sellingPrice: number | null;
+  /** Target profit margin as a percentage (10 = 10%). Null = not configured. */
+  targetMargin: number | null;
+  /** Highest received purchase cost in base units. Null = nothing received yet. */
+  costBasis: number | null;
+  /** Selling price required to hit the target margin. Null = not computable. */
+  targetSellingPrice: number | null;
+  /** Backend classification. Never derive this on the client. */
+  pricingStatus: PricingStatus;
+}
+
 /** Response of GET /inventory/products/{id}. */
 export interface ProductDetailDto {
   id: string;
@@ -109,6 +146,12 @@ export interface ProductDetailDto {
     baseUnit: UnitRefDto | null;
     byLocation: LocationStockSummaryDto[];
   };
+  /**
+   * Published on the product-detail response. Optional here so a response
+   * without it renders as "no pricing data" instead of crashing — the detail
+   * page guards on it rather than assuming.
+   */
+  pricing?: ProductPricing | null;
   batchCount: number;
   transactionCount: number;
   locationCount: number;

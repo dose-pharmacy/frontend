@@ -20,10 +20,10 @@ import SearchableSelect from "../../components/ui/SearchableSelect";
 import type { SearchableOption } from "../../components/ui/SearchableSelect";
 import { searchLocations } from "../../features/inventory/searchSelectors";
 import { listProductGroups } from "../../features/inventory/productGroupsApi";
-import { fmtMoney, fmtNumber, fmtPercent, fmtDate, fmtDateTime } from "../../utils/format";
+import { fmtMoney, fmtNumber, fmtPercent, fmtDate, fmtDateTime, rangeLabel } from "../../utils/format";
 import type { SortOrder } from "../../features/reports/reportsApi";
 
-export { fmtMoney, fmtNumber, fmtPercent, fmtDate, fmtDateTime };
+export { fmtMoney, fmtNumber, fmtPercent, fmtDate, fmtDateTime, rangeLabel };
 
 // ── Date bounds ──────────────────────────────────────────────────────────────
 // The financial reports document `dateFrom` as an INCLUSIVE UTC start-of-day and
@@ -528,11 +528,5 @@ export function useFinanceFetch<T>(
 }
 
 /** "Showing 21–40 of 312" — driven by the limit the backend actually applied. */
-export function rangeLabel(page: number, limit: number, total: number, noun: string): string {
-  if (total === 0 || limit === 0) return "No records";
-  const from = (page - 1) * limit + 1;
-  const to = Math.min(page * limit, total);
-  return `Showing ${from.toLocaleString("en-ET")}–${to.toLocaleString("en-ET")} of ${total.toLocaleString(
-    "en-ET",
-  )} ${noun}`;
-}
+// Moved to utils/format so non-finance pages (e.g. inventory products) can share
+// the exact same server-pagination range wording instead of re-deriving it.

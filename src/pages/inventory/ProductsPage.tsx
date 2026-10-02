@@ -7,6 +7,7 @@ import {
   type ListMeta,
 } from "../../features/inventory/productsApi"
 import { searchProductGroups } from "../../features/inventory/searchSelectors"
+import { rangeLabel } from "../../utils/format"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import SearchInput from "../../components/ui/SearchInput"
 import SearchableSelect from "../../components/ui/SearchableSelect"
@@ -101,7 +102,22 @@ export default function ProductsPage() {
   }, [reload, search, statusFilter, groupFilter, page])
 
   const filtered = products
+
+  // `totalPages` comes straight from the server's `meta` — never derived from the
+  // rows on screen, which only ever describe this one page. `meta.limit` is used
+  // rather than PAGE_SIZE because the server clamps `limit` to MAX_PAGE_SIZE,
+  // so the applied size is whatever `meta` reports back.
   const totalPages = meta?.totalPages ?? 1
+  const effectiveLimit = meta?.limit && meta.limit > 0 ? meta.limit : PAGE_SIZE
+  const effectivePage = meta?.page ?? page
+
+  // If the dataset shrinks while a later page is open (a product deleted, a
+  // filter narrowed elsewhere), the server can report fewer pages than the one
+  // we asked for. Step back to the last real page instead of rendering an empty
+  // table next to "Page 7 of 2".
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   function handleSearch(v: string) {
     setSearch(v)
@@ -298,17 +314,10 @@ export default function ProductsPage() {
               </div>
 
               <Pagination
-                page={page}
+                page={effectivePage}
                 totalPages={totalPages}
                 onPageChange={setPage}
-                label={
-                  <>
-                    Showing{" "}
-                    {filtered.length > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}–
-                    {Math.min(page * PAGE_SIZE, meta?.total ?? 0)} of{" "}
-                    {meta?.total ?? 0} products
-                  </>
-                }
+                label={rangeLabel(effectivePage, effectiveLimit, meta?.total ?? 0, "products")}
               />
             </>
           )}

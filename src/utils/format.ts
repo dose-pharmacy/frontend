@@ -18,6 +18,27 @@ export function fmtPercent(n: number | null | undefined): string {
   return `${n.toFixed(1)}%`;
 }
 
+/**
+ * "Showing 21-40 of 147 products" for a server-paginated list.
+ *
+ * Deliberately built from `page` / `limit` / `total` — never from the length of
+ * the rows currently on screen, which only describes one page. `to` is capped at
+ * `total` so a short final page reads "141-147", not "141-160".
+ */
+export function rangeLabel(
+  page: number,
+  limit: number,
+  total: number,
+  noun: string,
+): string {
+  if (total === 0 || limit === 0) return "No records";
+  const from = (page - 1) * limit + 1;
+  const to = Math.min(page * limit, total);
+  return `Showing ${from.toLocaleString("en-ET")}–${to.toLocaleString(
+    "en-ET",
+  )} of ${total.toLocaleString("en-ET")} ${noun}`;
+}
+
 export function fmtDate(d: string | null | undefined): string {
   if (!d) return "Date not set";
   const date = new Date(d);

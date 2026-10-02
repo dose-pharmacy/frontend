@@ -134,7 +134,7 @@ async function buildBatchLocationMap(): Promise<Map<string, string>> {
   try {
     const first = await getStock({ page: 1, limit: 100 });
     const rows = [...first.data];
-    const totalPages = Math.min(first.pagination?.totalPages ?? 1, 10);
+    const totalPages = Math.min(first.meta?.totalPages ?? 1, 10);
     for (let page = 2; page <= totalPages; page++) {
       const next = await getStock({ page, limit: 100 });
       rows.push(...next.data);

@@ -1,6 +1,6 @@
 // ── Purchase Returns API client ──────────────────────────────────────────────
 // Real backend contract (verified against the live OpenAPI at
-// https://backend-p89g.onrender.com/api-docs):
+// https://dose-backend-ky5q.onrender.com/api-docs):
 //
 //   GET    /purchasing/purchase-returns                                (list)
 //   GET    /purchasing/purchase-returns/{id}                           (detail)

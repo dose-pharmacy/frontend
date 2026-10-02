@@ -9,6 +9,8 @@ import {
 } from "../../features/inventory/productsApi";
 import { listUnits, type UnitDto } from "../../features/inventory/unitsApi";
 import StatusBadge from "../../components/ui/StatusBadge";
+import PricingStatusBadge from "../../components/ui/PricingStatusBadge";
+import { fmtMoney, fmtPercent } from "../../utils/format";
 import Button from "../../components/ui/Button";
 import Select from "../../components/ui/Select";
 import Modal from "../../components/ui/Modal";
@@ -613,6 +615,69 @@ export default function ProductDetailPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Pricing — every value below comes straight from `product.pricing`,
+              computed by the backend. Nothing here is derived in React:
+              `targetMargin` is already a percentage (10 = 10%) and
+              `targetSellingPrice` is returned as-is. Nulls are rendered as "—"
+              by fmtMoney/fmtPercent, which is the same convention used across
+              the finance module — a null means "not computable", never 0. */}
+          {product.pricing && (
+            <section>
+              <h3 className="text-base font-bold text-[#333333] mb-3">
+                Pricing
+              </h3>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+                  <p className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide">
+                    Selling Price
+                  </p>
+                  <p className="text-2xl font-bold text-[#333333] mt-1">
+                    {fmtMoney(product.pricing.sellingPrice)}
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+                  <p className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide">
+                    Target Margin
+                  </p>
+                  <p className="text-2xl font-bold text-[#333333] mt-1">
+                    {fmtPercent(product.pricing.targetMargin)}
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
+                  <p className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide">
+                    Target Selling Price
+                  </p>
+                  <p className="text-2xl font-bold text-[#333333] mt-1">
+                    {fmtMoney(product.pricing.targetSellingPrice)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Cost basis is the input behind the target, so it is shown for
+                  context rather than as a price the cashier can sell at. */}
+              <div className="bg-white rounded-xl border border-[#E6ECE2] p-4 mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide">
+                    Cost Basis
+                  </p>
+                  <p className="text-lg font-semibold text-[#333333] mt-0.5">
+                    {fmtMoney(product.pricing.costBasis)}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#7A9076] uppercase tracking-wide">
+                    Pricing Status
+                  </span>
+                  <PricingStatusBadge status={product.pricing.pricingStatus} />
                 </div>
               </div>
             </section>

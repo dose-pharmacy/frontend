@@ -1,6 +1,6 @@
 # POS Partial Payment (Credit) — Backend Implementation Spec
 
-**Target:** the API repo behind `backend-p89g.onrender.com`.
+**Target:** the API repo behind `dose-backend-ky5q.onrender.com`.
 **Client:** `figma-make-app` (`src/features/sales/salesApi.ts`, `src/pages/pos/`),
 already implemented and building clean.
 

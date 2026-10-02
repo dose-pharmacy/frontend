@@ -40,7 +40,13 @@ export interface PaginationMeta {
 
 export interface StockListResult {
   data: StockRowDto[];
-  pagination: PaginationMeta;
+  /**
+   * The backend publishes pagination under `meta` (see StockListResponse in the
+   * OpenAPI doc) — there is no `pagination` key on the wire. Reading
+   * `result.pagination` silently yielded `undefined`, which fell back to
+   * totalPages=1 / total=0 and pinned this list to a single page.
+   */
+  meta: PaginationMeta;
 }
 
 export interface LocationStockGroupDto {
@@ -51,7 +57,8 @@ export interface LocationStockGroupDto {
 
 export interface LocationStockResult {
   data: LocationStockGroupDto[];
-  pagination: PaginationMeta;
+  /** Top-level `meta`, matching GET /inventory/location-stock. */
+  meta: PaginationMeta;
 }
 
 export interface ProductStockRowDto {
@@ -310,7 +317,7 @@ export async function getStock(query: {
   return (
     result ?? {
       data: [],
-      pagination: { page: query.page ?? 1, limit: query.limit ?? 10, total: 0, totalPages: 1 },
+      meta: { page: query.page ?? 1, limit: query.limit ?? 10, total: 0, totalPages: 0 },
     }
   );
 }
@@ -328,7 +335,7 @@ export async function getLocationStock(
   return (
     result ?? {
       data: [],
-      pagination: { page: query.page ?? 1, limit: query.limit ?? 10, total: 0, totalPages: 1 },
+      meta: { page: query.page ?? 1, limit: query.limit ?? 10, total: 0, totalPages: 0 },
     }
   );
 }

@@ -31,7 +31,7 @@ async function walkLocationStock(): Promise<GroupRow[]> {
   const all: GroupRow[] = [];
   const first = await getLocationStock({ page: 1, limit: 100 });
   all.push(...first.data.map(adapt));
-  const totalPages = Math.min(first.pagination?.totalPages ?? 1, 20);
+  const totalPages = Math.min(first.meta?.totalPages ?? 1, 20);
   for (let page = 2; page <= totalPages; page++) {
     const next = await getLocationStock({ page, limit: 100 });
     all.push(...next.data.map(adapt));

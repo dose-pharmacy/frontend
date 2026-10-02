@@ -32,7 +32,8 @@ import Modal from "../../components/ui/Modal"
 import Input from "../../components/ui/Input"
 import FormError from "../../components/ui/FormError"
 import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory"
-import Pagination from "../../components/ui/Pagination"
+import PageStepper from "../../components/ui/PageStepper"
+import { rangeLabel } from "../../utils/format"
 import StatusBadge from "../../components/ui/StatusBadge"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
 import BatchFormModal from "../../components/ui/BatchFormModal"
@@ -41,6 +42,8 @@ type Tab = "batches" | "expiring" | "expired"
 type ExpiryAction = "return" | "clearance" | "dispose"
 
 const PAGE_SIZE = 10
+// Rows per page in the "Expiring Soon" table.
+const EXPIRY_PAGE_SIZE = 10
 const EXPIRY_LIMIT = 100
 // Thresholds for GET /inventory/expiry/dashboard — feed the two expiry
 // summary cards ("Expiring Within 6 Months" / "Expiring Within 1 Year").
@@ -51,7 +54,6 @@ export default function BatchesExpiryPage() {
   const [tab, setTab] = useState<Tab>("batches")
   const [products, setProducts] = useState<ProductOption[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
-  const [expiringBatches, setExpiringBatches] = useState<ExpiryBatchDto[]>([])
   const [expiredProducts, setExpiredProducts] = useState<ExpiredProductDto[]>([])
   const [expiredTotal, setExpiredTotal] = useState(0)
   const [expiredTotalPages, setExpiredTotalPages] = useState(1)
@@ -70,6 +72,11 @@ export default function BatchesExpiryPage() {
   const [locationFilter, setLocationFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [batchPage, setBatchPage] = useState(1)
+
+  // Expiring Soon tab page. This tab is fed by GET /inventory/expiry/dashboard,
+  // which has no page/limit params and returns every batch inside each window,
+  // so the rows are paged here rather than by the server. See expiryTableRows.
+  const [expiringPage, setExpiringPage] = useState(1)
 
   // Expiry action modal
   const [actionBatch, setActionBatch] = useState<ExpiryBatchDto | null>(null)
@@ -127,17 +134,15 @@ export default function BatchesExpiryPage() {
       )
   }
 
-  // ── Expiring batches from GET /inventory/expiry/batches ──
-  // (Feeds the "Expiring Soon (n)" tab badge; the cards and the table below
-  // them use GET /inventory/expiry/dashboard.) 
+  // ── Reachability probe for GET /inventory/expiry/batches ──
+  // The "Expiring Soon" tab renders, counts and paginates the dashboard set
+  // (expiryTableRows). This request is kept only so a failure of the expiry
+  // endpoints surfaces early via expiryError rather than as a silently empty tab.
   useEffect(() => {
     let cancelled = false
     listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
-      .then((res) => {
+      .then(() => {
         if (cancelled) return
-        // The backend can emit one row per matching threshold window — dedupe.
-        const rows = dedupeBatchesById(res.data)
-        setExpiringBatches(rows.filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 90 && b.stock.quantity > 0))
         setExpiryError(null)
       })
       .catch((err) => {
@@ -264,13 +269,11 @@ export default function BatchesExpiryPage() {
   const batchTotalPages = Math.max(1, Math.ceil(filteredBatches.length / PAGE_SIZE))
   const batchPaginated = filteredBatches.slice((batchPage - 1) * PAGE_SIZE, batchPage * PAGE_SIZE)
 
-  // Expiry tab
-  const expiring = useMemo(
-    () =>
-      [...expiringBatches]
-        .sort((a, b) => a.daysRemaining - b.daysRemaining),
-    [expiringBatches]
-  )
+  // The "Expiring Soon" tab badge is counted from `expiryTableRows` below — the
+  // same GET /inventory/expiry/dashboard set the tab renders and paginates. It
+  // used to be counted from GET /inventory/expiry/batches over a 90-day window
+  // while the table showed 365 days, so the tab could read "(1)" above a table
+  // holding more rows.
 
   // Expiry summary cards. Counts come from the expiry dashboard's `windows`
   // array — matched by daysFrom/daysTo (never by the backend's label string,
@@ -319,6 +322,25 @@ export default function BatchesExpiryPage() {
       .filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 365 && b.stock.quantity > 0)
       .sort((a, b) => a.daysRemaining - b.daysRemaining)
   }, [expiryDashboard])
+
+  // The dashboard endpoint groups batches by window and takes no page/limit, so
+  // it hands back every row at once. Paging therefore happens over the already
+  // deduped, sorted set — the same approach the All Batches tab uses. Doing it
+  // server-side via /inventory/expiry/batches is not equivalent: that endpoint
+  // emits one row per matching threshold window, so its `total`/`totalPages`
+  // count the duplicates this table has already collapsed.
+  const expiryTotalPages = Math.max(1, Math.ceil(expiryTableRows.length / EXPIRY_PAGE_SIZE))
+  const expiryPaginated = expiryTableRows.slice(
+    (expiringPage - 1) * EXPIRY_PAGE_SIZE,
+    expiringPage * EXPIRY_PAGE_SIZE,
+  )
+
+  // A batch expiry action (return/clearance/dispose) removes rows from the set.
+  // Step back to the last real page instead of showing an empty table beside
+  // "Page 4 of 2".
+  useEffect(() => {
+    if (expiringPage > expiryTotalPages) setExpiringPage(expiryTotalPages)
+  }, [expiringPage, expiryTotalPages])
 
   function daysUntil(d: string): number {
     const today = new Date()
@@ -403,12 +425,10 @@ export default function BatchesExpiryPage() {
       }
       setActionBatch(null)
       setActionRefreshKey((k) => k + 1)
-      // Refresh the expiring sweep, the expired-products list, and the
-      // expiry-dashboard summary cards.
+      // Refresh the expiry endpoints and the dashboard the Expiring Soon tab
+      // renders from.
       listExpiryBatches({ thresholds: [30, 60, 90], limit: EXPIRY_LIMIT, page: 1 })
-        .then((res) => {
-          const rows = dedupeBatchesById(res.data)
-          setExpiringBatches(rows.filter((b) => b.daysRemaining >= 0 && b.daysRemaining <= 90 && b.stock.quantity > 0))
+        .then(() => {
           setExpiryError(null)
         })
         .catch(() => setExpiryError("Failed to refresh expiring batches."))
@@ -438,7 +458,7 @@ export default function BatchesExpiryPage() {
 
   const TAB_LABELS: { key: Tab; label: string }[] = [
     { key: "batches", label: "All Batches" },
-    { key: "expiring", label: `Expiring Soon (${expiring.length})` },
+    { key: "expiring", label: `Expiring Soon (${expiryTableRows.length})` },
     { key: "expired", label: `Expired (${expiredTotal})` },
   ]
 
@@ -575,7 +595,7 @@ export default function BatchesExpiryPage() {
                       </tbody>
                     </table>
                   </div>
-                  <Pagination page={batchPage} totalPages={batchTotalPages} onPageChange={setBatchPage} />
+                  <PageStepper page={batchPage} totalPages={batchTotalPages} onPageChange={setBatchPage} />
                 </>
               )}
             </div>
@@ -631,7 +651,7 @@ export default function BatchesExpiryPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {expiryTableRows.map((b, i) => (
+                      {expiryPaginated.map((b, i) => (
                         <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                           <td className="px-4 py-3 font-medium text-[#333333]">{b.product.name}</td>
                           <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
@@ -655,6 +675,17 @@ export default function BatchesExpiryPage() {
                     </tbody>
                   </table>
                 </div>
+                <PageStepper
+                  page={expiringPage}
+                  totalPages={expiryTotalPages}
+                  onPageChange={setExpiringPage}
+                  label={rangeLabel(
+                    expiringPage,
+                    EXPIRY_PAGE_SIZE,
+                    expiryTableRows.length,
+                    "expiring batches",
+                  )}
+                />
               </div>
             )}
           </>
@@ -751,7 +782,7 @@ export default function BatchesExpiryPage() {
                     <p className="text-xs text-[#666666]">
                       {expiredTotal} expired {expiredTotal === 1 ? "product" : "products"} · page {expiredPage} of {expiredTotalPages}
                     </p>
-                    <Pagination page={expiredPage} totalPages={expiredTotalPages} onPageChange={setExpiredPage} />
+                    <PageStepper page={expiredPage} totalPages={expiredTotalPages} onPageChange={setExpiredPage} />
                   </div>
                 </>
               )}

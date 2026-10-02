@@ -6,7 +6,9 @@ import {
   createStockAdjustment,
   StockApiError,
   type StockRowDto,
+  type PaginationMeta,
 } from "../../features/inventory/stockApi"
+import { rangeLabel } from "../../utils/format"
 import {
   listProductBatches,
   type BatchDto,
@@ -20,7 +22,7 @@ import { toBaseQuantity } from "../../features/inventory/unitOptions"
 import { formatFactor } from "../../features/inventory/unitOptions"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
-import Pagination from "../../components/ui/Pagination"
+import PageStepper from "../../components/ui/PageStepper"
 import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
@@ -135,7 +137,10 @@ export default function StockPage() {
 
   const [rows, setRows] = useState<StockRow[]>([])
   const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  // Kept as the single source for the range label, so it always reflects the
+  // page size the server actually applied rather than a local constant.
+  const [meta, setMeta] = useState<PaginationMeta | null>(null)
   const [stockLoading, setStockLoading] = useState(true)
   const [stockError, setStockError] = useState<string | null>(null)
   const requestSeq = useRef(0)
@@ -163,8 +168,9 @@ export default function StockPage() {
         })
         if (seq !== requestSeq.current) return
         setRows(res.data.map(adaptStockRow))
-        setTotalPages(res.pagination?.totalPages ?? 1)
-        setTotal(res.pagination?.total ?? 0)
+        setMeta(res.meta)
+        setTotalPages(res.meta?.totalPages ?? 0)
+        setTotal(res.meta?.total ?? 0)
       } catch (err) {
         if (seq !== requestSeq.current) return
         setStockError(describeError(err))
@@ -191,6 +197,21 @@ export default function StockPage() {
     setPage(1)
     if (productIdQuery) setParams({})
   }
+
+  // The server reports how many pages actually exist. If the dataset shrank
+  // while a later page was open (a batch consumed elsewhere, a filter narrowed),
+  // step back to the last real page instead of rendering an empty table beside
+  // "Page 7 of 2".
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  // productId arrives in the URL (Product Detail links here with
+  // /inventory/stock?productId=…), so it is a filter too and must reset paging
+  // the same way the in-page search and location selects do.
+  useEffect(() => {
+    setPage(1)
+  }, [productIdQuery])
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -376,16 +397,16 @@ export default function StockPage() {
                   </tbody>
                 </table>
               </div>
-              <Pagination
-                page={page}
+              <PageStepper
+                page={meta?.page ?? page}
                 totalPages={totalPages}
                 onPageChange={setPage}
-                label={
-                  <>
-                    Showing {total > 0 ? (page - 1) * PAGE_SIZE + 1 : 0}–
-                    {Math.min(page * PAGE_SIZE, total)} of {total} stock records
-                  </>
-                }
+                label={rangeLabel(
+                  meta?.page ?? page,
+                  meta?.limit ?? PAGE_SIZE,
+                  total,
+                  "stock records",
+                )}
               />
             </>
           )}
