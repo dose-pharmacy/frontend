@@ -155,12 +155,12 @@ const NAV: NavItem[] = [
     ],
   },
   {
-    to: "/reports/narcotics",
+    to: "/dashboard/narcotics",
     label: "Reports",
     icon: <IconReport />,
     dividerBefore: true,
     children: [
-      { to: "/reports/narcotics", label: "Narcotics" },
+      { to: "/dashboard/narcotics", label: "Narcotics" },
     ],
   },
   {

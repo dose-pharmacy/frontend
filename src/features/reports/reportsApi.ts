@@ -72,7 +72,8 @@ export interface SalesSummaryTopProductEntry {
   productId: string;
   name: string;
   sku?: string;
-  quantitySold: number;
+  /** Units sold. The backend names this field `quantity` (see SalesSummaryResponse). */
+  quantity: number;
   revenue: number;
 }
 
@@ -143,12 +144,27 @@ export interface SalesDetailProductDto {
   sku?: string;
 }
 
+/**
+ * One row of GET /financials/reports/sales/detail — a sale × product line.
+ *
+ * CONTRACT WARNING: the OpenAPI document types this endpoint as the shared
+ * `GenericListResponse`, whose item schema is an inventory/product object
+ * (`id, name, sku, batchNumber, quantity, unit, status`). That contradicts the
+ * endpoint's own description — "paginated sale lines (SaleItem) … with sale,
+ * product, unit, location and cashier context". These fields follow the
+ * description. The line's own money/quantity fields are deliberately NOT
+ * declared, because the contract does not expose them: read amounts from the
+ * parent sale until the backend publishes a dedicated schema.
+ */
 export interface SalesDetailLineDto {
   sale: SalesDetailSaleDto;
   product: SalesDetailProductDto;
   location: SalesDetailLocationDto;
   cashier: SalesDetailUserDto;
 }
+
+/** Server-side sort keys for the sale-line drill-down. */
+export type SalesDetailSortBy = "createdAt" | "lineTotal" | "baseQuantity";
 
 export interface SalesDetailQuery {
   dateFrom?: string;
@@ -159,6 +175,8 @@ export interface SalesDetailQuery {
   cashierId?: string;
   page?: number;
   limit?: number;
+  sortBy?: SalesDetailSortBy;
+  sortOrder?: SortOrder;
 }
 
 // ─── Profitability ────────────────────────────────────────────────────────────
@@ -606,6 +624,8 @@ export async function getSalesDetail(query: SalesDetailQuery = {}): Promise<Repo
       cashierId: query.cashierId,
       page: query.page,
       limit: query.limit,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
     })}`,
   );
   return (

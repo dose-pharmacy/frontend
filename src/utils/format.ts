@@ -8,6 +8,16 @@ export function fmtNumber(n: number | null | undefined): string {
   return n.toLocaleString("en-ET");
 }
 
+/**
+ * A percentage the backend already supplied. No rounding is applied to the
+ * source value beyond display formatting, and a non-finite value (the backend
+ * documents it guards against NaN/Infinity) renders as "—" rather than as 0.
+ */
+export function fmtPercent(n: number | null | undefined): string {
+  if (n == null || isNaN(n) || !Number.isFinite(n)) return "—";
+  return `${n.toFixed(1)}%`;
+}
+
 export function fmtDate(d: string | null | undefined): string {
   if (!d) return "Date not set";
   const date = new Date(d);

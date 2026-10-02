@@ -3,16 +3,20 @@ import { NavLink } from "react-router"
 /**
  * Dashboard tab navigation.
  *
- * Only the Overview tab renders dashboard content in this task; the other tabs
- * are deep links to the module pages that already exist in the router. No new
- * routes were invented.
+ * Scoped to dashboard content only: Overview, Sales, Credit, Narcotics and
+ * Finance are real pages in the router, each answering a different question —
+ * what needs attention now, what sales happened, what money is owed, what
+ * controlled medicines are held and moving, and how the pharmacy is doing.
+ * Inventory and Purchasing are deliberately absent: they are full modules, not
+ * dashboard tabs, and remain reachable from the sidebar, which links every
+ * Inventory and Purchasing page directly. No new routes were invented.
  */
 const SUB_LINKS = [
   { to: "/dashboard", label: "Overview", end: true },
   { to: "/dashboard/sales", label: "Sales", end: false },
-  { to: "/inventory", label: "Inventory", end: false },
-  { to: "/purchasing", label: "Purchasing", end: false },
-  { to: "/dashboard/profitability", label: "Finance", end: false },
+  { to: "/dashboard/credit", label: "Credit", end: false },
+  { to: "/dashboard/narcotics", label: "Narcotics", end: false },
+  { to: "/dashboard/finance", label: "Finance", end: false },
 ]
 
 export default function DashboardSubNav() {

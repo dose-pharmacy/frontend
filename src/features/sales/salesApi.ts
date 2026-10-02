@@ -84,6 +84,10 @@ export interface SaleDto {
   totalAmount: number;
   paidAmount: number;
   changeAmount: number;
+  /** Bill-level discount type. Nullable — absent when no bill discount was applied. */
+  billDiscountType: "PERCENTAGE" | "FIXED_AMOUNT" | null;
+  /** Bill-level discount value, interpreted per `billDiscountType`. */
+  billDiscountValue: number | null;
   cashierId: string;
   cashier: SaleUserDto | null;
   notes: string | null;

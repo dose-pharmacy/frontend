@@ -22,6 +22,7 @@ import ReorderManagementPage from "../pages/inventory/ReorderManagementPage";
 import ReorderConfigPage from "../pages/inventory/ReorderConfigPage";
 import POSPage from "../pages/pos/POSPage";
 import SalesPage from "../pages/sales/SalesPage";
+import CreditPage from "../pages/credit/CreditPage";
 import PurchaseRequirementsPage from "../pages/purchasing/PurchaseRequirementsPage";
 import CreateRequirementPage from "../pages/purchasing/CreateRequirementPage";
 import GoodsReceiptsPage from "../pages/purchasing/GoodsReceiptsPage";
@@ -35,10 +36,9 @@ import PurchaseReturnDetailPage from "../pages/purchasing/PurchaseReturnDetailPa
 import PurchaseOrdersPage from "../pages/purchasing/PurchaseOrdersPage";
 import CreatePurchaseOrderPage from "../pages/purchasing/CreatePurchaseOrderPage";
 import DeliveryRegistrationPage from "../pages/purchasing/DeliveryRegistrationPage";
-import SalesReportPage from "../pages/reports/SalesReportPage";
-import ProfitabilityDashboardPage from "../pages/reports/ProfitabilityDashboardPage";
+import FinancePage from "../pages/finance/FinancePage";
 import SlowMovingPage from "../pages/reports/SlowMovingPage";
-import NarcoticReportPage from "../pages/reports/NarcoticReportPage";
+import NarcoticsPage from "../pages/narcotics/NarcoticsPage";
 import AuditTrailPage from "../pages/admin/AuditTrailPage";
 import NotificationsPage from "../pages/notifications/NotificationsPage";
 import NotificationSettingsPage from "../pages/settings/NotificationSettingsPage";
@@ -66,8 +66,13 @@ export const router = createBrowserRouter([
         children: [
           // Dashboard
           { path: "/dashboard", Component: DashboardPage },
-          { path: "/dashboard/sales", Component: SalesReportPage },
-          { path: "/dashboard/profitability", Component: ProfitabilityDashboardPage },
+          { path: "/dashboard/sales", Component: SalesPage },
+          { path: "/dashboard/credit", Component: CreditPage },
+          { path: "/dashboard/narcotics", Component: NarcoticsPage },
+          { path: "/dashboard/finance", Component: FinancePage },
+          // The Finance tab used to live at this path when it only showed
+          // profitability. Redirect rather than 404 so old links still land.
+          { path: "/dashboard/profitability", loader: () => redirect("/dashboard/finance") },
           // Inventory
           { path: "/inventory", loader: () => redirect("/inventory/products") },
           { path: "/inventory/products", Component: ProductsPage },
@@ -114,9 +119,9 @@ export const router = createBrowserRouter([
           // Reports
           { path: "/reports", loader: () => redirect("/dashboard") },
           { path: "/reports/sales", loader: () => redirect("/dashboard/sales") },
-          { path: "/reports/profitability", loader: () => redirect("/dashboard/profitability") },
+          { path: "/reports/profitability", loader: () => redirect("/dashboard/finance") },
           { path: "/reports/slow-moving", Component: SlowMovingPage },
-          { path: "/reports/narcotics", Component: NarcoticReportPage },
+          { path: "/reports/narcotics", loader: () => redirect("/dashboard/narcotics") },
           // Notifications
           { path: "/notifications", Component: NotificationsPage },
           // Settings / admin
