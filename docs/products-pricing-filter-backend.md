@@ -1,8 +1,15 @@
 # Products Page — Pricing Status Filter: Backend Spec
 
-**Status: BLOCKED. Not implemented in the frontend, deliberately.**
+**Status: IMPLEMENTED (frontend + backend). Backend change needs deploying.**
 **Target:** the API repo behind `dose-backend-ky5q.onrender.com`.
 **Client:** `figma-make-app` — `src/pages/inventory/ProductsPage.tsx`.
+
+> **Update.** Sections 1–2 below describe the gap as found on 2026-10-03 against
+> the live spec; that gap has since been closed in the backend repo, and the
+> frontend work in section 3 has landed. Kept as the record of why the change
+> was needed. Until the backend is deployed, `pricingStatus` sent to
+> `/inventory/inventory-products` is silently stripped by the zod validator and
+> the dropdown will appear to do nothing.
 
 ---
 

@@ -75,11 +75,16 @@ export default function ReorderManagementPage() {
       .finally(() => setLoading(false))
   }
 
+  // `productId` (not the product name) is the row identity — suggestions can
+  // contain several rows sharing a name, and the create request must send the
+  // real backend id. `suggestedQuantity` is the backend's own suggestion and
+  // seeds the editable quantity.
   const modalSuggestions = suggestions.map((s) => ({
-    id: s.product.id,
+    productId: s.product.id,
     name: s.product.name,
-    suggestedQty: s.suggestedQuantity,
+    suggestedQuantity: s.suggestedQuantity,
     status: "Draft",
+    calculationMethod: s.calculationMethod,
   }))
 
   // Merge the low-stock alerts (dashboard) and the reorder suggestions into a

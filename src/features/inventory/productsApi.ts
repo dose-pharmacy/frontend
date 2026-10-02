@@ -77,6 +77,12 @@ export interface InventoryProductDto {
     quantity: number;
   } | null;
   stockStatus: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+  /**
+   * Server-computed pricing classification for this product. Nullable and
+   * optional because the list endpoint may omit it entirely — never assume a
+   * product is priced, and never derive the status from the money fields.
+   */
+  pricing?: ProductPricing | null;
 }
 
 export interface LocationStockSummaryDto {
@@ -229,6 +235,13 @@ export interface InventoryProductsQuery {
   brand?: string;
   locationId?: string;
   stockStatus?: string;
+  /**
+   * Backend-filtered pricing classification. Evaluated in SQL before
+   * pagination, so it composes with `page`/`limit` and never needs a
+   * client-side pass over the rows. Leave undefined for "no pricing filter"
+   * rather than sending "ALL" — `buildQueryString` drops undefined/empty.
+   */
+  pricingStatus?: PricingStatus;
   isActive?: boolean;
 }
 
@@ -404,6 +417,10 @@ export async function listInventoryProducts(
     brand: query.brand,
     locationId: query.locationId,
     stockStatus: query.stockStatus,
+    // Omitted entirely when "All" is selected — the backend treats a missing
+    // parameter identically to ALL, and this keeps the cache key distinct per
+    // real filter without emitting pricingStatus=undefined.
+    pricingStatus: query.pricingStatus,
     isActive: query.isActive,
   });
   // Reference list used by pickers all over the app — cache briefly; the

@@ -5,6 +5,7 @@ import {
   ProductsApiError,
   type InventoryProductDto,
   type ListMeta,
+  type PricingStatus,
 } from "../../features/inventory/productsApi"
 import { searchProductGroups } from "../../features/inventory/searchSelectors"
 import { rangeLabel } from "../../utils/format"
@@ -44,6 +45,9 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [groupFilter, setGroupFilter] = useState("")
+  // "" means "All" and is omitted from the request, matching how the other
+  // filters signal "no filter".
+  const [pricingStatusFilter, setPricingStatusFilter] = useState("")
   const [page, setPage] = useState(1)
   const requestSeq = useRef(0)
 
@@ -66,6 +70,7 @@ export default function ProductsPage() {
       status: string,
       groupId: string,
       pageNum: number,
+      pricingStatus: string,
     ) => {
       const seq = ++requestSeq.current
       setLoading(true)
@@ -77,6 +82,11 @@ export default function ProductsPage() {
           search: searchTerm.trim() || undefined,
           productGroupId: groupId || undefined,
           stockStatus: status || undefined,
+          // Classification is the backend's job — sent as an opaque enum and
+          // filtered in SQL before pagination. Never recomputed from the rows.
+          pricingStatus: (pricingStatus || undefined) as
+            | PricingStatus
+            | undefined,
         })
         if (seq !== requestSeq.current) return
         setProducts(res.data)
@@ -95,11 +105,11 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const t = setTimeout(
-      () => void reload(search, statusFilter, groupFilter, page),
+      () => void reload(search, statusFilter, groupFilter, page, pricingStatusFilter),
       search ? 300 : 0,
     )
     return () => clearTimeout(t)
-  }, [reload, search, statusFilter, groupFilter, page])
+  }, [reload, search, statusFilter, groupFilter, page, pricingStatusFilter])
 
   const filtered = products
 
@@ -159,7 +169,7 @@ export default function ProductsPage() {
             <button
               type="button"
               onClick={() =>
-                void reload(search, statusFilter, groupFilter, page)
+                void reload(search, statusFilter, groupFilter, page, pricingStatusFilter)
               }
               className="text-sm font-semibold text-red-700 hover:underline"
             >
@@ -210,6 +220,22 @@ export default function ProductsPage() {
                 noResultsMessage="No groups matching your search"
               />
             </div>
+            <Select
+              value={pricingStatusFilter}
+              onChange={(e) => {
+                setPricingStatusFilter(e.target.value)
+                setPage(1)
+              }}
+              className="sm:w-48"
+              aria-label="Pricing Status"
+            >
+              <option value="">All</option>
+              <option value="OK">OK</option>
+              <option value="BELOW_TARGET">Below Target</option>
+              <option value="BELOW_COST">Below Cost</option>
+              <option value="NO_MARGIN_CONFIG">No Margin Config</option>
+              <option value="NO_PURCHASE_COST">No Purchase Cost</option>
+            </Select>
           </div>
         </div>
 
@@ -329,7 +355,7 @@ export default function ProductsPage() {
         open={createOpen}
         onClose={closeCreate}
         onSaved={async () => {
-          await reload(search, statusFilter, groupFilter, 1)
+          await reload(search, statusFilter, groupFilter, 1, pricingStatusFilter)
           setPage(1)
         }}
       />
