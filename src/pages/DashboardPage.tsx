@@ -13,26 +13,34 @@ import {
   type RecentActivityItem,
 } from "../features/dashboard/dashboardApi";
 import DashboardSubNav from "./dashboard/DashboardSubNav";
-import { defaultDateRange } from "./reports/reportHelpers";
-import { listLocations } from "../features/inventory/locationsApi";
-import DatePicker from "../components/ui/DatePicker";
+import { listPurchaseOrders } from "../features/purchasing/purchaseOrdersApi";
+import { listRequirements } from "../features/purchasing/requirementsApi";
 import {
   getSalesSummary,
-  getSalesTrend,
-  ReportsApiError,
+  getSlowMovingReport,
   type SalesSummaryDto,
-  type SalesTrendPeriod,
-  type SalesTrendPointDto,
 } from "../features/reports/reportsApi";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
+
+/**
+ * The pharmacy operates in Africa/Addis Ababa (UTC+3, no DST), so "today" for
+ * business purposes is a fixed +3h window from UTC midnight. Today's Sales is
+ * requested over that window, expressed as inclusive UTC start/end-of-day —
+ * the boundary convention the financial reports document.
+ *
+ * `POST`-style local midnight (as the Sales tab uses) would be wrong here: in a
+ * UTC browser it would silently omit the first three hours of the day.
+ */
+const PHARMACY_UTC_OFFSET_MINUTES = 180;
+
+function pharmacyDayBounds(): { dateFrom: string; dateTo: string; day: string } {
+  const reference = new Date(Date.now() + PHARMACY_UTC_OFFSET_MINUTES * 60_000);
+  const day = reference.toISOString().slice(0, 10);
+  return {
+    day,
+    dateFrom: `${day}T00:00:00.000Z`,
+    dateTo: `${day}T23:59:59.999Z`,
+  };
+}
 
 // ── Icons (small, inline, theme-colored) ─────────────────────────────────────
 
@@ -102,54 +110,6 @@ function IconArrowUpRight({ className = "h-4 w-4" }: IconProps) {
       <path
         fillRule="evenodd"
         d="M5.22 14.78a.75.75 0 001.06 0l7.22-7.22v5.69a.75.75 0 001.5 0v-7.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 000 1.5h5.69l-7.22 7.22a.75.75 0 000 1.06z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconCalendar({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconMapPin({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconFilter({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M2.628 1.601C5.028 1.206 7.49 1 10 1s4.973.206 7.372.601a.75.75 0 01.628.74v2.288a2.25 2.25 0 01-.659 1.59l-4.682 4.683a2.25 2.25 0 00-.659 1.59v3.037c0 .684-.31 1.33-.844 1.757l-1.937 1.55A.75.75 0 018 18.25v-5.757a2.25 2.25 0 00-.659-1.591L2.659 6.22A2.25 2.25 0 012 4.629V2.34a.75.75 0 01.628-.74zm10.582 12.268c.068.022.144.042.221.061l.641.171-.641-.171c.193-.37.33-.77.406-1.19l.02-.096a3.072 3.072 0 01-.647.846l-.594.38zm2.19-2.412a4.597 4.597 0 01-.024 1.546l-.004.02-.005.019c-.117.769-.364 1.506-.732 2.18l-.065.119a.75.75 0 01-1.299-.75l.14-.253c.252-.455.433-.94.54-1.446l.03-.135.065-.3a.75.75 0 011.354-.553l.015.018.008.01c.16.242.262.486.342.734l-.457.847a.75.75 0 01-.564.405l-1.186.317c-.036.01-.072.02-.109.027-.003.002-.006.002-.009.004"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function IconTrendUp({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M12.577 4.878a.75.75 0 01.919-.53l4.78 1.281a.75.75 0 01.531.919l-1.281 4.78a.75.75 0 01-1.449-.387l.81-3.022a19.407 19.407 0 00-5.594 5.203.75.75 0 01-1.139.093L7 10.06l-4.72 4.72a.75.75 0 01-1.06-1.061l5.25-5.25a.75.75 0 011.06 0l3.074 3.073a20.923 20.923 0 014.545-4.094l-3.01-.8a.75.75 0 01-.53-.919z"
         clipRule="evenodd"
       />
     </svg>
@@ -351,6 +311,18 @@ export default function DashboardPage() {
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState<string | null>(null);
 
+  // ── Counts the summary endpoint does not expose ────────────────────────────
+  // `/dashboard/summary` publishes only nine flat inventory figures. It has no
+  // `purchasing`, `sales` or `slowMoving` section — despite its own description
+  // claiming "sales, inventory, purchasing, slow-moving, and credit" — so these
+  // three counts and today's sales are read from the endpoints that DO report
+  // them. `null` means "not loaded yet", which is deliberately distinct from 0.
+  const [todaySales, setTodaySales] = useState<SalesSummaryDto | null>(null);
+  const [openRequirements, setOpenRequirements] = useState<number | null>(null);
+  const [awaitingDeliveryCount, setAwaitingDeliveryCount] = useState<number | null>(null);
+  const [slowMovingCount, setSlowMovingCount] = useState<number | null>(null);
+  const [extraError, setExtraError] = useState<string | null>(null);
+
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadSummary = useCallback(async () => {
@@ -389,35 +361,85 @@ export default function DashboardPage() {
     }
   }, []);
 
+  /**
+   * Today's sales plus the three counts `/dashboard/summary` omits. Each is
+   * independent — one failing endpoint degrades only its own bar rather than
+   * blanking the whole panel.
+   */
+  const loadExtras = useCallback(async () => {
+    const { dateFrom, dateTo } = pharmacyDayBounds();
+
+    const [salesResult, requirementsResult, awaitingResult, slowMovingResult] = await Promise.allSettled([
+      getSalesSummary({ dateFrom, dateTo }),
+      listRequirements({ status: "OPEN", limit: 1 }),
+      listPurchaseOrders({ status: "AWAITING_DELIVERY", limit: 1 }),
+      getSlowMovingReport({ isFlagged: true, limit: 1 }),
+    ]);
+
+    if (salesResult.status === "fulfilled") setTodaySales(salesResult.value);
+    if (requirementsResult.status === "fulfilled") {
+      setOpenRequirements(requirementsResult.value.meta?.total ?? 0);
+    }
+    if (awaitingResult.status === "fulfilled") {
+      setAwaitingDeliveryCount(awaitingResult.value.meta?.total ?? 0);
+    }
+    if (slowMovingResult.status === "fulfilled") {
+      setSlowMovingCount(slowMovingResult.value.meta?.total ?? 0);
+    }
+
+    const firstRejection = [salesResult, requirementsResult, awaitingResult, slowMovingResult].find(
+      (r) => r.status === "rejected",
+    );
+    if (firstRejection && firstRejection.status === "rejected") {
+      setExtraError(
+        firstRejection.reason instanceof Error
+          ? firstRejection.reason.message
+          : "Some dashboard counts could not be loaded.",
+      );
+    } else {
+      setExtraError(null);
+    }
+  }, []);
+
   useEffect(() => {
     loadSummary();
     loadAttention();
     loadRecent();
-  }, [refreshKey, loadSummary, loadAttention, loadRecent]);
+    void loadExtras();
+  }, [refreshKey, loadSummary, loadAttention, loadRecent, loadExtras]);
 
-  const refreshing = summaryLoading || attentionLoading || recentLoading;
+  const refreshing =
+    summaryLoading || attentionLoading || recentLoading || todaySales === null;
+
+  // `/dashboard/summary` is flat. Where it publishes a figure directly it is the
+  // source; where it does not, the attention feed's list length is used, and
+  // finally the dedicated list endpoint's `meta.total`.
+  const lowStockCount = summary?.lowStock ?? attention?.lowStock.length;
+  const expiringCount = summary?.nearExpiry ?? attention?.expiringSoon.length;
+  const awaitingCount = awaitingDeliveryCount ?? attention?.awaitingDelivery.length;
+  const invoicesCount = attention?.outstandingInvoices.length;
 
   const attentionCounts = {
-    lowStock: summary?.inventory.lowStockCount ?? (attention?.lowStock.length ?? 0),
-    expiring: summary?.inventory.expiringSoonCount ?? (attention?.expiringSoon.length ?? 0),
-    awaiting: summary?.purchasing.awaitingDelivery ?? (attention?.awaitingDelivery.length ?? 0),
-    invoices: summary?.purchasing.outstandingInvoices ?? (attention?.outstandingInvoices.length ?? 0),
+    lowStock: lowStockCount,
+    expiring: expiringCount,
+    awaiting: awaitingCount,
+    invoices: invoicesCount,
   };
 
   // ── Derived presentation for summary-based sections ────────────────────────
+  // A null count renders as an empty bar with a "—" label rather than as a zero,
+  // so an endpoint that has not answered is never read as "nothing to do".
 
-  const invBars = summary
-    ? [
-        { label: "Low Stock", value: summary.inventory.lowStockCount, fill: "bg-yellow-500" },
-        { label: "Expiring Soon", value: summary.inventory.expiringSoonCount, fill: "bg-orange-500" },
-        { label: "Expired", value: summary.inventory.expiredCount, fill: "bg-red-500" },
-        { label: "Out of Stock", value: summary.inventory.outOfStockCount, fill: "bg-red-700" },
-        { label: "Requirements", value: summary.purchasing.openRequirements, fill: "bg-blue-500" },
-        { label: "Awaiting", value: summary.purchasing.partiallyReceived, fill: "bg-yellow-600" },
-        { label: "Slow Moving", value: summary.slowMoving.flaggedCount, fill: "bg-green-500" },
-      ]
-    : [];
-  const invMax = Math.max(...invBars.map((b) => b.value), 1);
+  const invBars = [
+    { label: "Low Stock", value: lowStockCount ?? null, fill: "bg-yellow-500" },
+    { label: "Expiring Soon", value: expiringCount ?? null, fill: "bg-orange-500" },
+    { label: "Expired", value: summary?.expiredBatches ?? null, fill: "bg-red-500" },
+    { label: "Out of Stock", value: summary?.outOfStock ?? null, fill: "bg-red-700" },
+    { label: "Requirements", value: openRequirements ?? null, fill: "bg-blue-500" },
+    { label: "Awaiting", value: awaitingCount ?? null, fill: "bg-yellow-600" },
+    { label: "Slow Moving", value: slowMovingCount ?? null, fill: "bg-green-500" },
+  ];
+  const invMax = Math.max(...invBars.map((b) => b.value ?? 0), 1);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -491,15 +513,19 @@ export default function DashboardPage() {
                   Today's Sales
                 </p>
                 <p className="text-lg font-bold text-[#4F6B4A] mt-0.5 leading-tight truncate">
-                  {fmtMoney(summary.sales.today)}
+                  {todaySales ? fmtMoney(todaySales.totalSales) : "—"}
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-[#666666]">
                   <span className="whitespace-nowrap">
-                    <span className="font-bold text-[#333333]">{fmtNumber(summary.sales.transactions)}</span>{" "}
+                    <span className="font-bold text-[#333333]">
+                      {todaySales ? fmtNumber(todaySales.transactionCount) : "—"}
+                    </span>{" "}
                     Transactions
                   </span>
                   <span className="whitespace-nowrap">
-                    <span className="font-bold text-[#333333]">{fmtMoney(summary.sales.averageTransaction)}</span>{" "}
+                    <span className="font-bold text-[#333333]">
+                      {todaySales ? fmtMoney(todaySales.averageTransaction) : "—"}
+                    </span>{" "}
                     Avg Transaction
                   </span>
                 </div>
@@ -512,12 +538,16 @@ export default function DashboardPage() {
               </div>
 
               {/* Stock Value — 2/5 */}
-              <div className="xl:col-span-2 bg-white rounded-lg border border-[#E6ECE2] px-4 py-3 flex items-center justify-between gap-3 min-w-0">
+              <div
+                className="xl:col-span-2 bg-white rounded-lg border border-[#E6ECE2] px-4 py-3 flex items-center justify-between gap-3 min-w-0"
+                title="On-hand quantity across all products. The API has no inventory-valuation endpoint, so no ETB value can be reported here."
+              >
                 <span className="text-[10px] font-bold text-[#666666] uppercase tracking-wide whitespace-nowrap">
                   Stock Value
                 </span>
                 <span className="text-sm font-bold text-[#333333] truncate">
-                  {fmtMoney(summary.inventory.stockValue)}
+                  {summary ? fmtNumber(summary.totalStock) : "—"}
+                  <span className="ml-1 text-[10px] font-semibold text-[#666666]">units</span>
                 </span>
               </div>
 
@@ -563,14 +593,16 @@ export default function DashboardPage() {
                     <div
                       key={bar.label}
                       className="flex-1 min-w-0 flex flex-col items-center gap-2"
-                      title={`${bar.label}: ${fmtNumber(bar.value)}`}
+                      title={`${bar.label}: ${bar.value === null ? "not available" : fmtNumber(bar.value)}`}
                     >
                       <p className="text-lg font-bold text-[#4F6B4A] leading-none">
                         {fmtNumber(bar.value)}
                       </p>
                       <div
-                        className={`w-full max-w-[6.5rem] rounded-t-lg ${bar.fill}`}
-                        style={{ height: `${Math.max(Math.round((bar.value / invMax) * 240), 0)}px` }}
+                        className={`w-full max-w-[6.5rem] rounded-t-lg ${bar.value === null ? "bg-[#E6ECE2]" : bar.fill}`}
+                        style={{
+                          height: `${bar.value === null ? 4 : Math.max(Math.round((bar.value / invMax) * 240), 2)}px`,
+                        }}
                       />
                     </div>
                   ))}
@@ -586,6 +618,17 @@ export default function DashboardPage() {
                     </p>
                   ))}
                 </div>
+                {extraError && (
+                  <p className="mt-3 text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    Some counts could not be loaded — those bars show as “—”, not zero.
+                    <button
+                      onClick={() => setRefreshKey((k) => k + 1)}
+                      className={`ml-1.5 font-semibold underline ${focusRing}`}
+                    >
+                      Retry
+                    </button>
+                  </p>
+                )}
               </div>
             )}
           </DashPanel>
@@ -871,431 +914,7 @@ export default function DashboardPage() {
           )}
         </DashPanel>
 
-        {/* ── 7. Sales analytics (report overview merged in, no duplication) ── */}
-        <SalesAnalyticsSection />
       </div>
-    </div>
-  );
-}
-
-// ── Sales analytics (the report overview merged into the dashboard) ──────────
-
-const ANALYTICS_PERIODS: { value: SalesTrendPeriod; label: string }[] = [
-  { value: "DAILY", label: "Daily" },
-  { value: "MONTHLY", label: "Monthly" },
-  { value: "ANNUAL", label: "Annual" },
-];
-
-function SalesAnalyticsSection() {
-  const range = defaultDateRange();
-  const [dateFrom, setDateFrom] = useState(range.from);
-  const [dateTo, setDateTo] = useState(range.to);
-  const [locationId, setLocationId] = useState("");
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
-  const [locationsLoading, setLocationsLoading] = useState(true);
-  const [period, setPeriod] = useState<SalesTrendPeriod>("MONTHLY");
-
-  const [summary, setSummary] = useState<SalesSummaryDto | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-
-  const [trend, setTrend] = useState<SalesTrendPointDto[]>([]);
-  const [trendLoading, setTrendLoading] = useState(true);
-  const [trendError, setTrendError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listLocations({ limit: 100, isActive: true })
-      .then((r) => setLocations(r.data))
-      .catch(() => setLocations([]))
-      .finally(() => setLocationsLoading(false));
-  }, []);
-
-  const loadSummary = useCallback(async () => {
-    setSummaryLoading(true);
-    setSummaryError(null);
-    try {
-      const data = await getSalesSummary({
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-        locationId: locationId || undefined,
-      });
-      setSummary(data);
-    } catch (e) {
-      setSummaryError(e instanceof ReportsApiError ? e.message : "Failed to load sales summary.");
-    } finally {
-      setSummaryLoading(false);
-    }
-  }, [dateFrom, dateTo, locationId]);
-
-  const loadTrend = useCallback(async () => {
-    setTrendLoading(true);
-    setTrendError(null);
-    try {
-      const data = await getSalesTrend({
-        period,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-        locationId: locationId || undefined,
-      });
-      setTrend(data ?? []);
-    } catch (e) {
-      setTrendError(e instanceof ReportsApiError ? e.message : "Failed to load sales trend.");
-    } finally {
-      setTrendLoading(false);
-    }
-  }, [period, dateFrom, dateTo, locationId]);
-
-  useEffect(() => {
-    loadSummary();
-  }, [loadSummary]);
-
-  useEffect(() => {
-    loadTrend();
-  }, [loadTrend]);
-
-  return (
-    <section aria-label="Sales analytics" className="flex flex-col gap-3">
-      <FinancialOverviewCard
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        locationId={locationId}
-        locations={locations}
-        locationsLoading={locationsLoading}
-        onDateFromChange={(v) => setDateFrom(v)}
-        onDateToChange={(v) => setDateTo(v)}
-        onLocationChange={(v) => setLocationId(v)}
-        onApplyFilters={() => {
-          loadSummary();
-          loadTrend();
-        }}
-        summary={summary}
-        summaryLoading={summaryLoading}
-        summaryError={summaryError}
-        onRetry={loadSummary}
-      />
-
-      {/* Trend chart */}
-      <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm p-5">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-[#333333]">Sales Trend</h3>
-            <p className="text-xs text-[#666666] mt-0.5">
-              Revenue by {period === "DAILY" ? "day" : period === "MONTHLY" ? "month" : "year"} for the selected period
-            </p>
-          </div>
-          <div className="flex rounded-lg border border-[#C6D4BF] overflow-hidden">
-            {ANALYTICS_PERIODS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                className={`px-3.5 py-1.5 text-xs font-semibold transition-colors ${period === p.value ? "bg-[#7A9076] text-white" : "bg-white text-[#666666] hover:bg-[#E6ECE2]/60"}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {trendLoading ? (
-          <div className="flex items-center justify-center py-16 gap-3">
-            <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#7A9076] animate-spin" />
-            <p className="text-sm text-[#666666]">Loading trend...</p>
-          </div>
-        ) : trendError ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-4">
-            <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{trendError}</p>
-            <Button onClick={loadTrend}>Retry</Button>
-          </div>
-        ) : trend.length === 0 ? (
-          <p className="text-sm text-[#666666] text-center py-14">
-            No sales trend data for the selected period.
-          </p>
-        ) : (
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trend} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="analyticsRevenueFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#7A9076" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#7A9076" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E6ECE2" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#666666" }} tickLine={false} axisLine={{ stroke: "#E6ECE2" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#666666" }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} tickLine={false} axisLine={false} width={52} />
-                <Tooltip formatter={(v: unknown) => fmtMoney(Number(v))} contentStyle={{ borderRadius: 12, borderColor: "#E6ECE2", fontSize: 12 }} />
-                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#7A9076" strokeWidth={2.5} fill="url(#analyticsRevenueFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-
-      {/* Payment methods + Top products */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#E6ECE2]">
-            <h3 className="text-sm font-bold text-[#333333]">Payment Methods</h3>
-            <p className="text-xs text-[#666666] mt-0.5">Share of sales by payment method</p>
-          </div>
-          {summaryLoading ? (
-            <PanelSkeleton rows={4} />
-          ) : !summary || (summary.paymentsByMethod?.length ?? 0) === 0 ? (
-            <CompactEmpty text="No payment data for this period." />
-          ) : (
-            <div className="divide-y divide-[#E6ECE2]">
-              {summary.paymentsByMethod.map((p) => (
-                <div key={p.method} className="flex items-center justify-between px-5 py-3.5">
-                  <span className="text-sm font-medium text-[#333333] capitalize">
-                    {p.method.replace(/_/g, " ").toLowerCase()}
-                  </span>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-[#333333]">{fmtMoney(p.amount)}</p>
-                    {typeof p.count === "number" && (
-                      <p className="text-xs text-[#666666]">{fmtNumber(p.count)} payments</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl border border-[#E6ECE2] shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-[#E6ECE2]">
-            <h3 className="text-sm font-bold text-[#333333]">Top Products</h3>
-            <p className="text-xs text-[#666666] mt-0.5">Best sellers by quantity and revenue</p>
-          </div>
-          {summaryLoading ? (
-            <PanelSkeleton rows={4} />
-          ) : !summary || (summary.topProducts?.length ?? 0) === 0 ? (
-            <CompactEmpty text="No product data for this period." />
-          ) : (
-            <div className="divide-y divide-[#E6ECE2]">
-              {summary.topProducts.map((p) => (
-                <div key={p.productId} className="flex items-center justify-between gap-4 px-5 py-3.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#333333] truncate">{p.name}</p>
-                    {p.sku && <p className="text-xs text-[#666666]">{p.sku}</p>}
-                  </div>
-                  <div className="text-right whitespace-nowrap">
-                    <p className="text-sm font-semibold text-[#333333]">{fmtMoney(p.revenue)}</p>
-                    <p className="text-xs text-[#666666]">{fmtNumber(p.quantitySold)} sold</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Financial Overview card (merged filters + hero + waterfall) ──────────────
-
-function FinancialOverviewCard({
-  dateFrom,
-  dateTo,
-  locationId,
-  locations,
-  locationsLoading,
-  onDateFromChange,
-  onDateToChange,
-  onLocationChange,
-  onApplyFilters,
-  summary,
-  summaryLoading,
-  summaryError,
-  onRetry,
-}: {
-  dateFrom: string;
-  dateTo: string;
-  locationId?: string;
-  locations?: { id: string; name: string }[];
-  locationsLoading?: boolean;
-  onDateFromChange: (v: string) => void;
-  onDateToChange: (v: string) => void;
-  onLocationChange?: (v: string) => void;
-  onApplyFilters: () => void;
-  summary: SalesSummaryDto | null;
-  summaryLoading: boolean;
-  summaryError: string | null;
-  onRetry: () => void;
-}) {
-  const maxVal = Math.max(
-    summary?.totalSubtotal ?? 0,
-    summary?.totalSales ?? 0,
-    summary?.totalDiscount ?? 0,
-    1,
-  );
-  const pct = (v: number) => Math.min(Math.max((v / maxVal) * 100, 0), 100);
-  const discount = summary?.totalDiscount ?? 0;
-
-  const rows = [
-    {
-      label: "Gross Subtotal",
-      value: fmtMoney(summary?.totalSubtotal),
-      width: pct(summary?.totalSubtotal ?? 0),
-      fill: "bg-[#7A9076]",
-    },
-    {
-      label: "Discounts",
-      value: `-${fmtMoney(discount)}`,
-      width: Math.max(pct(discount), 2),
-      fill: discount > 0 ? "bg-[#E3C8C5]" : "bg-[#E0E0DA]",
-    },
-    {
-      label: "Net Total Sales",
-      value: fmtMoney(summary?.totalSales),
-      width: pct(summary?.totalSales ?? 0),
-      fill: "bg-gradient-to-r from-[#7A9076] to-[#4F6B4A]",
-    },
-  ];
-
-  return (
-    <div className="bg-white rounded-2xl border border-[#E6ECE2] shadow-sm overflow-hidden">
-      {/* Card header */}
-      <div className="px-6 py-5 border-b border-[#E6ECE2] flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#E6ECE2] to-[#C6D4BF] text-[#4F6B4A]">
-            <IconTrendUp className="h-5 w-5" />
-          </span>
-          <div>
-            <h2 className="text-base font-bold text-[#333333]">Financial Overview</h2>
-            <p className="text-xs text-[#666666] mt-0.5">Sales summary for the selected period</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Date range pill */}
-          <div className="flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2">
-            <IconCalendar className="h-4 w-4 shrink-0 text-[#7A9076]" />
-            <div className="flex items-center gap-1.5 text-sm">
-              <DatePicker
-                value={dateFrom}
-                onChange={onDateFromChange}
-                placeholder="From date"
-              />
-              <span className="text-[#999999]">–</span>
-              <DatePicker
-                value={dateTo}
-                onChange={onDateToChange}
-                placeholder="To date"
-              />
-            </div>
-          </div>
-
-          {/* Location selector */}
-          <div className="flex items-center gap-2 rounded-xl border border-[#C6D4BF] bg-white px-3 py-2">
-            <IconMapPin className="h-4 w-4 shrink-0 text-[#7A9076]" />
-            <select
-              value={locationId || ""}
-              onChange={(e) => onLocationChange?.(e.target.value || "")}
-              disabled={locationsLoading}
-              className="bg-transparent text-sm font-semibold text-[#333333] outline-none cursor-pointer disabled:cursor-wait max-w-[10rem]"
-              aria-label="Filter by location"
-            >
-              <option value="">All Locations</option>
-              {(locations ?? []).map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter action */}
-          <button
-            type="button"
-            onClick={onApplyFilters}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#4F6B4A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#3B4F35] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F6B4A]/40"
-          >
-            <IconFilter className="h-4 w-4" />
-            Filter
-          </button>
-        </div>
-      </div>
-
-      {/* Card body */}
-      {summaryLoading ? (
-        <div className="px-6 py-6">
-          <div className="h-3 w-28 rounded bg-[#E6ECE2]/70 animate-pulse" />
-          <div className="h-10 w-52 rounded bg-[#E6ECE2]/40 animate-pulse mt-3" />
-          <div className="h-4 w-40 rounded bg-[#E6ECE2]/60 animate-pulse mt-4" />
-          <div className="my-6 border-t border-[#E6ECE2]" />
-          <div className="flex flex-col gap-6">
-            {Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <div className="h-4 w-32 rounded bg-[#E6ECE2]/70 animate-pulse" />
-                <div className="flex-1">
-                  <div
-                    className="h-3.5 rounded-full bg-[#E6ECE2]/50 animate-pulse"
-                    style={{ width: `${96 - i * 14}%` }}
-                  />
-                </div>
-                <div className="h-4 w-28 rounded bg-[#E6ECE2]/70 animate-pulse" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : summaryError && !summary ? (
-        <div className="px-6 py-8 flex flex-col items-center gap-4">
-          <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">
-            {summaryError}
-          </p>
-          <Button onClick={onRetry}>Retry</Button>
-        </div>
-      ) : summary ? (
-        <div className="px-6 py-6">
-          {/* Hero */}
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#666666]">
-                Total Sales
-              </p>
-              <p className="mt-1 text-4xl font-extrabold tracking-tight text-[#333333] leading-none">
-                {fmtMoney(summary.totalSales)}
-              </p>
-              <p className="mt-2 text-xs text-[#666666]">
-                Avg{" "}
-                <span className="font-semibold text-[#333333]">
-                  {fmtMoney(summary.averageTransaction)}
-                </span>{" "}
-                per transaction
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E1EAD9] px-3 py-1.5 text-xs font-bold text-[#5C7A52]">
-              <IconTrendUp className="h-3.5 w-3.5" />
-              {fmtNumber(summary.transactionCount)} transactions
-            </span>
-          </div>
-
-          {/* Divider */}
-          <div className="my-6 border-t border-[#E6ECE2]" />
-
-          {/* Waterfall breakdown */}
-          <div className="flex flex-col gap-5">
-            {rows.map((row) => (
-              <div key={row.label} className="flex items-center gap-4">
-                <div className="w-36 shrink-0">
-                  <p className="text-sm font-semibold text-[#333333]">{row.label}</p>
-                </div>
-                <div className="flex-1">
-                  <div className="h-3.5 rounded-full bg-[#F5F5F0] overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${row.fill}`}
-                      style={{ width: `${row.width}%` }}
-                    />
-                  </div>
-                </div>
-                <p className="w-32 shrink-0 text-right text-sm font-bold text-[#333333] tabular-nums">
-                  {row.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -13,7 +13,14 @@ import { API_BASE_URL } from "../auth/authApi";
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
 export type SaleStatus = "COMPLETED" | "DRAFT" | "CANCELLED" | (string & {});
-export type SalePaymentMethod = "CASH" | "CARD" | "DIGITAL_TRANSFER" | "MOBILE_TRANSFER" | (string & {});
+/**
+ * Published enum on `Sale.payments[].method` (inlined in the OpenAPI document):
+ * `CASH | MOBILE_TRANSFER | CHECK`. The trailing `(string & {})` keeps an
+ * unrecognised backend value from breaking rendering — receipt views print the
+ * method as a label rather than switching on it. There is no `CARD` and no
+ * `DIGITAL_TRANSFER`.
+ */
+export type SalePaymentMethod = "CASH" | "MOBILE_TRANSFER" | "CHECK" | (string & {});
 export type SaleDiscountType = "PERCENTAGE" | "FIXED" | (string & {});
 
 export interface SaleUserDto {
@@ -134,12 +141,18 @@ export interface CompleteSaleItemInput {
 }
 
 /**
- * Methods accepted by POST /pos/sales at checkout. The backend contract
- * supports CASH / CARD / MOBILE_TRANSFER — "Digital Transfer" is sent as
- * MOBILE_TRANSFER. There is NO credit payment method: an underpaid sale's
- * difference is recorded by the backend as the customer's outstanding balance.
+ * Methods accepted by POST /pos/sales at checkout.
+ *
+ * This is exactly the `SalePaymentInput.method` enum published by the live
+ * OpenAPI document: `CASH | MOBILE_TRANSFER | CHECK`. There is NO `CARD` and
+ * NO `CREDIT`:
+ *
+ *  - `CARD` is not in the enum. Selecting it produces a 422 from the backend.
+ *  - `CREDIT` is not a payment method at all. Credit IS the outstanding
+ *    remainder; an underpaid sale records the difference as a balance, and the
+ *    remainder is later collected via POST /pos/sales/{id}/payments.
  */
-export type CompleteSalePaymentMethod = "CASH" | "CARD" | "MOBILE_TRANSFER";
+export type CompleteSalePaymentMethod = "CASH" | "MOBILE_TRANSFER" | "CHECK";
 
 export interface CompleteSalePaymentInput {
   method: CompleteSalePaymentMethod;
@@ -158,8 +171,21 @@ export interface CompleteSaleInput {
   /** Cashier notes. */
   notes?: string;
   /**
-   * Customer responsible for the outstanding balance. Required by the backend
-   * for underpaid (credit) sales. Field names must match the backend exactly.
+   * Customer identification for the outstanding balance.
+   *
+   * UNVERIFIED CONTRACT GAP — these two names are NOT in the documented
+   * `SaleCreateInput` body (which publishes only locationId, items, payments,
+   * billDiscount, notes). They are sent because the backend's own
+   * `CreditSaleListItem` exposes `customerName` and `customerPhone`, and a
+   * credit sale is created through this very endpoint — so the Sale record
+   * almost certainly stores them and the request schema is simply incomplete.
+   * That inference is NOT confirmed: this could not be verified against the
+   * live service, because auth is enforced before request-body validation, so
+   * no probe can distinguish "accepted" from "ignored".
+   *
+   * Do not treat these as confirmed. If the backend rejects the sale with an
+   * unknown-field 422, delete both fields and report the gap rather than
+   * renaming them speculatively.
    */
   customername?: string;
   customerphonenumber?: string;

@@ -217,7 +217,7 @@ export default function POSPage() {
 
   async function handleCompleteSale(
     payments: {
-      method: "CASH" | "CARD" | "MOBILE_TRANSFER"
+      method: "CASH" | "MOBILE_TRANSFER" | "CHECK"
       amount: number
       reference?: string
     }[],
@@ -231,15 +231,17 @@ export default function POSPage() {
       locationId: selectedLocation,
       items: cart.cart.items.map((item) => ({
         productId: item.product.id,
-        unitId: item.unit.id, // ProductUnit row id
+        // `unitId` is the MASTER Unit id (Unit table), not the ProductUnit row
+        // id — see adaptPosProduct, which maps POSUnit.id to `unitId`.
+        unitId: item.unit.id,
         quantity: item.quantity,
         actualUnitPrice:
           item.unitPrice !== item.unit.price ? item.unitPrice : undefined,
       })),
       payments,
       billDiscount: cart.cart.billDiscount ?? undefined,
-      // Exact backend field names. Both are OPTIONAL per the backend contract,
-      // so empty values are omitted from the body rather than sent as "".
+      // Undocumented on SaleCreateInput — see the contract-gap note in
+      // CompleteSaleInput. Empty values are omitted, never sent as "".
       ...(customer?.customername ? { customername: customer.customername } : {}),
       ...(customer?.customerphonenumber
         ? { customerphonenumber: customer.customerphonenumber }

@@ -4,8 +4,9 @@ import { CURRENCY } from "../../../features/pos/posMock";
 import { NARCOTIC_SALE_REMINDER } from "../../../components/ui/NarcoticBadge";
 import type { CartItem } from "../../../features/pos/useCart";
 import type { BillDiscount } from "../../../features/pos/useCart";
+import type { CompleteSalePaymentMethod } from "../../../features/sales/salesApi";
 
-type BackendMethod = "CASH" | "CARD" | "MOBILE_TRANSFER";
+type BackendMethod = CompleteSalePaymentMethod;
 
 interface PaymentRow {
   id: string;
@@ -28,10 +29,15 @@ interface Props {
   onBack: () => void;
 }
 
+/**
+ * Labels for the `SalePaymentInput.method` enum. The list is exactly the
+ * contract's enum — no `CARD` (rejected with 422) and no `CREDIT` (not a
+ * payment method; credit is the outstanding remainder).
+ */
 const METHOD_LABELS: Record<BackendMethod, string> = {
   CASH: "Cash",
-  CARD: "Card",
   MOBILE_TRANSFER: "Digital Transfer",
+  CHECK: "Check",
 };
 
 export default function PaymentModal({
@@ -108,8 +114,10 @@ export default function PaymentModal({
         customername: customerName.trim() || undefined,
         customerphonenumber: customerPhone.trim() || undefined,
       });
-    } catch (err: any) {
-      setError(err?.message ?? "Failed to complete sale. Please try again.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to complete sale. Please try again.",
+      );
     } finally {
       setCompleting(false);
     }

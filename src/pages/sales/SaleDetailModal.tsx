@@ -9,10 +9,16 @@
 // The Credit page reuses this component for its "View Sale" action so there is
 // exactly one sale-detail implementation in the app.
 //
+// A customer return is the one action gated on sale status, and it is offered
+// only when the host passes `onReturnSale` (the Sales Transactions tab). The
+// button lives here rather than in the host because this component holds the
+// loaded sale and is therefore the single place that knows whether the sale is
+// COMPLETED — the only status POST /pos/sales/{id}/returns accepts.
+//
 // Deliberately read-only with respect to stock: FEFO allocation, pricing,
 // discounts and stock movement are the backend's job and are never recomputed
-// here. There are no return/refund/exchange actions because the backend does not
-// implement them for completed sales.
+// here. A return likewise restores nothing in the browser — the create endpoint
+// does it in one transaction.
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Modal from "../../components/ui/Modal";
@@ -49,9 +55,21 @@ interface Props {
   onChanged: () => void;
   /** Optional extra footer controls supplied by the host page. */
   extraFooterActions?: ReactNode;
+  /**
+   * When supplied, a "Return Sale" action appears for a COMPLETED sale. The
+   * loaded sale is handed back so the host can carry the cashier's name across —
+   * the return screen's own endpoint publishes no cashier field.
+   */
+  onReturnSale?: (sale: SaleDto) => void;
 }
 
-export default function SaleDetailModal({ saleId, onClose, onChanged, extraFooterActions }: Props) {
+export default function SaleDetailModal({
+  saleId,
+  onClose,
+  onChanged,
+  extraFooterActions,
+  onReturnSale,
+}: Props) {
   const [sale, setSale] = useState<SaleDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +162,9 @@ export default function SaleDetailModal({ saleId, onClose, onChanged, extraFoote
 
   const canCancel = sale?.status === "DRAFT";
   const canPay = sale?.status === "COMPLETED" && outstanding > 0;
+  // A customer return needs a COMPLETED sale — the one status the create
+  // endpoint accepts — and is only surfaced when the host wires the action up.
+  const canReturn = Boolean(onReturnSale) && sale?.status === "COMPLETED";
 
   return (
     <Modal
@@ -513,10 +534,9 @@ export default function SaleDetailModal({ saleId, onClose, onChanged, extraFoote
 
           {/* Footer actions — availability is decided by the backend's rules. */}
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#E6ECE2] pt-4">
-            {sale.status === "COMPLETED" && !canPay && (
+            {sale.status === "COMPLETED" && !canPay && !canReturn && (
               <p className="text-xs text-[#999999] mr-auto">
-                Completed sales are terminal — returns and refunds are not offered by the
-                backend.
+                This sale is settled — there is nothing further to collect.
               </p>
             )}
             {canCancel && (
@@ -531,6 +551,15 @@ export default function SaleDetailModal({ saleId, onClose, onChanged, extraFoote
             {canPay && (
               <Button onClick={() => setPanel("payment")} className="mr-auto">
                 Add Payment
+              </Button>
+            )}
+            {canReturn && (
+              <Button
+                onClick={() => sale && onReturnSale?.(sale)}
+                className="mr-auto"
+                title="Refund part of this sale from its original prices"
+              >
+                Return Sale
               </Button>
             )}
             {extraFooterActions}
