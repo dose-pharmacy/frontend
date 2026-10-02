@@ -2,6 +2,7 @@
 // Used by the Scan / Upload Goods Receipt workflow.
 //
 //   POST /api/v1/purchasing/invoice-upload/extract               (OCR, new)
+//   POST /api/v1/purchasing/purchase-orders/{id}/invoice-upload/extract (normalize)
 //   GET  /api/v1/purchasing/purchase-orders/match-candidates     (new)
 //   POST /api/v1/purchasing/purchase-orders/{id}/invoice-upload         (preview)
 //   POST /api/v1/purchasing/purchase-orders/{id}/invoice-upload/confirm (confirm)
@@ -16,6 +17,7 @@
 // automatically with `credentials: "include"`).
 
 import { API_BASE_URL } from "../auth/authApi";
+import { invalidateCachePrefix } from "../inventory/apiCache";
 import type { PaymentMethod } from "./supplierInvoicesApi";
 
 // ─── OCR extraction (Part 1 contract) ───────────────────────────────────────
@@ -26,24 +28,60 @@ import type { PaymentMethod } from "./supplierInvoicesApi";
  * read reliably are `null` — the pharmacist fills them ("never guess").
  */
 export interface ExtractedInvoiceLine {
+  /** Code printed on the supplier document (e.g. "FINS-01"). NOT the pharmacy SKU. */
+  productCode?: string | null;
   productName: string | null;
   quantity: number | null;
-  batchNumber: string | null;
-  expiryDate: string | null;
-  manufacturingDate: string | null;
+  /** UOM printed on the document (e.g. "BOTTLE"). NOT the pharmacy unit. */
+  unit?: string | null;
   unitPrice: number | null;
   lineTotal: number | null;
-  confidence: "high" | "low";
+  batchNumber: string | null;
+  expiryDate: string | null;
+  manufacturingDate?: string | null;
+  /** Per-line confidence — informational, drives amber highlighting. */
+  confidence?: "high" | "low";
 }
 
-/** Response of POST /api/v1/purchasing/invoice-upload/extract. */
+/** Provenance of the extracted text returned by the extract endpoint. */
+export interface ExtractedInvoiceDocument {
+  kind?: string | null;
+  fileName?: string | null;
+  sizeBytes?: number | null;
+  /** `false` when an image carried no machine-readable text. */
+  textExtracted?: boolean;
+}
+
+/**
+ * Response of POST /api/v1/purchasing/invoice-upload/extract.
+ *
+ * Every value is a *proposal* from the document. Supplier identity, product
+ * identity, the pharmacy unit, the purchase order, the location, accepted
+ * quantities and inventory are always pharmacist/system controlled.
+ */
 export interface ExtractedInvoice {
+  /** "text" when the document had machine-readable text. */
+  source?: string | null;
+  /** Informational hint only — never used to select the supplier. */
+  supplierName?: string | null;
+  supplierTin?: string | null;
   invoiceNumber: string | null;
   invoiceDate: string | null;
-  grandTotal: number | null;
+  /** Free Sales Number on the Ethiopian receipt — informational only. */
+  fsNumber?: string | null;
   items: ExtractedInvoiceLine[];
+  /** Receipt lines the extractor could not read — surfaced to the pharmacist. */
+  skippedLineCount?: number | null;
   warnings: string[];
-  documentUrl: string | null;
+  subtotal?: number | null;
+  discount?: number | null;
+  tax?: number | null;
+  fees?: number | null;
+  grandTotal: number | null;
+  /** Informational only — a "CREDIT" term is not a payment. */
+  paymentTerms?: string | null;
+  document?: ExtractedInvoiceDocument | null;
+  documentUrl?: string | null;
 }
 
 // ─── Match candidates (Part 2 contract) ─────────────────────────────────────
@@ -84,8 +122,10 @@ export interface InvoiceUploadLineInput {
    */
   unit?: string;
   unitPrice: number;
-  batchNumber: string;
-  expiryDate: string;
+  /** Omitted when blank — the backend raises MISSING_BATCH for accepted qty > 0. */
+  batchNumber?: string;
+  /** Omitted when blank — the backend raises MISSING_EXPIRY for accepted qty > 0. */
+  expiryDate?: string;
   manufacturingDate?: string;
   /**
    * Explicit PO item the pharmacist confirmed. Highest-priority match signal —
@@ -107,6 +147,14 @@ export interface InvoiceUploadReceivingInput {
   documentUrl?: string;
   receivedDate: string;
   discrepancyNote?: string;
+  /**
+   * Payment terms carried from the supplier document (e.g. "CREDIT"). Purely a
+   * document value recorded on the supplier invoice — it is never treated as a
+   * payment being made.
+   */
+  paymentTerms?: string;
+  /** Optional invoice due date. Only sent when explicitly reviewed/filled. */
+  dueDate?: string;
   /**
    * Optional payment for the created supplier invoice. When neither is set the
    * invoice stays OPEN and no payment is created. When a non-credit method is
@@ -248,7 +296,16 @@ export class InvoiceUploadReceivingError extends Error {
   }
 }
 
-function friendlyStatusMessage(status: number, code?: string): string {
+/**
+ * Map an HTTP status + business code to a message the pharmacist can act on.
+ * `area` selects the wording: the extract endpoint deals with documents, while
+ * the preview/confirm endpoints deal with purchase-order validation.
+ */
+function friendlyStatusMessage(
+  status: number,
+  code?: string,
+  area: "extract" | "receiving" = "receiving",
+): string {
   if (code) {
     switch (code) {
       case "PURCHASE_ORDER_NOT_FOUND":
@@ -262,7 +319,7 @@ function friendlyStatusMessage(status: number, code?: string): string {
       case "PURCHASE_ORDER_CANNOT_RECEIVE":
         return "This purchase order cannot receive goods in its current state.";
       case "DUPLICATE_INVOICE_NUMBER":
-        return "An invoice with this number has already been registered against this purchase order.";
+        return "This supplier invoice has already been recorded. It cannot be received again.";
       case "RECEIVING_DISCREPANCY_UNRESOLVED":
         return "Receiving cannot be confirmed because a discrepancy is still unresolved.";
       case "UNMATCHED_INVOICE_ITEM":
@@ -278,6 +335,32 @@ function friendlyStatusMessage(status: number, code?: string): string {
       case "OCR_EXTRACTION_FAILED":
         return "The receipt could not be read automatically. Please enter the values from the receipt manually.";
       case "OCR_UNAVAILABLE":
+        return ""; // Silent — the workflow falls back to manual entry.
+      case "UNSUPPORTED_DOCUMENT_TYPE":
+        return "Unsupported receipt file type. Upload a PDF, JPG, JPEG, PNG or WEBP file.";
+      case "FILE_TOO_LARGE":
+        return "That receipt file is larger than the 10 MB limit. Please upload a smaller file.";
+      case "EMPTY_DOCUMENT":
+      case "CORRUPT_DOCUMENT":
+      case "PASSWORD_PROTECTED_DOCUMENT":
+        return "No readable text could be extracted from this document (it may be empty, corrupt or password-protected). Please enter the values from the receipt manually.";
+    }
+  }
+  if (area === "extract") {
+    switch (status) {
+      case 400:
+        return "The receipt file was rejected — please try a different document.";
+      case 401:
+        return "Your session has expired. Please sign in again.";
+      case 403:
+        return "You don't have permission to use the receipt reader.";
+      case 413:
+        return "That receipt file is larger than the 10 MB limit. Please upload a smaller file.";
+      case 415:
+        return "Unsupported receipt file type. Upload a PDF, JPG, JPEG, PNG or WEBP file.";
+      case 422:
+        return "No readable text could be extracted from this document. Please enter the values from the receipt manually.";
+      case 404:
         return ""; // Silent — the workflow falls back to manual entry.
     }
   }
@@ -412,6 +495,15 @@ export async function confirmInvoiceUpload(
   if (!data || !data.purchaseOrder?.id || !data.goodsReceipt?.id) {
     throw new InvoiceUploadReceivingError("Unexpected response from the server.");
   }
+
+  // The transaction created goods receipt items, batches and stock movements.
+  // Drop every cached copy that embeds stock/batch data so the next read
+  // reflects the confirmed receipt. (Purchase orders, goods receipts and
+  // supplier invoices are fetched uncached, so they refresh on their own.)
+  invalidateCachePrefix("product:");
+  invalidateCachePrefix("inventory-products:");
+  invalidateCachePrefix("products:search:");
+  invalidateCachePrefix("batches:search:");
   return data;
 }
 
@@ -426,10 +518,10 @@ function extractErrorFrom(res: Response): Promise<InvoiceUploadReceivingError> {
     .catch(() => null)
     .then((body: { error?: { code?: string; message?: string }; message?: string } | null) => {
       let code: string | undefined;
-      let message = friendlyStatusMessage(status);
+      let message = friendlyStatusMessage(status, undefined, "extract");
       if (body?.error?.code) {
         code = body.error.code;
-        message = friendlyStatusMessage(status, code) || message;
+        message = friendlyStatusMessage(status, code, "extract") || message;
       }
       if (body?.error?.message) message = body.error.message;
       else if (body?.message) message = body.message;
@@ -475,6 +567,63 @@ export async function extractInvoiceReceipt(file: File): Promise<ExtractedInvoic
   if (!data || !Array.isArray(data.items)) {
     throw new InvoiceUploadReceivingError(
       "The receipt reader returned an unexpected response. Please enter the values manually.",
+    );
+  }
+  return data;
+}
+
+// ─── PO-specific normalization endpoint ─────────────────────────────────────
+
+/** Document header/lines handed to the PO-scoped normalizer. */
+export interface InvoiceUploadNormalizeDocument {
+  supplierName?: string;
+  supplierTin?: string;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  fsNumber?: string;
+  items?: ExtractedInvoiceLine[];
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  fees?: number;
+  grandTotal?: number;
+  paymentTerms?: string;
+}
+
+export interface InvoiceUploadNormalizeInput {
+  /** Raw document text, when the caller already has it. */
+  text?: string;
+  lines?: unknown[];
+  document?: InvoiceUploadNormalizeDocument;
+}
+
+/**
+ * POST /purchase-orders/{id}/invoice-upload/extract — re-normalize already
+ * extracted OCR data against the selected Purchase Order.
+ *
+ * This is a pure transformation: it does NOT perform OCR itself, and it does
+ * not create a goods receipt, batches, stock, a supplier invoice, or any PO
+ * change. It is useful after the pharmacist has picked a PO, to have the server
+ * align the document lines with that PO's items. The scan workflow does not
+ * depend on it — the preview endpoint already returns PO-aware matches and
+ * suggestions — so it is exposed for callers that want the server-side
+ * normalization pass.
+ */
+export async function normalizeInvoiceForPurchaseOrder(
+  poId: string,
+  input: InvoiceUploadNormalizeInput,
+): Promise<ExtractedInvoice> {
+  const raw = await vioRequest<unknown>(
+    `/${encodeURIComponent(poId)}/invoice-upload/extract`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  const data = unwrapEnvelope<ExtractedInvoice>(
+    raw,
+    null as unknown as ExtractedInvoice,
+  );
+  if (!data || !Array.isArray(data.items)) {
+    throw new InvoiceUploadReceivingError(
+      "The server could not normalize the receipt against this purchase order.",
     );
   }
   return data;
