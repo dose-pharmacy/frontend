@@ -23,6 +23,7 @@ import {
   type UpdatePurchaseOrderItemInput,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import AddSupplier from "./AddSupplier"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
 import { listProductBatches } from "../../features/inventory/batchesApi"
 import { listRequirementLinesByProduct } from "../../features/purchasing/requirementsApi"
@@ -772,6 +773,7 @@ export default function CreatePurchaseOrderPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
   const [addProductOpen, setAddProductOpen] = useState(false)
+  const [addSupplierOpen, setAddSupplierOpen] = useState(false)
   const [editItem, setEditItem] = useState<POItem | null>(null)
   const [shortageTarget, setShortageTarget] = useState<{ itemId: string; productName: string; remaining: number } | null>(null)
   const [shortageQty, setShortageQty] = useState("")
@@ -1334,9 +1336,24 @@ export default function CreatePurchaseOrderPage() {
 
             {/* Supplier selection */}
             <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
-              <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">
-                Supplier <span className="text-red-400">*</span>
-              </p>
+              {/* Header row mirrors the "Order Items" card: label left, inline
+                  action right. */}
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
+                  Supplier <span className="text-red-400">*</span>
+                </p>
+                {/* Opens the same AddSupplier modal (and POST /purchasing/suppliers)
+                    used by Supplier Payables, then selects the new supplier. */}
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setAddSupplierOpen(true)}
+                    className="text-xs font-semibold text-[#7A9076] hover:underline"
+                  >
+                    + Add new supplier
+                  </button>
+                )}
+              </div>
               {isReadOnly ? (
                 <div className={ROC}>{supplierView?.name ?? "—"}</div>
               ) : (
@@ -2111,6 +2128,21 @@ export default function CreatePurchaseOrderPage() {
       </div>
 
       {/* Modals */}
+      {/* Reuses the Supplier Payables "Add Supplier" modal (same component, same
+          POST /purchasing/suppliers). The new supplier is added to the list and
+          immediately selected, so the required Supplier field stays valid. */}
+      <AddSupplier
+        open={addSupplierOpen}
+        onClose={() => setAddSupplierOpen(false)}
+        onCreated={(created: SupplierDto) => {
+          setSuppliers((prev) =>
+            prev.some((s) => s.id === created.id) ? prev : [created, ...prev],
+          )
+          setSuppId(created.id)
+          setAddSupplierOpen(false)
+        }}
+      />
+
       <AddProductModal
         open={addProductOpen}
         products={products}
