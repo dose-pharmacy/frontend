@@ -221,7 +221,7 @@ export default function POSPage() {
       amount: number
       reference?: string
     }[],
-    customer: { customername?: string; customerphonenumber?: string },
+    customer: { customerName?: string; customerPhone?: string },
   ) {
     if (!selectedLocation) {
       setToast({ message: "Please select a location first.", type: "error" })
@@ -240,12 +240,11 @@ export default function POSPage() {
       })),
       payments,
       billDiscount: cart.cart.billDiscount ?? undefined,
-      // Undocumented on SaleCreateInput — see the contract-gap note in
-      // CompleteSaleInput. Empty values are omitted, never sent as "".
-      ...(customer?.customername ? { customername: customer.customername } : {}),
-      ...(customer?.customerphonenumber
-        ? { customerphonenumber: customer.customerphonenumber }
-        : {}),
+      // Not yet documented on SaleCreateInput — see the contract-gap note on
+      // CompleteSaleInput. camelCase matches the backend's own CreditSaleListItem
+      // / CreditSaleDetailResponse. Empty values are omitted, never sent as "".
+      ...(customer?.customerName ? { customerName: customer.customerName } : {}),
+      ...(customer?.customerPhone ? { customerPhone: customer.customerPhone } : {}),
     }
     await completeSale(input)
     cart.clearCart()

@@ -127,9 +127,22 @@ export default function SaleDetailModal({
   const [paying, setPaying] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
+  // Prefer the server's authoritative `creditAmount` as soon as the backend
+  // publishes it, and only fall back to deriving it from the published
+  // total/paid pair (the only option today — `Sale` exposes no credit field
+  // yet). Never negative. This is display-only; settling a balance is a
+  // separate concern handled by recordSalePayment below.
   const outstanding = sale
-    ? Math.max(0, (sale.totalAmount ?? 0) - (sale.paidAmount ?? 0))
+    ? Math.max(
+        0,
+        typeof sale.creditAmount === "number"
+          ? sale.creditAmount
+          : (sale.totalAmount ?? 0) - (sale.paidAmount ?? 0),
+      )
     : 0;
+  // Printed on the receipt only when actually recorded — never a placeholder.
+  const receiptCustomerName = sale?.customerName?.trim() ?? "";
+  const receiptCustomerPhone = sale?.customerPhone?.trim() ?? "";
   const parsedAmount = Number(amount);
   const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
   const amountWithinBalance = amountValid && parsedAmount <= outstanding + 1e-9;
@@ -226,6 +239,14 @@ export default function SaleDetailModal({
               <InfoRow label="Created" value={fmtDateTime(sale.createdAt)} />
               <InfoRow label="Cashier" value={sale.cashier?.name ?? "—"} />
               <InfoRow label="Location" value={sale.location?.name ?? "—"} />
+              {/* Customer details print only when they were actually
+                  recorded — an anonymous credit sale shows neither line. */}
+              {receiptCustomerName && (
+                <InfoRow label="Customer" value={receiptCustomerName} />
+              )}
+              {receiptCustomerPhone && (
+                <InfoRow label="Phone" value={receiptCustomerPhone} />
+              )}
               {sale.billDiscountValue != null && sale.billDiscountValue !== 0 && (
                 <InfoRow
                   label="Bill Discount"
@@ -365,17 +386,19 @@ export default function SaleDetailModal({
               <SummaryRow label="Discount" value={fmtMoney(sale.totalDiscount)} />
               <SummaryRow label="Total" value={fmtMoney(sale.totalAmount)} emphasis />
               <SummaryRow label="Paid" value={fmtMoney(sale.paidAmount)} />
-              {sale.status === "COMPLETED" ? (
+              {/* Balance Due prints only when the sale actually left credit —
+                  a fully-paid or cancelled sale shows no such line. */}
+              {sale.status === "COMPLETED" && outstanding > 0 && (
                 <SummaryRow
-                  label="Outstanding"
-                  value={outstanding > 0 ? fmtMoney(outstanding) : fmtMoney(0)}
+                  label="Balance Due"
+                  value={fmtMoney(outstanding)}
                   emphasis
-                  tone={outstanding > 0 ? "outstanding" : "muted"}
+                  tone="outstanding"
                 />
-              ) : (
-                <SummaryRow label="Outstanding" value="—" tone="muted" />
               )}
-              <SummaryRow label="Change" value={fmtMoney(sale.changeAmount)} tone="muted" />
+              {sale.changeAmount > 0 && (
+                <SummaryRow label="Change" value={fmtMoney(sale.changeAmount)} tone="muted" />
+              )}
             </div>
           </Panel>
 

@@ -105,6 +105,25 @@ export interface SaleDto {
   /** Populated on GET /{id}; may be present (possibly empty) on list rows. */
   items: SaleItemDto[];
   payments: SalePaymentDto[];
+
+  // ── Credit (partial payment) fields ────────────────────────────────────
+  // CONTRACT GAP — not yet published by the backend. The live OpenAPI `Sale`
+  // schema still exposes no outstanding/credit field and no customer fields,
+  // and POST /pos/sales still rejects an underpaid sale with
+  // `422 insufficient payment`. These are declared OPTIONAL so the app compiles
+  // and renders correctly today, and automatically starts using the
+  // authoritative server values the moment the backend publishes them.
+  //
+  // Consumers MUST prefer `creditAmount` when present and only fall back to
+  // deriving `totalAmount - paidAmount`. Never send any of these back.
+  /** Outstanding credit left on the sale by the server. */
+  creditAmount?: number;
+  /** Server-side payment state derived from total/paid. */
+  paymentStatus?: "PAID" | "PARTIALLY_PAID" | "UNPAID";
+  /** Optional customer identification recorded alongside a credit balance. */
+  customerName?: string | null;
+  /** Optional customer phone recorded alongside a credit balance. */
+  customerPhone?: string | null;
 }
 
 export interface SaleListMeta {
@@ -171,24 +190,30 @@ export interface CompleteSaleInput {
   /** Cashier notes. */
   notes?: string;
   /**
-   * Customer identification for the outstanding balance.
+   * Optional customer identification, recorded alongside the outstanding balance.
    *
-   * UNVERIFIED CONTRACT GAP — these two names are NOT in the documented
-   * `SaleCreateInput` body (which publishes only locationId, items, payments,
-   * billDiscount, notes). They are sent because the backend's own
-   * `CreditSaleListItem` exposes `customerName` and `customerPhone`, and a
-   * credit sale is created through this very endpoint — so the Sale record
-   * almost certainly stores them and the request schema is simply incomplete.
-   * That inference is NOT confirmed: this could not be verified against the
-   * live service, because auth is enforced before request-body validation, so
-   * no probe can distinguish "accepted" from "ignored".
+   * CONTRACT GAP (still open, re-verified against the live OpenAPI document):
+   * neither name appears in the documented `SaleCreateInput` body, which still
+   * publishes only locationId, items, payments, billDiscount and notes. They are
+   * sent in camelCase because that is the spelling the backend's own
+   * `CreditSaleListItem` and `CreditSaleDetailResponse` use for the very same
+   * two values — and a credit sale is created through this endpoint, so the Sale
+   * record almost certainly stores them and only the request schema is
+   * incomplete.
    *
-   * Do not treat these as confirmed. If the backend rejects the sale with an
-   * unknown-field 422, delete both fields and report the gap rather than
-   * renaming them speculatively.
+   * The previous all-lowercase spelling (`customername` / `customerphonenumber`)
+   * matched nothing in the document and has been corrected to match the response
+   * schemas. This remains an inference: it cannot be proven against the live
+   * service, because auth is enforced before request-body validation, so no
+   * probe can distinguish "accepted" from "silently ignored".
+   *
+   * Both fields are optional and are omitted entirely when empty — they are
+   * never sent as empty strings, and a sale is never blocked for lacking them.
+   * If the backend rejects the sale with an unknown-field 422, delete both
+   * fields and report the gap rather than renaming them speculatively.
    */
-  customername?: string;
-  customerphonenumber?: string;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 /**
