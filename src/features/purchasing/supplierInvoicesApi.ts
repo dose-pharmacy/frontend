@@ -134,7 +134,7 @@ async function invoiceRequest<T>(endpoint: string, options: RequestInit = {}): P
     if (code === "SUPPLIER_INVOICE_NOT_FOUND")
       msg = "This supplier invoice no longer exists."
     if (code === "SUPPLIER_INVOICE_EXCEEDS_RECEIVED")
-      msg = "The invoiced quantity exceeds the received-but-not-yet-invoiced quantity for one or more items."
+      msg = "This purchase order has changed and some goods are no longer available for invoicing. Please refresh the purchase order and review the quantities again."
     if (code === "SUPPLIER_INVOICE_PAYMENT_EXCEEDS_BALANCE")
       msg = "The payment amount cannot exceed the outstanding balance."
     if (code === "SUPPLIER_NOT_FOUND") msg = "The selected supplier was not found."
@@ -190,7 +190,13 @@ export interface CreateSupplierInvoiceInput {
   taxAmount?: number
   additionalChargesAmount?: number
   discountAmount?: number
-  paymentTerms?: string
+  paymentTerms?: "CREDIT" | "NO_CREDIT"
+  /**
+   * NOTE: this endpoint accepts only CASH / MOBILE_TRANSFER / CHECK. The wider
+   * `PaymentMethod` union used by POST /supplier-invoices/{id}/payments is a
+   * different contract and is invalid here.
+   */
+  paymentMethod?: "CASH" | "MOBILE_TRANSFER" | "CHECK"
   items?: {
     purchaseOrderItemId: string
     /** Quantity invoiced, in the PO item's ordered unit. */

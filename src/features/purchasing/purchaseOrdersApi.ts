@@ -50,6 +50,16 @@ export interface POItemDto {
   /** Base-unit snapshot of `quantityOrdered` (present on detail responses). */
   quantityOrderedBase?: number;
   quantityReceived?: number;
+  /** quantityOrdered − quantityReceived − quantityShort (never negative). */
+  quantityRemaining?: number;
+  /** SUM of quantities billed for this item across ALL of the PO's invoices. */
+  quantityInvoiced?: number;
+  /**
+   * quantityReceived − quantityInvoiced (never negative). This is the maximum
+   * quantity that may be billed on a new invoice — NOT `quantityReceived`.
+   * Items with a positive value are invoice-eligible regardless of PO status.
+   */
+  quantityRemainingToInvoice?: number;
   quantityShort?: number;
   shortReason?: string | null;
   /** Unit the ordered quantity is expressed in. */
@@ -144,6 +154,7 @@ export interface POListMeta {
 export interface POListSummaryDto {
   registered: number;
   awaitingDelivery: number;
+  partiallyReceived: number;
   received: number;
   closed: number;
   cancelled: number;
@@ -164,6 +175,15 @@ export interface PurchaseOrdersQuery {
   /** When true, the backend returns only POs still receivable
    * (at least one item with quantityRemaining > 0). */
   receivable?: boolean;
+  /**
+   * Supplier-invoicing workflow. Returns only POs with at least one item where
+   * `quantityReceived > quantityInvoiced`. PO status does NOT gate eligibility
+   * (AWAITING_DELIVERY / PARTIALLY_RECEIVED / RECEIVED all appear when billable
+   * goods exist); fully invoiced orders are excluded. Implies `includeItems=true`.
+   */
+  invoiceable?: boolean;
+  /** Include item detail on each order. Implied by receivable/invoiceable. */
+  includeItems?: boolean;
   paymentStatus?: POPaymentStatus;
   search?: string;
 }
@@ -343,6 +363,8 @@ export async function listPurchaseOrders(
     supplierId: query.supplierId,
     status: query.status,
     receivable: query.receivable ? "true" : undefined,
+    invoiceable: query.invoiceable ? "true" : undefined,
+    includeItems: query.includeItems ? "true" : undefined,
     paymentStatus: query.paymentStatus,
     search: query.search,
   })) {
@@ -395,13 +417,16 @@ export async function createPurchaseOrder(input: CreatePurchaseOrderInput): Prom
 
 /** GET /purchase-orders/{id} — full PO with supplier contact and items.
  * Pass `{ receivableItems: true }` to restrict `items` to lines that still
- * have quantity remaining (> 0) — the backend decides, never the client. */
+ * have quantity remaining (> 0), or `{ invoiceableItems: true }` to restrict
+ * them to lines with received-but-not-yet-invoiced quantity — the backend
+ * decides, never the client. */
 export async function getPurchaseOrder(
   id: string,
-  query?: { receivableItems?: boolean },
+  query?: { receivableItems?: boolean; invoiceableItems?: boolean },
 ): Promise<PurchaseOrderDto> {
   const params = new URLSearchParams();
   if (query?.receivableItems) params.set("receivableItems", "true");
+  if (query?.invoiceableItems) params.set("invoiceableItems", "true");
   const qs = params.toString();
   const raw = await poRequest<unknown>(`/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`);
   const data = unwrapEnvelope<PurchaseOrderDto>(raw, null as unknown as PurchaseOrderDto);
