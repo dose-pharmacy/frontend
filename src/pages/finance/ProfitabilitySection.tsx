@@ -1,10 +1,17 @@
 // ── Finance · Profitability ─────────────────────────────────────────────────
-// GET /financials/reports/profitability/summary + GET /financials/reports/profitability
+// The KPI row comes from the shared `GET /finance-reporting/report` response
+// (`profitability` + `salesPerformance`); the per-dimension table below it stays
+// on `GET /financials/reports/profitability`, which is the only endpoint that
+// returns rows grouped by brand / manufacturer / product group / product.
 //
 // The summary and the table are driven by ONE filter state (groupBy + product
 // group + date range) so the headline margin always describes the rows beneath
 // it (§19). Revenue, cost, profit and margin are the backend's authoritative
 // figures — nothing here recomputes profit or derives COGS.
+//
+// `productCount` is the single value the report does not carry (it has no
+// product-level count), so `getProfitabilitySummary` is retained for that card
+// alone rather than inventing a count or dropping the card (§11, §20).
 //
 // CONTRACT WARNING: OpenAPI types the table endpoint as the shared
 // `GenericListResponse`, whose item schema is an inventory/product object and
@@ -39,6 +46,7 @@ import {
   rangeLabel,
   useFinanceFetch,
   type FinanceFilters,
+  type FinanceReportState,
 } from "./financeView";
 
 const PAGE_SIZE = 20;
@@ -52,11 +60,13 @@ const GROUP_BY_OPTIONS: { value: ProfitabilityGroupBy; label: string }[] = [
 
 export default function ProfitabilitySection({
   filters,
+  report,
   groupBy,
   onGroupByChange,
   productGroupId,
 }: {
   filters: FinanceFilters;
+  report: FinanceReportState;
   groupBy: ProfitabilityGroupBy;
   onGroupByChange: (groupBy: ProfitabilityGroupBy) => void;
   productGroupId: string;
@@ -80,10 +90,11 @@ export default function ProfitabilitySection({
     productGroupId: productGroupId || undefined,
   };
 
-  const summary = useFinanceFetch(
+  // Retained for `productCount` ONLY — the one KPI the report cannot supply.
+  const legacySummary = useFinanceFetch(
     () => getProfitabilitySummary(query),
     [filters.dateFrom, filters.dateTo, groupBy, productGroupId],
-    "Could not load the profitability summary.",
+    "Could not load the product count.",
   );
 
   const table = useFinanceFetch(
@@ -92,7 +103,9 @@ export default function ProfitabilitySection({
     "Could not load the profitability table.",
   );
 
-  const s = summary.data;
+  const profit = report.data?.profitability;
+  const unitsSold = report.data?.salesPerformance?.unitsSold;
+  const s = legacySummary.data;
   const rows: ProfitabilityRowDto[] = table.data?.data ?? [];
   const meta = table.data?.meta;
 
@@ -108,7 +121,10 @@ export default function ProfitabilitySection({
     setPage(1);
   }
 
-  const summaryError = summary.error;
+  const summaryError = report.error;
+  // While the shared report refetches for new filters it still holds the previous
+  // window, so the KPI row is gated on `loading` and never shows those figures.
+  const summaryLoading = report.loading;
 
   return (
     <div className="flex flex-col gap-5">
@@ -129,40 +145,43 @@ export default function ProfitabilitySection({
       </SubFilters>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
-        <KpiCard label="Revenue" value={fmtMoney(s?.revenue)} loading={summary.loading} error={summaryError}
-          onRetry={summary.reload} />
-        <KpiCard label="Cost / COGS" value={fmtMoney(s?.cost)} loading={summary.loading} error={summaryError}
-          onRetry={summary.reload} />
+        <KpiCard label="Revenue" value={fmtMoney(profit?.netSales)} loading={summaryLoading} error={summaryError}
+          onRetry={report.reload} />
+        <KpiCard label="Cost / COGS" value={fmtMoney(profit?.cogs)} loading={summaryLoading} error={summaryError}
+          onRetry={report.reload} />
         <KpiCard
           label="Profit"
-          value={fmtMoney(s?.profit)}
-          tone={(s?.profit ?? 0) < 0 ? "negative" : "positive"}
-          loading={summary.loading}
+          value={fmtMoney(profit?.grossProfit)}
+          tone={(profit?.grossProfit ?? 0) < 0 ? "negative" : "positive"}
+          loading={summaryLoading}
           error={summaryError}
-          onRetry={summary.reload}
+          onRetry={report.reload}
         />
+        {/* `grossMargin` arrives as a PERCENTAGE (`profit / netSales * 100`) and
+            `fmtPercent` appends the sign, so it is passed through untouched.
+            Scaling it here would render a 20% margin as "2000.0%". */}
         <KpiCard
           label="Margin"
-          value={fmtPercent(s?.margin)}
-          tone={(s?.margin ?? 0) < 0 ? "negative" : "positive"}
-          loading={summary.loading}
+          value={fmtPercent(profit?.grossMargin)}
+          tone={(profit?.grossMargin ?? 0) < 0 ? "negative" : "positive"}
+          loading={summaryLoading}
           error={summaryError}
-          onRetry={summary.reload}
+          onRetry={report.reload}
         />
         <KpiCard
           label="Quantity"
-          value={fmtNumber(s?.quantity)}
-          loading={summary.loading}
+          value={fmtNumber(unitsSold)}
+          loading={summaryLoading}
           error={summaryError}
-          onRetry={summary.reload}
+          onRetry={report.reload}
           hint="Units sold"
         />
         <KpiCard
           label="Product count"
           value={fmtNumber(s?.productCount)}
-          loading={summary.loading}
-          error={summaryError}
-          onRetry={summary.reload}
+          loading={legacySummary.loading}
+          error={legacySummary.error}
+          onRetry={legacySummary.reload}
         />
       </div>
 

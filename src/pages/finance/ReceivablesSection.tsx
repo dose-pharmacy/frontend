@@ -1,5 +1,8 @@
 // ── Finance · Receivables ────────────────────────────────────────────────────
-// GET /financials/credit-sales — how customer debt sits in the financial picture.
+// The two balance cards come from the shared `GET /finance-reporting/report`
+// response (`collections.customerReceivables` / `collections.customerCollections`).
+// The ledger below stays on `GET /financials/credit-sales` — the report carries
+// no row-level receivables list, and inventing one is not an option.
 //
 // This tab deliberately REPORTS only. The Credit module (linked below) owns
 // operational debt management and payment collection, so no payment controls,
@@ -23,6 +26,7 @@ import {
   EmptyBlock,
   ErrorBlock,
   FilterSelect,
+  KpiCard,
   Panel,
   TableSkeleton,
   dateBounds,
@@ -32,6 +36,7 @@ import {
   rangeLabel,
   useFinanceFetch,
   type FinanceFilters,
+  type FinanceReportState,
 } from "./financeView";
 
 const PAGE_SIZE = 20;
@@ -48,7 +53,13 @@ const STATUS_OPTIONS: { value: CreditStatusFilter; label: string }[] = [
  *  keystroke doesn't fire a request that can only come back empty. */
 const DRILL_DEFAULTS = { customerName: "", customerPhone: "", saleNumber: "" };
 
-export default function ReceivablesSection({ filters }: { filters: FinanceFilters }) {
+export default function ReceivablesSection({
+  filters,
+  report,
+}: {
+  filters: FinanceFilters;
+  report: FinanceReportState;
+}) {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<CreditStatusFilter>("OUTSTANDING");
   const [drill, setDrill] = useState(DRILL_DEFAULTS);
@@ -91,8 +102,35 @@ export default function ReceivablesSection({ filters }: { filters: FinanceFilter
 
   const drillActive = Boolean(applied.customerName || applied.customerPhone || applied.saleNumber);
 
+  // Report-sourced balances. `collections` is the section that owns customer
+  // debt, so these are read from there rather than from the sales figures — a
+  // receivable is never a sales value.
+  const collections = report.data?.collections;
+
   return (
     <div className="flex flex-col gap-5">
+      {/* Whole-scope balances for the selected window. These are the backend's
+          own totals, NOT a sum of the ledger page below — a page is not the
+          whole ledger, so the two are deliberately never reconciled on screen. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <KpiCard
+          label="Customer receivables"
+          value={fmtMoney(collections?.customerReceivables)}
+          loading={report.loading}
+          error={report.error}
+          onRetry={report.reload}
+          hint="Outstanding balance"
+        />
+        <KpiCard
+          label="Customer collections"
+          value={fmtMoney(collections?.customerCollections)}
+          loading={report.loading}
+          error={report.error}
+          onRetry={report.reload}
+          hint="Collected in the period"
+        />
+      </div>
+
       <Panel
         title="Customer receivables"
         action={

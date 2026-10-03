@@ -22,8 +22,24 @@ import { searchLocations } from "../../features/inventory/searchSelectors";
 import { listProductGroups } from "../../features/inventory/productGroupsApi";
 import { fmtMoney, fmtNumber, fmtPercent, fmtDate, fmtDateTime, rangeLabel } from "../../utils/format";
 import type { SortOrder } from "../../features/reports/reportsApi";
+import type { FinanceReport } from "../../features/finance/financeReportingApi";
 
 export { fmtMoney, fmtNumber, fmtPercent, fmtDate, fmtDateTime, rangeLabel };
+
+/**
+ * The single `/finance-reporting/report` response, shared by every Finance tab.
+ *
+ * The report is fetched ONCE at page level rather than per tab, so switching
+ * tabs never refetches and two tabs can never disagree about the same figures.
+ * Sections read `data`/`loading`/`error` — they never issue their own report
+ * request.
+ */
+export interface FinanceReportState {
+  data: FinanceReport | null;
+  loading: boolean;
+  error: string | null;
+  reload: () => void;
+}
 
 // ── Date bounds ──────────────────────────────────────────────────────────────
 // The financial reports document `dateFrom` as an INCLUSIVE UTC start-of-day and
@@ -73,11 +89,12 @@ export interface FinanceFilters {
 /**
  * The shared Date From / Date To / Location filter area.
  *
- * `showLocation` is driven by the ACTIVE TAB, not a blanket default: `locationId`
- * is accepted by sales/summary, sales/trend, sales and sales/detail, but NOT by
- * any profitability or profit-margin endpoint. Rendering it unconditionally
- * would imply a filter that is silently dropped, and sending it anyway would put
- * an unsupported parameter in the query.
+ * `showLocation` is kept as an explicit prop rather than always rendered so a
+ * caller that genuinely cannot honour `locationId` can say so instead of
+ * implying a filter the request would silently drop. `/finance-reporting/report`
+ * accepts `locationId` on every tab, so the Finance page passes `true`
+ * throughout — the previous limitation belonged to the older
+ * `/financials/reports/profitability` endpoints, which the report replaces.
  */
 export function FilterBar({
   filters,

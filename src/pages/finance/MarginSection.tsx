@@ -1,5 +1,13 @@
 // ── Finance · Margins ───────────────────────────────────────────────────────
-// GET /financials/reports/profit-margin/summary + GET /financials/reports/profit-margin
+// The headline "Gross margin" card comes from the shared
+// `GET /finance-reporting/report` response (`profitability.grossMargin`).
+//
+// The target-vs-actual cards and the product margin table remain on
+// `GET /financials/reports/profit-margin*`: the report has NO target-margin
+// concept and no per-product margin rows, so those figures cannot come from it
+// without being invented. This tab therefore still makes the same two calls it
+// always did — the report is shared with the rest of the page and costs nothing
+// extra here.
 //
 // Every figure — including the below-target count and both margins — is the
 // backend's. The frontend never recomputes a margin or decides for itself that
@@ -34,15 +42,18 @@ import {
   rangeLabel,
   useFinanceFetch,
   type FinanceFilters,
+  type FinanceReportState,
 } from "./financeView";
 
 const PAGE_SIZE = 20;
 
 export default function MarginSection({
   filters,
+  report,
   productGroupId,
 }: {
   filters: FinanceFilters;
+  report: FinanceReportState;
   productGroupId: string;
 }) {
   const [page, setPage] = useState(1);
@@ -69,6 +80,7 @@ export default function MarginSection({
   );
 
   const s = summary.data;
+  const grossMargin = report.data?.profitability?.grossMargin;
   const rows: ProfitMarginRowDto[] = table.data?.data ?? [];
   const meta = table.data?.meta;
 
@@ -84,6 +96,18 @@ export default function MarginSection({
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Report-sourced: the margin actually achieved across the whole scope.
+            A percentage already (`grossProfit / netSales * 100`), so `fmtPercent`
+            appends the sign without further scaling. */}
+        <KpiCard
+          label="Gross margin"
+          value={fmtPercent(grossMargin)}
+          tone={(grossMargin ?? 0) < 0 ? "negative" : "positive"}
+          loading={report.loading}
+          error={report.error}
+          onRetry={report.reload}
+          hint="Across the selected period"
+        />
         <KpiCard
           label="Products analysed"
           value={fmtNumber(s?.productCount)}
