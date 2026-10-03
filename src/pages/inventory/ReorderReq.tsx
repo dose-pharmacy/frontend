@@ -1,3 +1,29 @@
+// ── Purchasing → Requirements · Generate from Reorder ────────────────────────
+// Turns reorder suggestions into purchase requirement lines. The pharmacist
+// decides which products to order and how much of each; nothing is preselected.
+//
+// THE SELECTION RULES THIS MODAL ENFORCES
+//   • Every row opens UNCHECKED at quantity 0. The reorder endpoint's own
+//     `suggestedQuantity` is displayed as read-only context but never seeds the
+//     field — accepting the suggestion is the pharmacist's decision, not a
+//     default. (See `INITIAL_QUANTITY`.)
+//   • Selection and quantity are independent. Ticking a row does not fill in a
+//     quantity, and typing a quantity does not tick the row.
+//   • Only TICKED rows are sent. An unticked row's quantity is never read, so
+//     it is never validated and never submitted.
+//   • A ticked row at 0 blocks submission. It is flagged inline the moment it
+//     happens, and pressing Generate names the offending products rather than
+//     failing silently at the backend.
+//   • Generate is disabled only when nothing is ticked or a request is in
+//     flight — never to hide the reason a submission is blocked.
+//   • A failed request leaves every checkbox and quantity untouched; the form
+//     is only cleared when the modal closes.
+//
+// API: `POST /purchasing/requirements` via `createRequirement`. The payload is
+// built from the ticked rows alone, using the backend's own field names
+// (`productId`, `quantityNeeded`). `unitId` is deliberately omitted, which makes
+// the backend default the line to the product's base unit.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Button from "../../components/ui/Button";
@@ -18,7 +44,9 @@ interface ReorderSuggestion {
    */
   productId: string;
   name: string;
-  /** Real backend suggestion, used as the initial editable quantity. */
+  /** Real backend suggestion. Display-only: the pharmacist types the requirement
+   *  quantity, so this is shown beside the product as context and is never the
+   *  field's starting value and never sent. */
   suggestedQuantity: number;
   status: string;
   /** Echoed into the line note, matching the backend's own reorder path. */
@@ -32,7 +60,8 @@ interface ReorderSuggestion {
   baseUnit?: ReorderBaseUnitDto | null;
 }
 
-/** Per-row pharmacist state. Kept separate from the reorder API response. */
+/** Per-row pharmacist state. Kept separate from the reorder API response and
+ *  keyed by the backend product id, because suggestions can repeat a name. */
 interface RowState {
   selected: boolean;
   /** Held as a string so the field can be cleared/typed freely without rounding. */
@@ -51,15 +80,29 @@ type View = "confirm" | "success";
 /** Only digits and a single decimal point; blocks `-` so negatives are impossible. */
 const QTY_CHARS = /[^0-9.]/g;
 
-function initialQuantity(suggestedQuantity: number): string {
-  return Number.isFinite(suggestedQuantity) && suggestedQuantity > 0
-    ? String(suggestedQuantity)
-    : "0";
-}
+/**
+ * Every row starts here, checked or not.
+ *
+ * The reorder endpoint sends its own `suggestedQuantity`, and that number is
+ * deliberately NOT the starting value: the pharmacist types the quantity they
+ * want to request. Seeding the field with the suggestion would turn "generate
+ * from reorder" into "accept every suggestion unchanged", which is the opposite
+ * of selecting products one by one. The suggestion is still shown beside the
+ * product as read-only context.
+ */
+const INITIAL_QUANTITY = "0";
 
+/**
+ * The typed value as a usable number.
+ *
+ * Guards every way a quantity can be absent — an empty field is `""` (`NaN`),
+ * a field holding only punctuation is `NaN`, and anything non-finite is
+ * rejected — so callers never have to re-check. Never negative: `QTY_CHARS`
+ * strips `-` from the input, and this clamps what slips past it.
+ */
 function parseQuantity(raw: string): number {
   const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 export default function GenerateRequirementsModal({
@@ -73,24 +116,15 @@ export default function GenerateRequirementsModal({
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validation, setValidation] = useState<string | null>(null);
-  const [showRowErrors, setShowRowErrors] = useState(false);
   const [result, setResult] = useState<RequirementCreateResult | null>(null);
-  // Only what the pharmacist actually changed is stored; anything else falls back
-  // to the backend's suggested quantity, and no row starts selected.
+  // Only what the pharmacist actually changed is stored. Anything untouched is
+  // unselected at 0, so opening the modal never selects or submits anything.
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const masterRef = useRef<HTMLInputElement>(null);
 
-  /** Backend suggestion per product id, used as the seed quantity for any row. */
-  const suggestedById = useMemo(
-    () => new Map(suggestions.map((s) => [s.productId, s.suggestedQuantity])),
-    [suggestions],
-  );
-
-  const suggestedQuantityOf = (productId: string): number => suggestedById.get(productId) ?? 0;
-
+  /** Untouched rows are unselected at 0; only edits are stored. */
   const rowFor = (productId: string): RowState =>
-    rows[productId] ??
-    { selected: false, quantity: initialQuantity(suggestedQuantityOf(productId)) };
+    rows[productId] ?? { selected: false, quantity: INITIAL_QUANTITY };
 
   const orderedRows = useMemo(
     () => suggestions.map((s) => ({ suggestion: s, row: rowFor(s.productId) })),
@@ -109,12 +143,13 @@ export default function GenerateRequirementsModal({
   }, [someSelected]);
 
   // Reset for the next time the modal opens so a previous run never leaks.
+  // Runs on CLOSE, not on open, so a failed submission keeps the pharmacist's
+  // checkboxes and quantities exactly as they were.
   useEffect(() => {
     if (open) return;
     setView("confirm");
     setError(null);
     setValidation(null);
-    setShowRowErrors(false);
     setResult(null);
     setRows({});
   }, [open]);
@@ -123,11 +158,7 @@ export default function GenerateRequirementsModal({
 
   function patchRow(productId: string, patch: Partial<RowState>) {
     setRows((prev) => {
-      // Fall back to the backend's own suggestion, never to a hard-coded 0, so
-      // merely checking a row cannot wipe the quantity it was seeded with (§4).
-      const current =
-        prev[productId] ??
-        { selected: false, quantity: initialQuantity(suggestedQuantityOf(productId)) };
+      const current = prev[productId] ?? { selected: false, quantity: INITIAL_QUANTITY };
       return { ...prev, [productId]: { ...current, ...patch } };
     });
   }
@@ -144,14 +175,13 @@ export default function GenerateRequirementsModal({
     setValidation(null);
   }
 
-  /** Select All / Deselect All never touches quantities (§3). */
+  /** Select All / Deselect All never touches quantities — every row still starts
+   *  at 0, so the pharmacist must enter each quantity. */
   function toggleAll(checked: boolean) {
     setRows((prev) => {
       const next: Record<string, RowState> = { ...prev };
       for (const s of suggestions) {
-        const current =
-          next[s.productId] ??
-          { selected: false, quantity: initialQuantity(suggestedQuantityOf(s.productId)) };
+        const current = next[s.productId] ?? { selected: false, quantity: INITIAL_QUANTITY };
         next[s.productId] = { ...current, selected: checked };
       }
       return next;
@@ -163,13 +193,21 @@ export default function GenerateRequirementsModal({
     onClose();
   }
 
-  /** Selected rows whose quantity is not a usable positive number (§7). */
+  /** Selected rows whose quantity is not a usable positive number. A checked
+   *  product still sitting at 0 blocks submission — the checkbox says "include
+   *  this", so the quantity has to be filled in. */
   const invalidSelected = selectedRows.filter(({ row }) => parseQuantity(row.quantity) <= 0);
-  const canGenerate = selectedCount > 0 && invalidSelected.length === 0;
-  const totalUnits = selectedRows.reduce(
-    (sum, { row }) => sum + Math.max(parseQuantity(row.quantity), 0),
-    0,
-  );
+
+  /**
+   * The button is disabled ONLY when nothing is selected (or a request is in
+   * flight). It deliberately stays enabled while a selected row is invalid:
+   * disabling it there would leave the pharmacist with a dead button and no
+   * explanation of why. Enabled, pressing it runs `validateSelection`, which
+   * shows the message and highlights the offending fields.
+   */
+  const canGenerate = selectedCount > 0 && !generating;
+
+  const totalUnits = selectedRows.reduce((sum, { row }) => sum + parseQuantity(row.quantity), 0);
 
   function validateSelection(): string | null {
     if (selectedCount === 0) {
@@ -179,7 +217,12 @@ export default function GenerateRequirementsModal({
       return "Enter a quantity greater than 0 for at least one selected product.";
     }
     if (invalidSelected.length > 0) {
-      return "Quantity must be greater than 0 for every selected product.";
+      const names = invalidSelected
+        .slice(0, 3)
+        .map(({ suggestion }) => suggestion.name)
+        .join(", ");
+      const rest = invalidSelected.length > 3 ? ` and ${invalidSelected.length - 3} more` : "";
+      return `Enter a quantity greater than 0 for every selected product: ${names}${rest}.`;
     }
     // The backend rejects the same product twice in one requirement (422
     // DUPLICATE_PRODUCT_IN_REQUIREMENT). Report it here rather than letting the
@@ -198,9 +241,6 @@ export default function GenerateRequirementsModal({
     const problem = validateSelection();
     if (problem) {
       setValidation(problem);
-      // Inline row errors appear only once the pharmacist has tried to submit,
-      // so a freshly opened modal is not covered in red (§7).
-      setShowRowErrors(true);
       return;
     }
 
@@ -278,18 +318,21 @@ export default function GenerateRequirementsModal({
           {view === "confirm" ? (
             <>
               <p className="text-sm text-[#333333]/80">
-                Choose the products to generate purchase requirements for and set the quantity to
-                request for each. Unchecked products are not sent.
+                Tick the products to include and enter the quantity to request for each.
+                Unticked products are not sent.
               </p>
 
+              {/* Live selection counter — recomputed on every checkbox change. */}
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <p className="text-sm font-semibold text-[#333333]">
-                  {suggestions.length} product{suggestions.length === 1 ? "" : "s"} need replenishment.
+                  {selectedCount} of {suggestions.length} product
+                  {suggestions.length === 1 ? "" : "s"} selected
                 </p>
-                <p className="text-sm text-[#666666]">
-                  {selectedCount} selected
-                  {selectedCount > 0 ? ` • ${totalUnits} total units requested` : ""}
-                </p>
+                {selectedCount > 0 && (
+                  <p className="text-sm text-[#666666]">
+                    {totalUnits} total unit{totalUnits === 1 ? "" : "s"} requested
+                  </p>
+                )}
               </div>
 
               {validation && (
@@ -301,21 +344,28 @@ export default function GenerateRequirementsModal({
                 </p>
               )}
 
+              {/* The list scrolls on its own so a long reorder list never pushes
+                  the counter or the footer out of reach. */}
               <div className="rounded-lg border border-[#C6D4BF] overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="max-h-[45vh] overflow-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-[#E6ECE2]">
+                    <thead className="sticky top-0 z-10 bg-[#E6ECE2]">
                       <tr>
-                        <th scope="col" className="w-10 text-center font-semibold text-[#333333] px-4 py-2.5">
-                          <input
-                            ref={masterRef}
-                            type="checkbox"
-                            checked={allSelected}
-                            onChange={(e) => toggleAll(e.target.checked)}
-                            disabled={suggestions.length === 0}
-                            aria-label="Select All"
-                            className="h-4 w-4 rounded accent-[#B6C8AF] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                          />
+                        <th
+                          scope="col"
+                          className="w-32 text-left font-semibold text-[#333333] px-4 py-2.5"
+                        >
+                          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              ref={masterRef}
+                              type="checkbox"
+                              checked={allSelected}
+                              onChange={(e) => toggleAll(e.target.checked)}
+                              disabled={suggestions.length === 0}
+                              className="h-4 w-4 rounded accent-[#B6C8AF] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            <span className="whitespace-nowrap">Select all</span>
+                          </label>
                         </th>
                         <th scope="col" className="text-left font-semibold text-[#333333] px-4 py-2.5">
                           Product
@@ -338,7 +388,11 @@ export default function GenerateRequirementsModal({
                       ) : (
                         orderedRows.map(({ suggestion, row }) => {
                           const qty = parseQuantity(row.quantity);
+                          // A ticked row at 0 is the only invalid state: an
+                          // unticked row is never sent, so its quantity is
+                          // irrelevant and must not be flagged.
                           const rowInvalid = row.selected && qty <= 0;
+                          const rowErrorId = `qty-error-${suggestion.productId}`;
                           return (
                             <tr key={suggestion.productId} className="border-t border-[#E6ECE2]">
                               <td className="px-4 py-2.5 text-center">
@@ -347,10 +401,25 @@ export default function GenerateRequirementsModal({
                                   checked={row.selected}
                                   onChange={(e) => toggleRow(suggestion.productId, e.target.checked)}
                                   aria-label={`Select ${suggestion.name}`}
+                                  aria-describedby={rowInvalid ? rowErrorId : undefined}
                                   className="h-4 w-4 rounded accent-[#B6C8AF] cursor-pointer"
                                 />
                               </td>
-                              <td className="px-4 py-2.5 text-[#333333]">{suggestion.name}</td>
+                              <td className="px-4 py-2.5">
+                                <div className="text-[#333333]">{suggestion.name}</div>
+                                {/* The reorder suggestion is shown as read-only
+                                    context only — it is never the starting value
+                                    of the field and never sent. */}
+                                {Number.isFinite(suggestion.suggestedQuantity) &&
+                                  suggestion.suggestedQuantity > 0 && (
+                                    <div className="text-[11px] text-[#999999]">
+                                      Suggested reorder: {suggestion.suggestedQuantity}
+                                      {unitName(suggestion.baseUnit)
+                                        ? ` ${unitName(suggestion.baseUnit)}`
+                                        : ""}
+                                    </div>
+                                  )}
+                              </td>
                               <td className="px-4 py-2.5 text-right">
                                 {/* Unit shown beside the input — the same
                                     placement CreateSupplierInvoicePage and the
@@ -367,8 +436,9 @@ export default function GenerateRequirementsModal({
                                     onChange={(e) => setQuantity(suggestion.productId, e.target.value)}
                                     aria-label={`Requirement quantity for ${suggestion.name}`}
                                     aria-invalid={rowInvalid || undefined}
+                                    aria-describedby={rowInvalid ? rowErrorId : undefined}
                                     className={`w-24 text-right rounded-lg border px-2.5 py-1.5 text-sm text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/50 ${
-                                      rowInvalid && showRowErrors
+                                      rowInvalid
                                         ? "border-red-300 bg-red-50"
                                         : "border-[#C6D4BF] bg-white"
                                     }`}
@@ -379,9 +449,12 @@ export default function GenerateRequirementsModal({
                                     </span>
                                   )}
                                 </div>
-                                {rowInvalid && showRowErrors && (
-                                  <p className="mt-1 text-[11px] text-red-600">
-                                    Quantity must be greater than 0
+                                {/* Shown as soon as the row is ticked at 0 —
+                                    waiting for a submit attempt would hide the
+                                    reason behind the blocked action. */}
+                                {rowInvalid && (
+                                  <p id={rowErrorId} className="mt-1 text-[11px] text-red-600">
+                                    Enter a quantity greater than 0
                                   </p>
                                 )}
                               </td>
@@ -444,21 +517,35 @@ export default function GenerateRequirementsModal({
           )}
         </div>
 
-        {/* Footer — pinned so a long list never hides the actions (§18) */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[#E6ECE2] flex-shrink-0">
+        {/* Footer — pinned so a long list never hides the actions. */}
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[#E6ECE2] flex-shrink-0">
           {view === "confirm" ? (
             <>
-              <Button variant="secondary" onClick={handleClose}>Cancel</Button>
-              <Button onClick={handleGenerate} loading={generating} disabled={!canGenerate}>
-                {selectedCount > 0
-                  ? `Generate ${selectedCount} Requirement${selectedCount === 1 ? "" : "s"}`
-                  : "Generate Requirements"}
-              </Button>
+              {/* Says out loud why the button is unavailable, rather than
+                  leaving a greyed-out control with no explanation. */}
+              <p className="text-xs text-[#666666]">
+                {generating
+                  ? "Generating…"
+                  : selectedCount === 0
+                    ? "Tick at least one product to enable Generate."
+                    : `${totalUnits} unit${totalUnits === 1 ? "" : "s"} across ${selectedCount} product${selectedCount === 1 ? "" : "s"} will be requested.`}
+              </p>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={handleClose}>Cancel</Button>
+                <Button onClick={handleGenerate} loading={generating} disabled={!canGenerate}>
+                  {selectedCount > 0
+                    ? `Generate ${selectedCount} Requirement${selectedCount === 1 ? "" : "s"}`
+                    : "Generate Requirements"}
+                </Button>
+              </div>
             </>
           ) : (
             <>
-              <Button variant="secondary" onClick={handleClose}>Close</Button>
-              <Button onClick={handleGoToPurchasing}>Go to Purchasing</Button>
+              <span />
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={handleClose}>Close</Button>
+                <Button onClick={handleGoToPurchasing}>Go to Purchasing</Button>
+              </div>
             </>
           )}
         </div>

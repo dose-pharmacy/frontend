@@ -77,11 +77,12 @@ export default function ReorderManagementPage() {
 
   // `productId` (not the product name) is the row identity — suggestions can
   // contain several rows sharing a name, and the create request must send the
-  // real backend id. `suggestedQuantity` is the backend's own suggestion and
-  // seeds the editable quantity. `baseUnit` is the product's own base unit,
-  // exactly as the reorder endpoint reported it — the modal displays it next to
-  // the quantity (the create request still omits `unitId`, which makes the
-  // backend default to this same base unit).
+  // real backend id. `suggestedQuantity` is the backend's own suggestion: the
+  // modal shows it as read-only context but starts every quantity field at 0,
+  // so the pharmacist types what to request. `baseUnit` is the product's own
+  // base unit, exactly as the reorder endpoint reported it — the modal displays
+  // it next to the quantity (the create request still omits `unitId`, which
+  // makes the backend default to this same base unit).
   const modalSuggestions = suggestions.map((s) => ({
     productId: s.product.id,
     name: s.product.name,
