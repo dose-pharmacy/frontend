@@ -19,7 +19,7 @@ import {
   type NarcoticSummaryDto,
   type NarcoticActivityDto,
 } from "../../features/reports/reportsApi";
-import { fmtDateTime } from "../../utils/format";
+import { fmtDateTime, quantityWithUnit } from "../../utils/format";
 import {
   errorMessage,
   ExpiryBadge,
@@ -34,10 +34,17 @@ const ACTIVITY_PAGE_SIZE = 10;
 
 export default function NarcoticProductModal({
   product,
+  unit,
   onClose,
   onViewMovements,
 }: {
   product: NarcoticSummaryDto;
+  /**
+   * The controlled product's base unit, already resolved by the page (the
+   * narcotics report publishes no unit of its own). `"—"` when it could not be
+   * read — display only, never a guessed unit.
+   */
+  unit: string;
   onClose: () => void;
   /** Jump to the Movement Activity tab already scoped to this product. */
   onViewMovements: () => void;
@@ -106,7 +113,8 @@ export default function NarcoticProductModal({
           action={
             batches.length > 0 ? (
               <span className="text-xs text-[#666666]">
-                {qty(stockQty)} across {batches.length} batch{batches.length === 1 ? "" : "es"}
+                {quantityWithUnit(qty(stockQty), unit)} across {batches.length} batch
+                {batches.length === 1 ? "" : "es"}
               </span>
             ) : undefined
           }
@@ -121,7 +129,7 @@ export default function NarcoticProductModal({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#E6ECE2] text-left">
-                    {["Batch", "Location", "Quantity", "Expiry", "Status"].map((h) => (
+                    {["Batch", "Location", "Quantity", "Unit", "Expiry", "Status"].map((h) => (
                       <th key={h} className="px-4 py-3 font-semibold text-[#333333]">
                         {h}
                       </th>
@@ -138,6 +146,7 @@ export default function NarcoticProductModal({
                       <td className="px-4 py-3 text-right font-semibold text-[#333333]">
                         {qty(b.currentQuantity)}
                       </td>
+                      <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{unit}</td>
                       <td className="px-4 py-3">
                         <ExpiryCell expiryDate={b.expiryDate} />
                       </td>
@@ -184,7 +193,7 @@ export default function NarcoticProductModal({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#E6ECE2] text-left">
-                      {["Date", "Movement", "Batch", "Location", "Qty", "Balance after", "Reference"].map(
+                      {["Date", "Movement", "Batch", "Location", "Qty", "Unit", "Balance after", "Reference"].map(
                         (h) => (
                           <th key={h} className="px-4 py-3 font-semibold text-[#333333]">
                             {h}
@@ -209,6 +218,7 @@ export default function NarcoticProductModal({
                         <td className="px-4 py-3 text-right font-semibold text-[#333333]">
                           {qty(m.quantity)}
                         </td>
+                        <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{unit}</td>
                         <td className="px-4 py-3 text-right text-[#666666]">{qty(m.balanceAfter)}</td>
                         <td className="px-4 py-3 font-mono text-xs text-[#666666]">
                           {m.reference ?? "—"}

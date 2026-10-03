@@ -6,6 +6,8 @@ import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import { IconX } from "../../components/ui/icons"
 import { searchLocations, searchSuppliers } from "../../features/inventory/searchSelectors"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
+import { useProductBaseUnits } from "../../hooks/useProductBaseUnits"
+import { quantityWithUnit } from "../../utils/format"
 import {
   createPurchaseReturn,
   getPurchaseOrderItemReturnable,
@@ -191,6 +193,12 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
   // Indicative only. The backend derives the return value itself and this value
   // is deliberately NOT sent — see `createPurchaseReturn`.
   const indicativeDebitNote = unitCost != null ? quantity * unitCost : null
+
+  // The returned quantity is submitted in the product's BASE units, so the unit
+  // shown beside the input is the product's base unit — NOT the purchase-order
+  // item's ordering unit, which can be a box or a strip of a different product.
+  const baseUnits = useProductBaseUnits(selectedItem ? [selectedItem.productId] : [])
+  const baseUnit = baseUnits.unitOf(selectedItem?.productId)
 
   // ── Loads ──────────────────────────────────────────────────────────────────
 
@@ -580,9 +588,8 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
           ) : returnable?.quantityReturnable != null ? (
             <div className="rounded-lg bg-[#E6ECE2]/50 border border-[#E6ECE2] px-3 py-2">
               <p className="text-sm text-[#333333]">
-                <strong>{returnable.quantityReturnable}</strong> base unit
-                {returnable.quantityReturnable === 1 ? "" : "s"} still returnable for this
-                purchase-order item.
+                <strong>{quantityWithUnit(returnable.quantityReturnable, baseUnit)}</strong> still
+                returnable for this purchase-order item.
               </p>
               {returnable.quantityReturnable <= 0 && (
                 <p className="mt-1 text-sm text-red-600">
@@ -620,24 +627,32 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
         {/* Quantity */}
         <div>
           <label className="block text-sm text-[#666666] mb-1">Quantity to Return * (base units)</label>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={quantityInput}
-            onChange={(e) => setQuantityInput(e.target.value)}
-            disabled={!selectedItem || submitting}
-            placeholder="0"
-            className={inputClass}
-          />
+          {/* Unit printed beside the input — display only. It is the product's
+              base unit, which is the unit the backend expects for a return, and
+              it is never a selectable field or sent as part of the quantity. */}
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={quantityInput}
+              onChange={(e) => setQuantityInput(e.target.value)}
+              disabled={!selectedItem || submitting}
+              placeholder="0"
+              className={inputClass}
+            />
+            <span className="shrink-0 text-sm text-[#666666] whitespace-nowrap">
+              {baseUnit || "base units"}
+            </span>
+          </div>
           {maxQuantity != null && (
             <p className="mt-1 text-xs text-[#666666]">
-              Maximum returnable: <strong>{maxQuantity}</strong>
+              Maximum returnable: <strong>{quantityWithUnit(maxQuantity, baseUnit)}</strong>
             </p>
           )}
           {quantityExceedsMax && (
             <p className="mt-1 text-xs text-red-600">
-              Quantity exceeds the maximum returnable of {maxQuantity}.
+              Quantity exceeds the maximum returnable of {quantityWithUnit(maxQuantity, baseUnit)}.
             </p>
           )}
         </div>
@@ -806,9 +821,9 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
       <ConfirmationDialog
         open={confirmOpen}
         title="Record Purchase Return?"
-        message={`Return ${quantity} of ${selectedItem?.productName ?? "the product"} from batch ${
-          selectedBatch?.batchNumber ?? "—"
-        } at ${locationName ?? "the selected location"} to ${
+        message={`Return ${quantityWithUnit(quantity, baseUnit)} of ${
+          selectedItem?.productName ?? "the product"
+        } from batch ${selectedBatch?.batchNumber ?? "—"} at ${locationName ?? "the selected location"} to ${
           supplierName ?? "the supplier"
         } (${REASON_LABELS[reason]}). This permanently reduces stock through a RETURN_TO_SUPPLIER movement and the backend applies the return value against outstanding payables — all in one atomic transaction.`}
         confirmLabel={submitting ? "Recording…" : "Record Return"}

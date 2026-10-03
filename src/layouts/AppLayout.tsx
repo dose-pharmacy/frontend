@@ -47,6 +47,14 @@ function IconTruck() {
     </svg>
   )
 }
+function IconFinance() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path d="M4 2a1 1 0 00-1 1v1.06A3.5 3.5 0 002.5 4h15a1 1 0 110 2h-.527A3.5 3.5 0 0016 6.06V6a1 1 0 112 0v.94A3.5 3.5 0 0017.5 6h.5a1 1 0 110 2h-.5a3.5 3.5 0 00-1 1.06V10a1 1 0 11-2 0V9.06A3.5 3.5 0 0012.5 8H4.5a1 1 0 100 2h.527A3.5 3.5 0 006 10.06V10a1 1 0 11-2 0v-.94A3.5 3.5 0 002.5 8H2a1 1 0 110-2h.5A3.5 3.5 0 004 4.06V3a1 1 0 00-1-1z" />
+      <path d="M9.25 6.5h1.5a.75.75 0 010 1.5h-1.5v1h1.25a.75.75 0 01.75.75v1h1a.75.75 0 010 1.5h-1v1.25a.75.75 0 01-1.5 0V10.5H9.5a.75.75 0 010-1.5H11V8.25H9.75a.75.75 0 01-.75-.75V6.5h.25z" />
+    </svg>
+  )
+}
 function IconReport() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">

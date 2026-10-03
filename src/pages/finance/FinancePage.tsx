@@ -122,7 +122,7 @@ export default function FinancePage() {
   const tableIgnoresLocation = tab === "profitability" || tab === "margins";
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
       <PageHeader
         breadcrumb="Dashboard / Finance"
         title="Finance"
@@ -130,7 +130,7 @@ export default function FinancePage() {
       />
       <DashboardSubNav />
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+      <div className="p-6 flex flex-col gap-6">
         {/* `/finance-reporting/report` accepts `locationId` on every tab, so the
             control is always shown — the previous per-tab hiding existed only
             because the older profitability endpoints had no location filter. */}

@@ -10,6 +10,7 @@ import {
   type PurchaseReturnReason,
 } from "../../features/purchasing/purchaseReturnsApi"
 import { useReturnLabels } from "./purchaseReturnLabels"
+import { useProductBaseUnits } from "../../hooks/useProductBaseUnits"
 
 const REASON_LABELS: Record<PurchaseReturnReason, string> = {
   EXPIRED: "Expired",
@@ -140,6 +141,11 @@ export default function PurchaseReturnDetailPage() {
     [record],
   )
   const labels = useReturnLabels(labelSources)
+  // The returned quantity is documented as base units and the DTO carries no
+  // unit of its own, so the unit shown is the product's own base unit. When it
+  // cannot be read the existing "base units" wording stays — never a guess.
+  const baseUnits = useProductBaseUnits(record ? [record.productId] : [])
+  const quantityUnit = baseUnits.unitOf(record?.productId)
 
   if (loading) {
     return (
@@ -221,7 +227,9 @@ export default function PurchaseReturnDetailPage() {
 
             <Field label="Quantity">
               <span className="text-lg font-bold">{record.quantity}</span>
-              <span className="ml-1 text-xs font-normal text-[#666666]">base units</span>
+              <span className="ml-1 text-xs font-normal text-[#666666]">
+                {quantityUnit || "base units"}
+              </span>
             </Field>
 
             <Field label="Unit Cost">

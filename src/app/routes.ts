@@ -37,7 +37,8 @@ import PurchaseOrdersPage from "../pages/purchasing/PurchaseOrdersPage";
 import CreatePurchaseOrderPage from "../pages/purchasing/CreatePurchaseOrderPage";
 import DeliveryRegistrationPage from "../pages/purchasing/DeliveryRegistrationPage";
 import ScanReceiptPage from "../pages/purchasing/ScanReceiptPage";
-import FinancePage from "../pages/finance/FinancePage";
+import FinanceOverviewPage from "../pages/finance/FinanceOverviewPage";
+import FinanceReportsPage from "../pages/finance/FinanceReportsPage";
 import SlowMovingPage from "../pages/reports/SlowMovingPage";
 import NarcoticsPage from "../pages/narcotics/NarcoticsPage";
 import AuditTrailPage from "../pages/admin/AuditTrailPage";
@@ -70,10 +71,12 @@ export const router = createBrowserRouter([
           { path: "/dashboard/sales", Component: SalesPage },
           { path: "/dashboard/credit", Component: CreditPage },
           { path: "/dashboard/narcotics", Component: NarcoticsPage },
-          { path: "/dashboard/finance", Component: FinancePage },
-          // The Finance tab used to live at this path when it only showed
-          // profitability. Redirect rather than 404 so old links still land.
-          { path: "/dashboard/profitability", loader: () => redirect("/dashboard/finance") },
+          { path: "/dashboard/finance", Component: FinanceOverviewPage },
+          { path: "/dashboard/finance/reports", Component: FinanceReportsPage },
+          { path: "/dashboard/profitability", loader: () => redirect("/dashboard/finance/reports") },
+          // Legacy aliases redirect to dashboard finance
+          { path: "/finance", loader: () => redirect("/dashboard/finance") },
+          { path: "/finance/reports", loader: () => redirect("/dashboard/finance/reports") },
           // Inventory
           { path: "/inventory", loader: () => redirect("/inventory/products") },
           { path: "/inventory/products", Component: ProductsPage },
@@ -121,7 +124,7 @@ export const router = createBrowserRouter([
           // Reports
           { path: "/reports", loader: () => redirect("/dashboard") },
           { path: "/reports/sales", loader: () => redirect("/dashboard/sales") },
-          { path: "/reports/profitability", loader: () => redirect("/dashboard/finance") },
+          { path: "/reports/profitability", loader: () => redirect("/finance/reports") },
           { path: "/reports/slow-moving", Component: SlowMovingPage },
           { path: "/reports/narcotics", loader: () => redirect("/dashboard/narcotics") },
           // Notifications

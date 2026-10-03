@@ -65,6 +65,7 @@ import {
   type NarcoticActivityDto,
 } from "../../features/reports/reportsApi";
 import { fmtDate, fmtDateTime, fmtNumber } from "../../utils/format";
+import { useProductBaseUnits } from "../../hooks/useProductBaseUnits";
 import NarcoticProductModal from "./NarcoticProductModal";
 import {
   errorMessage,
@@ -261,6 +262,27 @@ export default function NarcoticsPage() {
   // three are derived from the batches on the current page only — there is no
   // portfolio-total endpoint — so each says so.
   const rows = useMemo(() => expandRows(products), [products]);
+
+  // Neither narcotics endpoint publishes a unit (both are absent from the
+  // published OpenAPI, and their batch/movement objects carry only quantities),
+  // so the row's unit is the controlled product's own base unit, read through the
+  // app's existing product catalogue. While that read is in flight the column
+  // shows the app's "…" loading marker; a product whose unit cannot be read
+  // shows "—".
+  const unitProductIds = useMemo(
+    () =>
+      tab === "products"
+        ? products.map((p) => p.productId)
+        : activity.map((a) => a.productId),
+    [tab, products, activity],
+  );
+  const baseUnits = useProductBaseUnits(unitProductIds);
+  const unitFor = useCallback(
+    (productId: string | null | undefined) =>
+      baseUnits.ready ? baseUnits.unitOf(productId) || "—" : "…",
+    [baseUnits],
+  );
+
   const cards = useMemo(() => {
     const batches = products.flatMap((p) => p.batches ?? []);
     let totalQty = 0;
@@ -519,7 +541,7 @@ export default function NarcoticsPage() {
                 }
               />
             ) : (
-              <ProductTable rows={rows} onView={setModalProduct} />
+              <ProductTable rows={rows} unitFor={unitFor} onView={setModalProduct} />
             )
           ) : activity.length === 0 ? (
             <EmptyState
@@ -538,7 +560,7 @@ export default function NarcoticsPage() {
               }
             />
           ) : (
-            <ActivityTable rows={activity} />
+            <ActivityTable rows={activity} unitFor={unitFor} />
           )}
         </div>
 
@@ -564,6 +586,7 @@ export default function NarcoticsPage() {
       {modalProduct && (
         <NarcoticProductModal
           product={modalProduct}
+          unit={baseUnits.unitOf(modalProduct.productId) || "—"}
           onClose={() => setModalProduct(null)}
           onViewMovements={() => {
             setProductId(modalProduct.productId);
@@ -581,9 +604,12 @@ export default function NarcoticsPage() {
 
 function ProductTable({
   rows,
+  unitFor,
   onView,
 }: {
   rows: BatchRow[];
+  /** The controlled product's base unit, or "—"/"…" — never a guessed unit. */
+  unitFor: (productId: string | null | undefined) => string;
   onView: (product: NarcoticSummaryDto) => void;
 }) {
   return (
@@ -591,7 +617,7 @@ function ProductTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-[#E6ECE2] text-left">
-            {["Product", "SKU", "Location", "Batch", "Quantity", "Expiry", "Status", ""].map((h) => (
+            {["Product", "SKU", "Location", "Batch", "Quantity", "Unit", "Expiry", "Status", ""].map((h) => (
               <th key={h} className="px-4 py-3 font-semibold text-[#333333]">
                 {h}
               </th>
@@ -619,6 +645,11 @@ function ProductTable({
               </td>
               <td className="px-4 py-3 text-right font-semibold text-[#333333] whitespace-nowrap">
                 {batch ? qty(batch.currentQuantity) : "—"}
+              </td>
+              {/* Shown for every row, including "No stock" rows with no batch —
+                  a missing quantity never hides the product's unit. */}
+              <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
+                {unitFor(product.productId)}
               </td>
               <td className="px-4 py-3">
                 <ExpiryCell expiryDate={batch?.expiryDate} />
@@ -650,7 +681,14 @@ function ProductTable({
 
 // ── Movement activity table ──────────────────────────────────────────────────
 
-function ActivityTable({ rows }: { rows: NarcoticActivityDto[] }) {
+function ActivityTable({
+  rows,
+  unitFor,
+}: {
+  rows: NarcoticActivityDto[];
+  /** The movement's product base unit, or "—"/"…" — never a guessed unit. */
+  unitFor: (productId: string | null | undefined) => string;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -663,6 +701,7 @@ function ActivityTable({ rows }: { rows: NarcoticActivityDto[] }) {
               "Location",
               "Movement",
               "Qty",
+              "Unit",
               "Balance after",
               "Reference",
             ].map((h) => (
@@ -693,6 +732,9 @@ function ActivityTable({ rows }: { rows: NarcoticActivityDto[] }) {
                 <MovementBadge movementType={row.movementType} direction={row.direction} />
               </td>
               <td className="px-4 py-3 text-right font-semibold text-[#333333]">{qty(row.quantity)}</td>
+              <td className="px-4 py-3 text-[#666666] whitespace-nowrap">
+                {unitFor(row.productId)}
+              </td>
               <td className="px-4 py-3 text-right text-[#666666]">{qty(row.balanceAfter)}</td>
               <td className="px-4 py-3 font-mono text-xs text-[#666666]">{row.reference ?? "—"}</td>
             </tr>

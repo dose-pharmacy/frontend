@@ -7,6 +7,16 @@ interface DatePickerProps {
   onChange: (v: string) => void
   placeholder?: string
   disabled?: boolean
+  /**
+   * Accessible name for the trigger button.
+   *
+   * The trigger's own text is the picked date (or the placeholder), so it never
+   * says WHICH field it is — two date fields side by side would both read just
+   * "03 Oct 2026". A visible <label> elsewhere on the page does not fix this:
+   * a label only names a control it is `htmlFor`-linked to or wraps, and this
+   * component exposes no id. Omit it and nothing changes for existing callers.
+   */
+  ariaLabel?: string
 }
 
 // Approximate popup footprint. Used only to decide whether the calendar has
@@ -44,6 +54,7 @@ export default function DatePicker({
   onChange,
   placeholder = "Select a date...",
   disabled,
+  ariaLabel,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<Date | undefined>(fromISO(value))
@@ -117,6 +128,9 @@ export default function DatePicker({
       <button
         type="button"
         disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className="w-full rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-left text-[#4A4A4A] focus:border-[#B6C8AF] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/20 disabled:opacity-50 flex items-center justify-between gap-2"
       >

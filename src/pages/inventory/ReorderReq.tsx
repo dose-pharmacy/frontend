@@ -6,6 +6,8 @@ import {
   RequirementsApiError,
   type RequirementCreateResult,
 } from "../../features/purchasing/requirementsApi";
+import type { ReorderBaseUnitDto } from "../../features/inventory/reorderApi";
+import { quantityWithUnit, unitName } from "../../utils/format";
 import { IconX } from "../../components/ui/icons";
 
 interface ReorderSuggestion {
@@ -21,6 +23,13 @@ interface ReorderSuggestion {
   status: string;
   /** Echoed into the line note, matching the backend's own reorder path. */
   calculationMethod?: string;
+  /**
+   * The product's base unit, as sent by GET /inventory/reorder/suggestions.
+   * Display-only: the quantity is entered and stored in this unit, and the
+   * create request omits `unitId` so the backend defaults to it. `null` means
+   * the response carried no unit, and the row then shows none.
+   */
+  baseUnit?: ReorderBaseUnitDto | null;
 }
 
 /** Per-row pharmacist state. Kept separate from the reorder API response. */
@@ -343,21 +352,33 @@ export default function GenerateRequirementsModal({
                               </td>
                               <td className="px-4 py-2.5 text-[#333333]">{suggestion.name}</td>
                               <td className="px-4 py-2.5 text-right">
-                                <input
-                                  type="number"
-                                  inputMode="decimal"
-                                  min={0}
-                                  step="any"
-                                  value={row.quantity}
-                                  onChange={(e) => setQuantity(suggestion.productId, e.target.value)}
-                                  aria-label={`Requirement quantity for ${suggestion.name}`}
-                                  aria-invalid={rowInvalid || undefined}
-                                  className={`w-24 text-right rounded-lg border px-2.5 py-1.5 text-sm text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/50 ${
-                                    rowInvalid && showRowErrors
-                                      ? "border-red-300 bg-red-50"
-                                      : "border-[#C6D4BF] bg-white"
-                                  }`}
-                                />
+                                {/* Unit shown beside the input — the same
+                                    placement CreateSupplierInvoicePage and the
+                                    delivery registration form use. Informational
+                                    only: it is never a selectable field and it
+                                    is never sent. */}
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <input
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0}
+                                    step="any"
+                                    value={row.quantity}
+                                    onChange={(e) => setQuantity(suggestion.productId, e.target.value)}
+                                    aria-label={`Requirement quantity for ${suggestion.name}`}
+                                    aria-invalid={rowInvalid || undefined}
+                                    className={`w-24 text-right rounded-lg border px-2.5 py-1.5 text-sm text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#B6C8AF]/50 ${
+                                      rowInvalid && showRowErrors
+                                        ? "border-red-300 bg-red-50"
+                                        : "border-[#C6D4BF] bg-white"
+                                    }`}
+                                  />
+                                  {unitName(suggestion.baseUnit) && (
+                                    <span className="text-xs text-[#999999] whitespace-nowrap">
+                                      {unitName(suggestion.baseUnit)}
+                                    </span>
+                                  )}
+                                </div>
                                 {rowInvalid && showRowErrors && (
                                   <p className="mt-1 text-[11px] text-red-600">
                                     Quantity must be greater than 0
@@ -402,7 +423,11 @@ export default function GenerateRequirementsModal({
                         {createdLines.map((l) => (
                           <tr key={l.id ?? l.productId} className="border-t border-[#E6ECE2]">
                             <td className="px-3 py-2.5 text-[#333333]">{l.product?.name ?? l.productId}</td>
-                            <td className="px-3 py-2.5 text-right text-[#333333]">{l.quantityNeeded}</td>
+                            {/* The unit the BACKEND recorded on the created line
+                                (`RequirementLine.unit`), not the product default. */}
+                            <td className="px-3 py-2.5 text-right text-[#333333] whitespace-nowrap">
+                              {quantityWithUnit(l.quantityNeeded, l.unit)}
+                            </td>
                             <td className="px-3 py-2.5">
                               <span className="inline-block rounded-full bg-[#E6ECE2] px-2.5 py-0.5 text-xs font-medium text-[#7A9076]">
                                 {l.status}

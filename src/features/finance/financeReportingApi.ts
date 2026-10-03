@@ -30,6 +30,13 @@ export type FinanceGranularity = "DAY" | "MONTH" | "YEAR";
 /** Whether a section describes the requested scope or the whole company. */
 export type FinanceSectionBasis = "REPORT_SCOPE" | "COMPANY";
 
+/** The sections the backend discloses a scope basis for. */
+export type FinanceReportSection =
+  | "salesPerformance"
+  | "purchasing"
+  | "collections"
+  | "inventoryValue";
+
 /**
  * Per-section scope disclosure.
  *
@@ -213,6 +220,14 @@ export interface FinanceReport {
 }
 
 export interface FinanceDashboard {
+  /**
+   * Server-generated timestamp for this snapshot.
+   *
+   * This is the ONLY trustworthy "last updated" value — the browser's clock is
+   * not used for it, because the snapshot is taken server-side in UTC and a
+   * client clock can be skewed or in another timezone entirely.
+   */
+  asOf: string;
   todayGrossSales: number;
   todayDiscounts: number;
   todayCustomerReturns: number;
@@ -224,6 +239,16 @@ export interface FinanceDashboard {
   todaySupplierReturns: number;
   outstandingSupplierPayables: number;
   customerReceivables: number;
+}
+
+/** The three legal trend bucket widths. */
+export const FINANCE_GRANULARITIES: FinanceGranularity[] = ["DAY", "MONTH", "YEAR"];
+
+export function isFinanceGranularity(value: unknown): value is FinanceGranularity {
+  return (
+    typeof value === "string" &&
+    (FINANCE_GRANULARITIES as string[]).includes(value)
+  );
 }
 
 export interface FinanceReportQuery {
@@ -257,7 +282,10 @@ export class FinanceReportingApiError extends Error {
 
 function friendlyStatusMessage(status: number): string {
   if (status === 401) return "Your session has expired. Please sign in again.";
-  if (status === 403) return "You don't have permission to view finance reporting.";
+  // The module is ADMIN-only server-side; this states that plainly rather than
+  // leaving the reader to guess whether they are on the wrong page.
+  if (status === 403)
+    return "Finance Reporting is restricted to administrators. Ask an administrator for access.";
   if (status === 404) return "This finance report no longer exists.";
   if (status === 422) return "The request was rejected — check the date range and filters provided.";
   return `Request failed (HTTP ${status}).`;
@@ -265,20 +293,41 @@ function friendlyStatusMessage(status: number): string {
 
 // ─── Request plumbing ────────────────────────────────────────────────────────
 
-async function financeReportingRequest<T>(path: string): Promise<T> {
+/**
+ * True for the rejection `fetch` raises when an AbortController fires.
+ *
+ * An aborted request is a deliberate cancellation, not a failure, so it must
+ * never be reported to the user as "cannot reach the server".
+ */
+function isAbortError(e: unknown): boolean {
+  return e instanceof DOMException && e.name === "AbortError";
+}
+
+async function financeReportingRequest<T>(path: string, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${FINANCE_REPORTING_BASE}${path}`, {
       credentials: "include",
       headers: { Accept: "application/json" },
+      signal,
     });
-  } catch {
+  } catch (e) {
+    // Re-thrown untouched so the caller's sequencing can recognise it and stay
+    // silent instead of flashing a connection error for a request it cancelled.
+    if (isAbortError(e)) throw e;
     throw new FinanceReportingApiError(
       "Cannot reach the server. Please check your connection and try again.",
     );
   }
 
   if (!res.ok) {
+    // For 401/403/404 this module's own wording WINS over the server's. The
+    // server sends terse strings like "jwt expired" or "Forbidden", which would
+    // otherwise replace the only actionable text available ("sign in again",
+    // "this module is admin-restricted") with something the reader cannot act on.
+    // For 422 and 5xx the server's message WINS, because there it carries the
+    // specific reason ("from must be before to") that our generic text lacks.
+    const keepFriendly = res.status === 401 || res.status === 403 || res.status === 404;
     let message = friendlyStatusMessage(res.status);
     let code: string | undefined;
     let details: Record<string, unknown> | undefined;
@@ -287,8 +336,8 @@ async function financeReportingRequest<T>(path: string): Promise<T> {
         error?: { code?: string; message?: string; details?: Record<string, unknown> };
         message?: string;
       } | null;
-      if (body?.error?.message) message = body.error.message;
-      else if (body?.message) message = body.message;
+      if (!keepFriendly && body?.error?.message) message = body.error.message;
+      else if (!keepFriendly && body?.message) message = body.message;
       if (body?.error?.code) code = body.error.code;
       if (body?.error?.details) details = body.error.details;
     } catch {
@@ -324,27 +373,35 @@ function buildQuery(query: FinanceReportQuery): string {
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-/** GET /finance-reporting/report — the Finance tab's primary data source. */
-export async function getFinanceReport(query: FinanceReportQuery = {}): Promise<FinanceReport> {
+/** GET /finance-reporting/report — the Reports page's primary data source. */
+export async function getFinanceReport(
+  query: FinanceReportQuery = {},
+  signal?: AbortSignal,
+): Promise<FinanceReport> {
   const result = await financeReportingRequest<{ data: FinanceReport }>(
     `/report${buildQuery(query)}`,
+    signal,
   );
   if (!result?.data) throw new FinanceReportingApiError("Unexpected response from the server.");
   return result.data;
 }
 
 /** GET /finance-reporting/trends — standalone trend buckets. */
-export async function getFinanceTrends(query: FinanceReportQuery = {}): Promise<FinanceTrends> {
+export async function getFinanceTrends(
+  query: FinanceReportQuery = {},
+  signal?: AbortSignal,
+): Promise<FinanceTrends> {
   const result = await financeReportingRequest<{ data: FinanceTrends }>(
     `/trends${buildQuery(query)}`,
+    signal,
   );
   if (!result?.data) throw new FinanceReportingApiError("Unexpected response from the server.");
   return result.data;
 }
 
 /** GET /finance-reporting/dashboard — unfiltered whole-company snapshot. */
-export async function getFinanceDashboard(): Promise<FinanceDashboard> {
-  const result = await financeReportingRequest<{ data: FinanceDashboard }>(`/dashboard`);
+export async function getFinanceDashboard(signal?: AbortSignal): Promise<FinanceDashboard> {
+  const result = await financeReportingRequest<{ data: FinanceDashboard }>(`/dashboard`, signal);
   if (!result?.data) throw new FinanceReportingApiError("Unexpected response from the server.");
   return result.data;
 }

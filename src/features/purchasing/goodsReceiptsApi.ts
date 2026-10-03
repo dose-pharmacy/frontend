@@ -47,6 +47,9 @@ export interface GRItemDto {
       name: string
       sku: string | null
     }
+    /** The PO item's own ordered unit — the fallback when the receipt row
+        itself carries no `unit` (older rows predate the snapshotted column). */
+    unit?: { id: string; name: string; symbol: string } | null
   }
   location?: {
     id: string

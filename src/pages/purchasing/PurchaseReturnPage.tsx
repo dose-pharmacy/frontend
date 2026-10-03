@@ -14,6 +14,7 @@ import {
   type PurchaseReturnReason,
 } from "../../features/purchasing/purchaseReturnsApi"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
+import { useProductBaseUnits } from "../../hooks/useProductBaseUnits"
 import NewPurchaseReturnForm from "./NewPurchaseReturnForm"
 import { useReturnLabels } from "./purchaseReturnLabels"
 
@@ -38,6 +39,7 @@ const HEADERS = [
   "Purchase Order",
   "Reason",
   "Qty",
+  "Unit",
   "Unit Cost",
   "Debit Note",
   "Applied to Payable",
@@ -141,6 +143,11 @@ export default function PurchaseReturnPage() {
     [rows],
   )
   const labels = useReturnLabels(labelSources)
+  // `PurchaseReturn.quantity` is documented as base units and the DTO carries no
+  // unit, so the row's unit is the product's own base unit.
+  const baseUnits = useProductBaseUnits(labelSources.map((s) => s.productId))
+  const unitFor = (productId: string | null | undefined) =>
+    baseUnits.ready ? baseUnits.unitOf(productId) || "—" : "…"
 
   const hasFilters = Boolean(supplierId || productId || reason)
 
@@ -329,7 +336,7 @@ export default function PurchaseReturnPage() {
             )
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[1100px]">
+              <table className="w-full text-sm min-w-[1180px]">
                 <thead>
                   <tr className="bg-[#E6ECE2]/50">
                     {HEADERS.map((h) => (
@@ -367,6 +374,7 @@ export default function PurchaseReturnPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-[#333333]">{ret.quantity}</td>
+                      <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{unitFor(ret.productId)}</td>
                       <td className="px-4 py-3 text-right text-[#333333] whitespace-nowrap">
                         {fmtMoney(ret.unitCost)}
                       </td>

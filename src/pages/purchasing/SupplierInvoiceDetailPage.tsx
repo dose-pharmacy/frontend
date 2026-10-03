@@ -18,6 +18,7 @@ import {
 } from "../../features/purchasing/supplierInvoicesApi"
 import { getPurchaseOrder, type PurchaseOrderDto } from "../../features/purchasing/purchaseOrdersApi"
 import { listGoodsReceipts, type GoodsReceiptDto } from "../../features/purchasing/goodsReceiptsApi"
+import { quantityWithUnit, unitCell } from "../../utils/format"
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
@@ -303,7 +304,7 @@ export default function SupplierInvoiceDetailPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-[#E6ECE2] text-left">
-                          {["Product", "Qty", "Unit Cost", "Amount"].map((h) => (
+                          {["Product", "Qty", "Unit", "Unit Cost", "Amount"].map((h) => (
                             <th key={h} className="px-4 py-2.5 font-semibold text-[#333333]">{h}</th>
                           ))}
                         </tr>
@@ -312,7 +313,14 @@ export default function SupplierInvoiceDetailPage() {
                         {invoice.items.map((it, i) => (
                           <tr key={it.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                             <td className="px-4 py-2.5 text-[#333333]">{it.purchaseOrderItem?.product?.name ?? "Product"}</td>
-                            <td className="px-4 py-2.5 text-[#333333]">{it.quantity}</td>
+                            {/* `quantity` is documented as being in the PO item's
+                                ordered unit, so that is the unit shown. */}
+                            <td className="px-4 py-2.5 text-[#333333] whitespace-nowrap">
+                              {quantityWithUnit(it.quantity, it.unit ?? it.purchaseOrderItem?.unit ?? null)}
+                            </td>
+                            <td className="px-4 py-2.5 text-[#666666] whitespace-nowrap">
+                              {unitCell(it.unit ?? it.purchaseOrderItem?.unit ?? null)}
+                            </td>
                             <td className="px-4 py-2.5 text-[#666666]">{fmtMoney(it.unitCost)}</td>
                             <td className="px-4 py-2.5 font-semibold text-[#333333]">{fmtMoney(it.goodsAmount)}</td>
                           </tr>
@@ -393,7 +401,7 @@ export default function SupplierInvoiceDetailPage() {
                         {purchaseOrder.items.map((it) => (
                           <div key={it.id} className="flex items-center justify-between text-sm">
                             <span className="text-[#333333]">{it.product?.name ?? "Product"}</span>
-                            <span className="text-[#666666] whitespace-nowrap">{it.quantityOrdered} × {fmtMoney(it.unitCost)}</span>
+                            <span className="text-[#666666] whitespace-nowrap">{quantityWithUnit(it.quantityOrdered ?? 0, it.unit)} × {fmtMoney(it.unitCost)}</span>
                           </div>
                         ))}
                       </div>

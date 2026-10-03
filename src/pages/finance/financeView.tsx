@@ -159,7 +159,14 @@ export function FilterBar({
   );
 }
 
-/** A simple labelled `<Select>`, matching the filter row's styling. */
+/**
+ * A simple labelled `<Select>`, matching the filter row's styling.
+ *
+ * The label is delegated to `Select`, which derives an id and renders a real
+ * `<label htmlFor>`. Previously this rendered its own `<label>` as a SIBLING of
+ * the select with no `htmlFor`, so the control had no accessible name — a bare
+ * `<label>` next to an input associates with nothing.
+ */
 export function FilterSelect({
   label,
   value,
@@ -174,9 +181,13 @@ export function FilterSelect({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label className="text-sm font-medium text-[#333333]">{label}</label>
-      <Select value={value} onChange={(e) => onChange(e.target.value)} className="w-full">
+    <div className={className}>
+      <Select
+        label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full"
+      >
         {children}
       </Select>
     </div>
@@ -500,9 +511,13 @@ export function errorMessage(e: unknown, fallback: string): string {
  * without triggering a request.
  */
 export function useFinanceFetch<T>(
-  fetcher: () => Promise<T>,
+  fetcher: (signal: AbortSignal) => Promise<T>,
   deps: readonly unknown[],
   fallbackError = "Could not load this data. Please try again.",
+  opts?: {
+    /** Refetch when the tab regains focus. Off by default. */
+    refreshOnFocus?: boolean;
+  },
 ): {
   data: T | null;
   loading: boolean;
@@ -516,15 +531,22 @@ export function useFinanceFetch<T>(
   const seq = useRef(0);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  const fallbackRef = useRef(fallbackError);
+  fallbackRef.current = fallbackError;
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     const mine = ++seq.current;
+    // A real abort, not just a sequence guard. The sequence check alone stops a
+    // stale response overwriting a newer one, but it leaves the request running
+    // and its body downloading — so rapidly clicking Apply would fan out several
+    // full report payloads, of which only the last is used.
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     fetcherRef
-      .current()
+      .current(controller.signal)
       .then((result) => {
         if (mine !== seq.current) return;
         setData(result);
@@ -532,14 +554,30 @@ export function useFinanceFetch<T>(
       })
       .catch((e: unknown) => {
         if (mine !== seq.current) return;
-        setError(errorMessage(e, fallbackError));
+        // A cancellation is not a failure — stay quiet rather than showing a
+        // connection error for a request this hook deliberately tore down.
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setError(errorMessage(e, fallbackRef.current));
         setLoading(false);
       });
+    return () => controller.abort();
     // Deliberately keyed on the caller's `deps` (the filters the request is
     // built from) plus a retry nonce — not on `fetcher`, which is a fresh
     // closure every render and would loop. There is no linter configured in
     // this project, hence no disable comment.
   }, [...deps, nonce]);
+
+  // Opt-in refocus refetch, so a snapshot left open in a background tab does not
+  // keep showing figures from before the user switched away.
+  const refreshOnFocus = opts?.refreshOnFocus === true;
+  useEffect(() => {
+    if (!refreshOnFocus) return;
+    function onFocus() {
+      if (document.visibilityState === "visible") reload();
+    }
+    document.addEventListener("visibilitychange", onFocus);
+    return () => document.removeEventListener("visibilitychange", onFocus);
+  }, [refreshOnFocus, reload]);
 
   return { data, loading, error, reload };
 }

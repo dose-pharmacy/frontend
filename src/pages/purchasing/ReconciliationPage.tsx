@@ -14,6 +14,7 @@ import {
   type GRItemDto,
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi";
+import { quantityWithUnit, unitCell, unitName } from "../../utils/format";
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
@@ -137,10 +138,10 @@ function GoodsReceiptDetailSkeleton() {
         <div className="px-4 sm:px-6">
           <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[700px]">
+              <table className="w-full text-sm min-w-[780px]">
                 <thead>
                   <tr className="bg-[#C6D4BF]">
-                    {[...Array(9)].map((_, i) => (
+                    {[...Array(10)].map((_, i) => (
                       <th key={i} className="px-3 py-2.5">
                         <div className="h-3 w-10 rounded bg-[#E6ECE2]" />
                       </th>
@@ -150,7 +151,7 @@ function GoodsReceiptDetailSkeleton() {
                 <tbody>
                   {[...Array(4)].map((_, i) => (
                     <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
-                      {[...Array(9)].map((_, j) => (
+                      {[...Array(10)].map((_, j) => (
                         <td key={j} className="px-3 py-2.5">
                           <div className="h-3 w-12 rounded bg-[#E6ECE2]" />
                         </td>
@@ -466,10 +467,10 @@ export default function ReconciliationPage() {
         {/* Items table */}
         <div className="px-4 sm:px-6">
           <div className="rounded-xl border border-[#E6ECE2] overflow-hidden overflow-x-auto">
-            <table className="w-full text-sm min-w-[700px]">
+            <table className="w-full text-sm min-w-[780px]">
               <thead>
                 <tr className="bg-[#C6D4BF]">
-                  {["#", "Product", "Expected", "Delivered", "Actual", "Variance", "Batch", "Expiry", "Location"].map((h) => (
+                  {["#", "Product", "Unit", "Expected", "Delivered", "Actual", "Variance", "Batch", "Expiry", "Location"].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-left font-semibold text-[#333333] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -478,17 +479,29 @@ export default function ReconciliationPage() {
                 {receiptItems.map((item, i) => {
                   const variance = item.actualQty - item.expectedQty;
                   const isMatch = variance === 0;
+                  // The unit the receipt row's own quantities are expressed in,
+                  // falling back to the PO item it was snapshotted from. Never a
+                  // conversion and never a guess — "—" when the backend sent none.
+                  const unit = item.unit ?? item.purchaseOrderItem?.unit ?? null;
                   return (
                     <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
                       <td className="px-3 py-2.5 text-[#666666]">{i + 1}</td>
                       <td className="px-3 py-2.5 font-medium text-[#333333]">
                         {item.purchaseOrderItem?.product?.name ?? `Product (${item.purchaseOrderItem?.productId?.slice(0, 8) ?? "?"})`}
                       </td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.expectedQty}</td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.deliveredQty}</td>
-                      <td className="px-3 py-2.5 text-[#333333]">{item.actualQty}</td>
-                      <td className={`px-3 py-2.5 font-semibold ${isMatch ? "text-green-600" : "text-red-500"}`}>
-                        {isMatch ? <span className="inline-flex items-center gap-1"><IconCheck className="h-3.5 w-3.5" />0</span> : `${variance > 0 ? "+" : ""}${variance}`}
+                      <td className="px-3 py-2.5 text-[#666666] whitespace-nowrap">{unitCell(unit)}</td>
+                      <td className="px-3 py-2.5 text-[#333333] whitespace-nowrap">{quantityWithUnit(item.expectedQty, unit)}</td>
+                      <td className="px-3 py-2.5 text-[#333333] whitespace-nowrap">{quantityWithUnit(item.deliveredQty, unit)}</td>
+                      <td className="px-3 py-2.5 text-[#333333] whitespace-nowrap">{quantityWithUnit(item.actualQty, unit)}</td>
+                      <td className={`px-3 py-2.5 font-semibold whitespace-nowrap ${isMatch ? "text-green-600" : "text-red-500"}`}>
+                        {isMatch ? (
+                          <span className="inline-flex items-center gap-1">
+                            <IconCheck className="h-3.5 w-3.5" />
+                            {quantityWithUnit(0, unit)}
+                          </span>
+                        ) : (
+                          quantityWithUnit(`${variance > 0 ? "+" : ""}${variance}`, unit)
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-[#333333]">{item.batchNumber ?? "—"}</td>
                       <td className="px-3 py-2.5 text-[#333333]">{fmtDate(item.expiryDate)}</td>
@@ -540,21 +553,31 @@ export default function ReconciliationPage() {
                       const dateErr = resolveErrors[resolveFieldKey(item.id, "dates")];
                       const inputCls = (hasErr: boolean) =>
                         `w-full rounded border px-2 py-1 text-sm ${hasErr ? "border-red-400 bg-red-50" : "border-yellow-300"}`;
+                      const resolveUnit = originalItem
+                        ? (originalItem.unit ?? originalItem.purchaseOrderItem?.unit ?? null)
+                        : null;
                       return (
                         <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-yellow-50/50"}>
                           <td className="px-3 py-2 font-medium text-[#333333]">
                             {originalItem?.purchaseOrderItem?.product?.name ?? `Item ${i + 1}`}
                           </td>
                           <td className="px-3 py-2 align-top">
-                            <input
-                              type="number"
-                              min={0}
-                              step="any"
-                              value={item.actualQty}
-                              onChange={(e) => updateResolveItem(item.id, "actualQty", Number(e.target.value))}
-                              className={`w-24 ${inputCls(!!actualErr)}`}
-                              aria-invalid={!!actualErr}
-                            />
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={item.actualQty}
+                                onChange={(e) => updateResolveItem(item.id, "actualQty", Number(e.target.value))}
+                                className={`w-24 ${inputCls(!!actualErr)}`}
+                                aria-invalid={!!actualErr}
+                              />
+                              {unitName(resolveUnit) && (
+                                <span className="text-xs text-[#999999] whitespace-nowrap">
+                                  {unitName(resolveUnit)}
+                                </span>
+                              )}
+                            </div>
                             {actualErr && <p className="text-[11px] text-red-500 mt-0.5">{actualErr}</p>}
                           </td>
                           <td className="px-3 py-2 align-top">
