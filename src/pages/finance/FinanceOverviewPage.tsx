@@ -1,11 +1,15 @@
-// ── Finance · Overview ──────────────────────────────────────────────────────
-// `GET /finance-reporting/dashboard` — the whole-company "right now" snapshot.
+// ── Finance · Overview section ───────────────────────────────────────────────
+// The `GET /finance-reporting/dashboard` half of the Finance page. It is a
+// SECTION, not a route: `/dashboard/finance` renders this and the Reports
+// section together, so nothing here owns a page shell, a title bar or a tab —
+// the parent page provides those. Fetching, filtering and rendering are
+// unchanged from when this was a standalone page.
 //
 // The endpoint takes NO parameters: no date range, no location, no product
-// group. This page therefore has no filters at all — any control here would be
+// group. This section therefore has no filters at all — any control here would be
 // one the backend silently ignores.
 //
-// TWO RULES THAT SHAPE THIS PAGE
+// TWO RULES THAT SHAPE THIS SECTION
 //  1. Every figure is the backend's. `todayNetSales` and
 //     `todayNetSalesAfterReturns` are displayed as sent; the page never derives
 //     `grossSales - discounts` or `netSales - returns`, because the backend
@@ -19,7 +23,6 @@
 // reader's local time), never the browser clock pretending to be the server's.
 
 import { useMemo } from "react";
-import PageHeader from "../../components/ui/PageHeader";
 import {
   getFinanceDashboard,
   type FinanceDashboard,
@@ -42,9 +45,9 @@ import {
 import { CARD, GRID, TONE_BORDER, TONE_SURFACE, TEXT } from "./components/tokens";
 import { allTodayZero } from "./financeCharts";
 import { useFinanceFetch } from "./financeView";
-import FinanceSubNav from "./FinanceSubNav";
+import FinanceSectionHeading from "./FinanceSectionHeading";
 
-export default function FinanceOverviewPage() {
+export function FinanceOverviewSection() {
   const snapshot = useFinanceFetch<FinanceDashboard>(
     (signal) => getFinanceDashboard(signal),
     [],
@@ -76,11 +79,11 @@ export default function FinanceOverviewPage() {
   const busy = loading || !d;
 
   return (
-    <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
-      <PageHeader
-        breadcrumb="Finance"
-        title="Finance"
-        subtitle="Financial overview and current company position"
+    <section id="finance-overview" aria-labelledby="finance-overview-heading">
+      <FinanceSectionHeading
+        id="finance-overview-heading"
+        title="Overview"
+        subtitle="The whole-company position right now — today's trading, plus receivables and payables."
         actions={
           <div className="flex items-center gap-2">
             {d?.asOf && (
@@ -99,7 +102,6 @@ export default function FinanceOverviewPage() {
           </div>
         }
       />
-      <FinanceSubNav />
 
       <div className="p-4 sm:p-6 flex flex-col gap-6">
         {/* Failure renders INLINE, inside the normal page flow — never a blank screen. */}
@@ -214,7 +216,7 @@ export default function FinanceOverviewPage() {
             <div className={`${CARD} ${TONE_SURFACE.warning} ${TONE_BORDER.warning} overflow-hidden`}>
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-yellow-200 px-4 py-3">
                 <div>
-                  <h2 className={TEXT.sectionTitle}>Outstanding Balances</h2>
+                  <h3 className={TEXT.sectionTitle}>Outstanding Balances</h3>
                   <p className={`${TEXT.hint} mt-0.5`}>
                     Current amounts still owed — these are not today's activity.
                   </p>
@@ -253,12 +255,12 @@ export default function FinanceOverviewPage() {
               This snapshot is company-wide and unfiltered, matching the endpoint, which accepts no
               date, location or product-group parameters. Figures reflect the current UTC day. For a
               filtered, period-based breakdown of sales, purchasing, profitability, collections and
-              inventory value, use the Reports tab.
+              inventory value, see the Reports section below.
             </p>
           </>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

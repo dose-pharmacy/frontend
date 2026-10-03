@@ -22,7 +22,6 @@
 
 import { useState } from "react";
 import DatePicker from "../../components/ui/DatePicker";
-import PageHeader from "../../components/ui/PageHeader";
 import SearchableSelect from "../../components/ui/SearchableSelect";
 import type { SearchableOption } from "../../components/ui/SearchableSelect";
 import { searchLocations, searchProductGroups } from "../../features/inventory/searchSelectors";
@@ -59,7 +58,7 @@ import {
   type FinanceReportFilters,
 } from "./financeReportsView";
 import { useFinanceFetch } from "./financeView";
-import FinanceSubNav from "./FinanceSubNav";
+import FinanceSectionHeading from "./FinanceSectionHeading";
 
 const GRANULARITY_SEGMENTS = GRANULARITY_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
 
@@ -71,7 +70,7 @@ function withSelected(options: SearchableOption[], value: string): SearchableOpt
   return [selected, ...options.filter((o) => o.value !== value)];
 }
 
-export default function FinanceReportsPage() {
+export function FinanceReportsSection() {
   // Draft — what the toolbar is currently showing.
   const [draft, setDraft] = useState<FinanceReportFilters>(DEFAULT_REPORT_FILTERS);
   // Applied — what the request was built from.
@@ -125,13 +124,12 @@ export default function FinanceReportsPage() {
   const hasFilters = Boolean(applied.from || applied.to || applied.locationId || applied.productGroupId);
 
   return (
-    <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
-      <PageHeader
-        breadcrumb="Finance"
-        title="Finance Reports"
-        subtitle="Analyze sales, purchasing, profitability, collections and inventory value."
+    <section id="finance-reports" aria-labelledby="finance-reports-heading">
+      <FinanceSectionHeading
+        id="finance-reports-heading"
+        title="Reports"
+        subtitle="Filter the period, then analyze sales, purchasing, profitability, collections and inventory value."
       />
-      <FinanceSubNav />
 
       {/* ── Filter bar: one compact sticky row ── */}
       <div className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur-sm shadow-xs">
@@ -276,7 +274,7 @@ export default function FinanceReportsPage() {
           </>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

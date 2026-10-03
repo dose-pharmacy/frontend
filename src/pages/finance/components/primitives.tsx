@@ -198,7 +198,10 @@ export function SectionCard({
     <section className={`${CARD} overflow-hidden shadow-xs ${className}`}>
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-4 bg-canvas/40">
         <div className="min-w-0">
-          <h2 className={TEXT.sectionTitle}>{title}</h2>
+          {/* h3, not h2: `SectionCard` sits inside the Overview / Reports
+              section headings, so this is the third level down from the page
+              `h1`. Styling is unchanged — it comes from the class, not the tag. */}
+          <h3 className={TEXT.sectionTitle}>{title}</h3>
           {subtitle && <p className={`${TEXT.hint} mt-0.5`}>{subtitle}</p>}
         </div>
         {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
