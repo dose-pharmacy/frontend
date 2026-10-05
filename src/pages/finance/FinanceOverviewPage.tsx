@@ -47,10 +47,12 @@ import { allTodayZero } from "./financeCharts";
 import { useFinanceFetch } from "./financeView";
 import FinanceSectionHeading from "./FinanceSectionHeading";
 
-export function FinanceOverviewSection() {
+export function FinanceOverviewSection({ reloadTick = 0 }: { reloadTick?: number }) {
   const snapshot = useFinanceFetch<FinanceDashboard>(
     (signal) => getFinanceDashboard(signal),
-    [],
+    // `reloadTick` is the page header's Refresh. The endpoint takes no
+    // parameters, so this is the only thing that can re-run the request.
+    [reloadTick],
     "Could not load the finance snapshot.",
     { refreshOnFocus: true },
   );
@@ -85,21 +87,14 @@ export function FinanceOverviewSection() {
         title="Overview"
         subtitle="The whole-company position right now — today's trading, plus receivables and payables."
         actions={
-          <div className="flex items-center gap-2">
-            {d?.asOf && (
-              <span className="rounded-full border border-gray-200 bg-canvas px-3 py-1.5 text-xs text-text-secondary whitespace-nowrap">
-                Last updated {fmtDateTime(d.asOf)}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={snapshot.reload}
-              disabled={loading}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-text-primary hover:border-gray-300 hover:bg-canvas disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-mid"
-            >
-              {loading ? "Refreshing…" : "Refresh"}
-            </button>
-          </div>
+          /* No Refresh button here: the page header owns it, exactly as on
+             every other dashboard tab. Two Refresh controls on one screen
+             would be ambiguous about what each re-runs. */
+          d?.asOf ? (
+            <span className="rounded-full border border-gray-200 bg-canvas px-3 py-1.5 text-xs text-text-secondary whitespace-nowrap">
+              Last updated {fmtDateTime(d.asOf)}
+            </span>
+          ) : undefined
         }
       />
 

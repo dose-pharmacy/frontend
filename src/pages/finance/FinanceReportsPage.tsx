@@ -70,7 +70,7 @@ function withSelected(options: SearchableOption[], value: string): SearchableOpt
   return [selected, ...options.filter((o) => o.value !== value)];
 }
 
-export function FinanceReportsSection() {
+export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number }) {
   // Draft — what the toolbar is currently showing.
   const [draft, setDraft] = useState<FinanceReportFilters>(DEFAULT_REPORT_FILTERS);
   // Applied — what the request was built from.
@@ -111,7 +111,17 @@ export function FinanceReportsSection() {
 
   const report = useFinanceFetch<FinanceReport>(
     (signal) => getFinanceReport(buildReportQuery(applied), signal),
-    [applied.from, applied.to, applied.locationId, applied.productGroupId, applied.granularity],
+    // `reloadTick` is the page header's Refresh. It re-runs the request with
+    // whatever filters are currently APPLIED — it never silently reverts the
+    // pharmacist's selection to the defaults.
+    [
+      applied.from,
+      applied.to,
+      applied.locationId,
+      applied.productGroupId,
+      applied.granularity,
+      reloadTick,
+    ],
     "Could not load the finance report.",
   );
 
