@@ -15,7 +15,6 @@ import {
   updateRequirement,
   closeRequirement,
   deleteRequirement,
-  generateRequirementFromReorder,
   addRequirementLine,
   updateRequirementLine,
   removeRequirementLine,
@@ -39,6 +38,9 @@ import {
   type ProductDto,
 } from "../../features/inventory/productsApi"
 import { getReorderSuggestions } from "../../features/inventory/reorderApi"
+import GenerateRequirementsModal, {
+  type ReorderSuggestion,
+} from "../inventory/ReorderReq"
 import SearchableSelect, {
   type SearchableOption,
 } from "../../components/ui/SearchableSelect"
@@ -1659,6 +1661,23 @@ function NewRequirementModal({
 
 // ─── Generate from Reorder Modal ─────────────────────────────────────────────
 
+/**
+ * Loads the current reorder suggestions, then hands them to the shared
+ * Generate-from-Reorder modal, which owns product selection, quantities,
+ * validation and the create request.
+ *
+ * WHY THE SUGGESTIONS ARE FETCHED HERE: `GET /inventory/reorder/suggestions`
+ * returns the product, its base unit and the backend's suggested quantity. The
+ * quantity is shown as read-only context only — the pharmacist types what to
+ * request.
+ *
+ * WHY THIS DOESN'T CALL `/requirements/generate-from-reorder`: that endpoint
+ * accepts no body at all (no requestBody, no query parameters in the published
+ * OpenAPI), so it can only ever create a requirement from EVERY current
+ * suggestion. Honouring a per-product selection and quantity requires
+ * `POST /requirements`, which the shared modal already calls with just the
+ * ticked rows.
+ */
 function GenerateFromReorderModal({
   open,
   onClose,
@@ -1669,76 +1688,64 @@ function GenerateFromReorderModal({
   onGenerated: () => void
 }) {
   const [loading, setLoading] = useState(false)
-  const [suggestions, setSuggestions] = useState<{
-    product: { id: string; name: string; sku: string }
-    suggestedQuantity: number
-  }[]>([])
+  const [suggestions, setSuggestions] = useState<ReorderSuggestion[]>([])
   const [loadError, setLoadError] = useState("")
-  const [showConfirm, setShowConfirm] = useState(false)
+  /** Bumped by Retry to re-run the suggestions fetch. */
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     if (!open) return
+    let cancelled = false
     setLoadError("")
     setSuggestions([])
-    setShowConfirm(false)
+    setLoading(true)
     getReorderSuggestions({ page: 1, limit: 50 })
-      .then((r) =>
+      .then((r) => {
+        if (cancelled) return
         setSuggestions(
           r.data.map((s) => ({
-            product: s.product,
+            // `productId` (not the name) is the row identity: two suggestions
+            // can share a product name, and the create request must send the
+            // real backend id.
+            productId: s.product.id,
+            name: s.product.name,
             suggestedQuantity: s.suggestedQuantity,
+            status: "Reorder",
+            calculationMethod: s.calculationMethod,
+            // The product's own base unit, exactly as the reorder endpoint
+            // reported it. The modal shows it beside the quantity and omits
+            // `unitId` from the request, which makes the backend default the
+            // created line to this same base unit.
+            baseUnit: s.product.baseUnit ?? null,
           })),
-        ),
-      )
-      .catch((e) => setLoadError(errMessage(e)))
-  }, [open])
-
-  async function handleGenerate() {
-    setLoading(true)
-    try {
-      await generateRequirementFromReorder()
-      onGenerated()
-    } catch (e) {
-      setLoadError(errMessage(e))
-    } finally {
-      setLoading(false)
+        )
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(errMessage(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
-  }
+  }, [open, retry])
 
-  if (showConfirm) {
+  // The shared modal owns everything from here: checkboxes, quantities,
+  // validation, the create request and the success view.
+  if (!loading && !loadError) {
     return (
-      <Modal
-        open={true}
-        title="Generate Purchase Requirement"
-        onClose={() => {
-          setShowConfirm(false)
-          onClose()
-        }}
-        size="sm"
-      >
-        <p className="text-sm text-[#666666] mb-4">
-          This will create a requirement from currently available reorder
-          suggestions.
-        </p>
-        <div className="flex gap-3 justify-end">
-          <Button variant="secondary" onClick={() => setShowConfirm(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              setShowConfirm(false)
-              handleGenerate()
-            }}
-            loading={loading}
-            disabled={suggestions.length === 0 && !loadError}
-          >
-            Generate
-          </Button>
-        </div>
-      </Modal>
+      <GenerateRequirementsModal
+        open={open}
+        onClose={onClose}
+        onGenerate={onGenerated}
+        suggestions={suggestions}
+      />
     )
   }
 
+  // Loading and failure are handled here, because they happen before the shared
+  // modal has anything to render.
   return (
     <Modal
       open={open}
@@ -1747,54 +1754,23 @@ function GenerateFromReorderModal({
       size="sm"
     >
       <p className="text-sm text-[#666666] -mt-2 mb-4">
-        The system will create a purchase requirement from the current reorder
-        suggestions.
+        Choose the products to include and enter the quantity to request for
+        each.
       </p>
-      {loadError && (
+      {loadError ? (
         <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">
           {loadError}
         </p>
+      ) : (
+        <p className="text-sm text-[#999] py-2">Loading reorder suggestions…</p>
       )}
-      <div className="rounded-xl border border-[#E6ECE2] p-4 mb-5 max-h-64 overflow-y-auto">
-        <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-3">
-          Products to Purchase
-        </p>
-        {suggestions.length === 0 ? (
-          <p className="text-sm text-[#999] py-2">
-            {loadError ? "—" : "No reorder suggestions available."}
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {suggestions.map((s) => (
-              <li
-                key={s.product.id}
-                className="flex items-center justify-between text-sm"
-              >
-                <span className="text-[#333333] font-medium">
-                  {s.product.name}
-                </span>
-                <span className="font-bold text-[#7A9076]">
-                  {s.suggestedQuantity}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="rounded-lg bg-[#E6ECE2]/60 px-4 py-2.5 mb-5 text-sm font-semibold text-[#333333]">
-        {suggestions.length} products require purchasing
-      </div>
       <div className="flex gap-3 justify-end">
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button
-          onClick={() => setShowConfirm(true)}
-          loading={loading}
-          disabled={suggestions.length === 0 && !loadError}
-        >
-          Generate Requirement
-        </Button>
+        {loadError && (
+          <Button onClick={() => setRetry((n) => n + 1)}>Retry</Button>
+        )}
       </div>
     </Modal>
   )

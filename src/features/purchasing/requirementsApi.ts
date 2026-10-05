@@ -497,20 +497,6 @@ export async function deleteRequirement(id: string): Promise<void> {
   });
 }
 
-/**
- * POST /requirements/generate-from-reorder — auto-create a requirement from the
- * current reorder suggestions. Fails with 409 BAD_REQUEST when there is nothing
- * to generate from.
- */
-export async function generateRequirementFromReorder(): Promise<RequirementDto> {
-  const result = await requirementsRequest<{ success: boolean; data: RequirementDto }>(
-    "/generate-from-reorder",
-    { method: "POST" },
-  );
-  if (!result?.data) throw new RequirementsApiError("Unexpected response from the server.");
-  return result.data;
-}
-
 /** POST /requirements/{id}/lines — add another product line to a requirement. */
 export async function addRequirementLine(
   requirementId: string,

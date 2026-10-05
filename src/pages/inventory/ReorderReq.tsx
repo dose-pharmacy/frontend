@@ -36,7 +36,7 @@ import type { ReorderBaseUnitDto } from "../../features/inventory/reorderApi";
 import { quantityWithUnit, unitName } from "../../utils/format";
 import { IconX } from "../../components/ui/icons";
 
-interface ReorderSuggestion {
+export interface ReorderSuggestion {
   /**
    * Backend product id. This is the row identity: reorder suggestions can
    * contain several rows with the SAME product name, so the name must never be
@@ -68,9 +68,10 @@ interface RowState {
   quantity: string;
 }
 
-interface GenerateRequirementsModalProps {
+export interface GenerateRequirementsModalProps {
   open: boolean;
   onClose: () => void;
+  /** Fired after the backend confirms the create, so the caller can refetch. */
   onGenerate?: () => void;
   suggestions?: ReorderSuggestion[];
 }
