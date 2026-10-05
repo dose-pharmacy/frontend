@@ -7,6 +7,7 @@ import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import { listSupplierInvoices, deleteSupplierInvoice, recordInvoicePayment, invoiceOutstanding, type SupplierInvoiceDto, type SupplierInvoiceStatus, SupplierInvoicesApiError } from "../../features/purchasing/supplierInvoicesApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { TableSkeleton } from "../../components/ui/Skeleton"
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
@@ -22,6 +23,22 @@ const STATUS_BADGE: Record<SupplierInvoiceStatus, string> = {
   PARTIALLY_PAID: "bg-orange-100 text-orange-700",
   PAID: "bg-green-100 text-green-700",
 }
+
+/**
+ * The real table's headings, shared by the `<thead>` and the loading
+ * `TableSkeleton` so the two can never drift out of line.
+ */
+const INVOICE_COLUMNS = [
+  "Invoice #",
+  "Supplier",
+  "PO",
+  "Date",
+  "Due",
+  "Amount",
+  "Outstanding",
+  "Status",
+  "Actions",
+] as const
 
 export default function SupplierInvoicesPage() {
   const navigate = useNavigate()
@@ -164,10 +181,9 @@ export default function SupplierInvoicesPage() {
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
-              <p className="text-sm text-[#666666]">Loading invoices...</p>
-            </div>
+            /* Shimmer in the shape of the table that is coming, so the page
+               holds its height instead of collapsing to a spinner and jumping. */
+            <TableSkeleton columns={INVOICE_COLUMNS} status="Loading supplier invoices" />
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4 px-6">
               <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{error}</p>
@@ -200,7 +216,7 @@ export default function SupplierInvoicesPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#E6ECE2] text-left">
-                      {["Invoice #", "Supplier", "PO", "Date", "Due", "Amount", "Outstanding", "Status", "Actions"].map((h) => (
+                      {INVOICE_COLUMNS.map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
                     </tr>

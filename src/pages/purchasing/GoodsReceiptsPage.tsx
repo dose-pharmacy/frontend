@@ -13,6 +13,7 @@ import {
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { TableSkeleton } from "../../components/ui/Skeleton"
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
@@ -24,6 +25,22 @@ const STATUS_BADGE: Record<GoodsReceiptStatus, string> = {
   DISCREPANCY: "bg-yellow-100 text-yellow-700",
   RESOLVED: "bg-blue-100 text-blue-700",
 }
+
+/**
+ * The real table's headings, shared by the `<thead>` and the loading
+ * `TableSkeleton` so the two can never drift out of line.
+ */
+const RECEIPT_COLUMNS = [
+  "Receipt #",
+  "Purchase Order",
+  "Supplier",
+  "Received Date",
+  "Status",
+  "Items",
+  "Created By",
+  "Confirmed",
+  "Actions",
+] as const
 
 export default function GoodsReceiptsPage() {
   const navigate = useNavigate()
@@ -145,10 +162,9 @@ export default function GoodsReceiptsPage() {
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
-              <p className="text-sm text-[#666666]">Loading goods receipts...</p>
-            </div>
+            /* Shimmer in the shape of the table that is coming, so the page
+               holds its height instead of collapsing to a spinner and jumping. */
+            <TableSkeleton columns={RECEIPT_COLUMNS} status="Loading goods receipts" />
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4 px-6">
               <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{error}</p>
@@ -181,7 +197,7 @@ export default function GoodsReceiptsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#E6ECE2] text-left">
-                      {["Receipt #", "Purchase Order", "Supplier", "Received Date", "Status", "Items", "Created By", "Confirmed", "Actions"].map((h) => (
+                      {RECEIPT_COLUMNS.map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
                     </tr>

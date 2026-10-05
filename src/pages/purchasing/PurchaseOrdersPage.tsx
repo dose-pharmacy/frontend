@@ -20,6 +20,7 @@ import SearchableSelect from "../../components/ui/SearchableSelect"
 import Pagination from "../../components/ui/Pagination"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import { IconPencil } from "../../components/ui/icons"
+import { TableSkeleton } from "../../components/ui/Skeleton"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,22 @@ function ConfirmModal({ open, title, message, detail, error, confirmLabel, confi
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
+
+/**
+ * The real table's headings. Declared once and used for BOTH the `<thead>` and
+ * the loading `TableSkeleton`, so the shimmer can never drift out of line with
+ * the columns that arrive.
+ */
+const PO_COLUMNS = [
+  "PO Number",
+  "Supplier",
+  "Order Date",
+  "Expected Delivery",
+  "Items",
+  "Status",
+  "Payment",
+  "Actions",
+] as const
 
 export default function PurchaseOrdersPage() {
   const navigate = useNavigate()
@@ -312,10 +329,9 @@ export default function PurchaseOrdersPage() {
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
-              <p className="text-sm text-[#666666]">Loading purchase orders...</p>
-            </div>
+            /* Shimmer in the shape of the table that is coming, so the page
+               holds its height instead of collapsing to a spinner and jumping. */
+            <TableSkeleton columns={PO_COLUMNS} status="Loading purchase orders" />
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4 px-6">
               <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md text-center">{error}</p>
@@ -348,7 +364,7 @@ export default function PurchaseOrdersPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#E6ECE2] text-left">
-                      {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Items", "Status", "Payment", "Actions"].map((h) => (
+                      {PO_COLUMNS.map((h) => (
                         <th key={h} className="px-4 py-3 font-semibold text-[#333333]">{h}</th>
                       ))}
                     </tr>

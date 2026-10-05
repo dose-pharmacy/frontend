@@ -31,6 +31,7 @@ import type { POItem, POStatus } from "./PurchaseOrdersPage"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import { searchProducts } from "../../features/inventory/searchSelectors"
 import { useProductUnits } from "../../features/inventory/useProductUnits"
+import { SkeletonBar, SkeletonStatus, TableSkeleton } from "../../components/ui/Skeleton"
 import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions"
 import OrderItemReceivingDetails, {
   type ReceivingDetailsRow,
@@ -711,6 +712,124 @@ function ConfirmModal({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+/** Headings of the read-only Order Items table, shared with its skeleton. */
+const ORDER_ITEM_COLUMNS = [
+  "Product",
+  "Unit",
+  "Ordered",
+  "Received",
+  "Remaining",
+  "Unit Cost",
+  "Ordered Value",
+  "Received Value",
+  "Actions",
+] as const
+
+/**
+ * Placeholder for the Purchase Order detail view, shown while the order is
+ * being fetched.
+ *
+ * It mirrors the real detail layout card-for-card — back link, status timeline,
+ * order information, supplier, items table and the sticky summary — so the
+ * header, the two-column grid and the page height are already correct by the
+ * time the data lands, instead of the whole page jumping from a spinner.
+ *
+ * Live here rather than in `ui/Skeleton.tsx` because it describes THIS page's
+ * layout; only the reusable bars and the table shape are shared.
+ */
+function PurchaseOrderDetailSkeleton() {
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      {/* Back link */}
+      <div className="flex items-center gap-1.5 mb-5">
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+        <SkeletonBar className="h-3 w-24" />
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 flex flex-col gap-5">
+          {/* Order Status timeline */}
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+            <SkeletonBar className="h-3 w-24 mb-4" />
+            <div className="flex items-center gap-2">
+              {STATUS_FLOW.map((s) => (
+                <SkeletonBar key={s} className="h-8 flex-1 rounded-lg" />
+              ))}
+            </div>
+          </div>
+
+          {/* Order Information — six label + value fields, two per row */}
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+            <SkeletonBar className="h-3 w-32 mb-4" />
+            <div className="grid sm:grid-cols-2 gap-4">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i}>
+                  <SkeletonBar className="h-3 w-28 mb-1.5" />
+                  <SkeletonBar className="h-[38px] w-full rounded-xl" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Supplier */}
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
+            <SkeletonBar className="h-3 w-24 mb-4" />
+            <SkeletonBar className="h-[38px] w-full rounded-xl" />
+            <div className="mt-4 grid sm:grid-cols-2 gap-3">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="flex justify-between gap-3">
+                  <SkeletonBar className="h-3 w-24" />
+                  <SkeletonBar className="h-3 w-28" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Order Items */}
+          <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden">
+            <div className="px-5 py-3 border-b border-[#E6ECE2]">
+              <SkeletonBar className="h-3 w-24" />
+              <SkeletonBar className="h-2.5 w-56 mt-2" />
+            </div>
+            <TableSkeleton columns={ORDER_ITEM_COLUMNS} minWidth="min-w-[880px]" rows={4} />
+          </div>
+        </div>
+
+        {/* Order Summary */}
+        <div className="flex flex-col gap-5">
+          <div className="bg-white rounded-xl border border-[#E6ECE2] p-5 sticky top-0">
+            <SkeletonBar className="h-3 w-28 mb-4" />
+            <div className="space-y-3">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex justify-between">
+                  <SkeletonBar className="h-3 w-20" />
+                  <SkeletonBar className="h-3 w-24" />
+                </div>
+              ))}
+              <div className="flex justify-between border-t border-[#E6ECE2] pt-3">
+                <SkeletonBar className="h-3.5 w-28" />
+                <SkeletonBar className="h-5 w-28" />
+              </div>
+            </div>
+            {/* Supplier payment terms callout */}
+            <div className="mt-4 rounded-lg bg-[#E6ECE2]/50 px-4 py-3">
+              <SkeletonBar className="h-2.5 w-32" />
+              <SkeletonBar className="h-3.5 w-40 mt-2" />
+              <SkeletonBar className="h-2.5 w-48 mt-2" />
+            </div>
+            {/* Action buttons */}
+            <div className="mt-5 flex flex-col gap-2">
+              {Array.from({ length: 2 }, (_, i) => (
+                <SkeletonBar key={i} className="h-[38px] w-full rounded-xl" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function CreatePurchaseOrderPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
@@ -1159,12 +1278,12 @@ export default function CreatePurchaseOrderPage() {
         <PageHeader
           breadcrumb="Purchasing / Orders"
           title="Purchase Order"
-          subtitle="Loading..."
+          /* Shimmer in place of the old "Loading..." subtitle. The real title
+             is the PO reference, which is not known until the fetch lands. */
+          subtitle={<SkeletonBar className="h-3 w-32 mt-1" />}
         />
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <div className="h-8 w-8 rounded-full border-4 border-[#E6ECE2] border-t-[#B6C8AF] animate-spin" />
-          <p className="text-sm text-[#666666]">Loading purchase order...</p>
-        </div>
+        <SkeletonStatus>Loading purchase order</SkeletonStatus>
+        <PurchaseOrderDetailSkeleton />
       </div>
     )
   }

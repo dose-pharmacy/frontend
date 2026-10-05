@@ -674,28 +674,21 @@ export default function SupplierPayablesPage() {
 
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            {/* View */}
+                            {/* View — a text link, matching the Supplier
+                                Invoices and Purchase Orders tables. The bare
+                                eye icon gave no hint what it opened; the row
+                                itself is still clickable for the same detail
+                                view, which is why this keeps stopPropagation. */}
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 void openSupplierDetail(supplier);
                               }}
-                              className="text-[#7A9076] hover:text-[#A5B89E]"
+                              className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
                               title="View supplier"
                             >
-                              <svg
-                                className="h-4 w-4"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
-                                <path
-                                  fillRule="evenodd"
-                                  d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
+                              View →
                             </button>
 
                             {/* Edit */}
