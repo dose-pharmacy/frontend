@@ -52,9 +52,10 @@ import {
 const PAGE_SIZE = 5;
 
 const PO_BADGE: Record<string, string> = {
-  DRAFT: "bg-gray-400 text-white",
-  SENT: "bg-blue-500 text-white",
+  AWAITING_DELIVERY: "bg-yellow-400 text-[#4A4A4A]",
+  PARTIALLY_RECEIVED: "bg-orange-400 text-white",
   RECEIVED: "bg-green-500 text-white",
+  CLOSED: "bg-gray-500 text-white",
   CANCELLED: "bg-red-500 text-white",
 };
 

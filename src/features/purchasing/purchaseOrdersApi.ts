@@ -18,14 +18,13 @@ import { API_BASE_URL } from "../auth/authApi";
 
 // ─── Types (mirror the Swagger response shapes) ──────────────────────────────
 
+/** The backend's PurchaseOrderStatus enum — the only valid PO statuses. */
 export type POStatus =
-  | "REGISTERED"
   | "AWAITING_DELIVERY"
   | "PARTIALLY_RECEIVED"
   | "RECEIVED"
   | "CLOSED"
-  | "CANCELLED"
-  | (string & {});
+  | "CANCELLED";
 
 /** Derived (never persisted) payment status of a purchase order. */
 export type POPaymentStatus =
@@ -152,7 +151,6 @@ export interface POListMeta {
 
 /** Server-computed status counts over the FILTERED dataset (not just the page). */
 export interface POListSummaryDto {
-  registered: number;
   awaitingDelivery: number;
   partiallyReceived: number;
   received: number;
@@ -171,7 +169,7 @@ export interface PurchaseOrdersQuery {
   page?: number;
   limit?: number;
   supplierId?: string;
-  status?: string;
+  status?: POStatus;
   /** When true, the backend returns only POs still receivable
    * (at least one item with quantityRemaining > 0). */
   receivable?: boolean;
@@ -399,7 +397,7 @@ function toCreateItems(items: CreatePurchaseOrderItemInput[]) {
   }));
 }
 
-/** POST /purchase-orders — create a PO; the backend starts it as REGISTERED. */
+/** POST /purchase-orders — create a PO. */
 export async function createPurchaseOrder(input: CreatePurchaseOrderInput): Promise<PurchaseOrderDto> {
   const raw = await poRequest<unknown>("", {
     method: "POST",
@@ -449,7 +447,7 @@ export async function updatePurchaseOrder(
 }
 
 /**
- * POST /purchase-orders/{id}/mark-awaiting-delivery — move a REGISTERED PO to
+ * POST /purchase-orders/{id}/mark-awaiting-delivery — set a PO to
  * AWAITING_DELIVERY. Physical receiving happens through Deliveries.
  */
 export async function markPurchaseOrderAwaitingDelivery(id: string): Promise<PurchaseOrderDto> {
@@ -463,8 +461,8 @@ export async function markPurchaseOrderAwaitingDelivery(id: string): Promise<Pur
 }
 
 /**
- * POST /purchase-orders/{id}/cancel — cancel a PO from a pre-receipt state
- * (REGISTERED or AWAITING_DELIVERY).
+ * POST /purchase-orders/{id}/cancel — cancel a PO before any goods have been
+ * received (AWAITING_DELIVERY).
  */
 export async function cancelPurchaseOrder(id: string): Promise<PurchaseOrderDto> {
   const raw = await poRequest<unknown>(`/${encodeURIComponent(id)}/cancel`, {
@@ -510,7 +508,7 @@ export async function createPurchaseOrderFromRequirement(
 
 /**
  * PATCH /purchase-orders/items/{itemId} — update a PO item (quantity, unit cost).
- * Only allowed while the order is REGISTERED or AWAITING_DELIVERY.
+ * Only allowed while the order is AWAITING_DELIVERY.
  */
 export async function updatePurchaseOrderItem(
   itemId: string,
@@ -549,7 +547,7 @@ export async function acceptPurchaseOrderShortage(
 
 /**
  * DELETE /purchase-orders/items/{itemId} — remove a PO item.
- * Only available for REGISTERED orders.
+ * Only available while the order is AWAITING_DELIVERY.
  */
 export async function deletePurchaseOrderItem(itemId: string): Promise<void> {
   await poRequest<{ success: boolean; data: null }>(`/items/${encodeURIComponent(itemId)}`, {

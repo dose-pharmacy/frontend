@@ -13,7 +13,6 @@ import {
   updatePurchaseOrderItem,
   deletePurchaseOrderItem,
   acceptPurchaseOrderShortage,
-  markPurchaseOrderAwaitingDelivery,
   cancelPurchaseOrder,
   closePurchaseOrder,
   PurchaseOrdersApiError,
@@ -59,8 +58,8 @@ function orderTotal(items: POItem[]) {
 // ─── Status timeline ──────────────────────────────────────────────────────────
 
 const STATUS_FLOW: POStatus[] = [
-  "REGISTERED",
   "AWAITING_DELIVERY",
+  "PARTIALLY_RECEIVED",
   "RECEIVED",
   "CLOSED",
 ]
@@ -140,7 +139,7 @@ function StatusTimeline({
   current: POStatus
   cancelled?: boolean
 }) {
-  const steps = cancelled ? ["REGISTERED", "CANCELLED"] : STATUS_FLOW
+  const steps = cancelled ? ["AWAITING_DELIVERY", "CANCELLED"] : STATUS_FLOW
 
   const currentIdx = steps.indexOf(current)
 
@@ -150,8 +149,8 @@ function StatusTimeline({
         const done = idx < currentIdx
         const active = idx === currentIdx
         const labels: Record<string, string> = {
-          REGISTERED: "Registered",
           AWAITING_DELIVERY: "Awaiting Delivery",
+          PARTIALLY_RECEIVED: "Partially Received",
           RECEIVED: "Received",
           CLOSED: "Closed",
           CANCELLED: "Cancelled",
@@ -899,7 +898,6 @@ export default function CreatePurchaseOrderPage() {
   const [shortageReason, setShortageReason] = useState("")
 
   // Status action modals
-  const [markDeliveryOpen, setMarkDeliveryOpen] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [actionError, setActionError] = useState("")
@@ -992,7 +990,7 @@ export default function CreatePurchaseOrderPage() {
     }
   }, [id, isNew])
 
-  const status: POStatus = poState?.status as POStatus ?? "REGISTERED"
+  const status: POStatus = poState?.status as POStatus ?? "AWAITING_DELIVERY"
   const supplier = suppliers.find((s) => s.id === suppId) ?? null
   // Detail fallback: when the suppliers list hasn't loaded, show the embedded supplier info.
   const supplierView =
@@ -1124,7 +1122,7 @@ export default function CreatePurchaseOrderPage() {
       .catch(() => { /* keep current state — the toast from the action still informs the user */ })
   }
 
-  /** Persisted item removal — only allowed by the backend on REGISTERED orders. */
+  /** Persisted item removal — only allowed by the backend on AWAITING_DELIVERY orders. */
   async function handleRemoveItem(item: POItem) {
     if (!poState) return
     setActionError("")
@@ -1199,34 +1197,22 @@ export default function CreatePurchaseOrderPage() {
   }
 
   /** Confirmed status transition against the real endpoint. */
-  async function handleStatusAction(
-    action: "markDelivery" | "close" | "cancel",
-  ) {
+  async function handleStatusAction(action: "close" | "cancel") {
     if (!poState) return
     setActionError("")
     try {
       if (action === "cancel") await cancelPurchaseOrder(poState.id)
-      else if (action === "markDelivery")
-        await markPurchaseOrderAwaitingDelivery(poState.id)
-      else if (action === "close") await closePurchaseOrder(poState.id)
+      else await closePurchaseOrder(poState.id)
       setPOState({
         ...poState,
-        status:
-          action === "markDelivery"
-            ? "AWAITING_DELIVERY"
-            : action === "close"
-              ? "CLOSED"
-              : "CANCELLED",
+        status: action === "close" ? "CLOSED" : "CANCELLED",
       })
-      setMarkDeliveryOpen(false)
       setCloseOpen(false)
       setCancelOpen(false)
       setToast(
-        action === "markDelivery"
-          ? "Purchase order marked as awaiting delivery."
-          : action === "close"
-            ? "Purchase order closed."
-            : "Purchase order cancelled.",
+        action === "close"
+          ? "Purchase order closed."
+          : "Purchase order cancelled.",
       )
     } catch (err) {
       setActionError(
@@ -1331,7 +1317,7 @@ export default function CreatePurchaseOrderPage() {
                 Cancel Edit
               </button>
             )}
-            {!isNew && !editMode && status === "REGISTERED" && (
+            {!isNew && !editMode && status === "AWAITING_DELIVERY" && (
               <button
                 onClick={() => setEditMode(true)}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-[#C6D4BF] bg-white px-3.5 py-2 text-sm font-semibold text-[#7A9076] hover:bg-[#E6ECE2] transition-colors"
@@ -2049,17 +2035,8 @@ export default function CreatePurchaseOrderPage() {
                 )}
                 {!isNew && !editMode && poState && (
                   <>
-                    {status === "REGISTERED" && (
+                    {status === "AWAITING_DELIVERY" && (
                       <>
-                        <button
-                          onClick={() => {
-                            setActionError("")
-                            setMarkDeliveryOpen(true)
-                          }}
-                          className="w-full rounded-xl bg-[#B6C8AF] px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#7A9076] transition-colors"
-                        >
-                          Mark as Awaiting Delivery
-                        </button>
                         <button
                           onClick={() => setEditMode(true)}
                           className="w-full rounded-xl border border-[#C6D4BF] bg-white px-4 py-2.5 text-sm font-semibold text-[#333333] hover:bg-[#E6ECE2] transition-colors"
@@ -2076,17 +2053,6 @@ export default function CreatePurchaseOrderPage() {
                           Cancel Order
                         </button>
                       </>
-                    )}
-                    {status === "AWAITING_DELIVERY" && (
-                      <button
-                        onClick={() => {
-                          setActionError("")
-                          setCancelOpen(true)
-                        }}
-                        className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors"
-                      >
-                        Cancel Order
-                      </button>
                     )}
                     {status === "RECEIVED" && (
                       <button
@@ -2294,16 +2260,6 @@ export default function CreatePurchaseOrderPage() {
         onConfirm={handleAcceptShortage}
       />
 
-      <ConfirmModal
-        open={markDeliveryOpen}
-        title="Mark as Awaiting Delivery?"
-        message={`Send ${reference} to the supplier and mark it as awaiting delivery?`}
-        confirmLabel="Mark Awaiting Delivery"
-        confirmClass="bg-yellow-600 hover:bg-yellow-700 text-white"
-        error={actionError}
-        onClose={() => setMarkDeliveryOpen(false)}
-        onConfirm={() => handleStatusAction("markDelivery")}
-      />
       <ConfirmModal
         open={closeOpen}
         title="Close Purchase Order?"

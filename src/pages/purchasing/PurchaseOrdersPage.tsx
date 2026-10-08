@@ -6,10 +6,10 @@ import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import {
   listPurchaseOrders,
-  markPurchaseOrderAwaitingDelivery,
   cancelPurchaseOrder,
   closePurchaseOrder,
   PurchaseOrdersApiError,
+  type POStatus,
   type PurchaseOrderDto,
   type POPaymentStatus,
 } from "../../features/purchasing/purchaseOrdersApi"
@@ -24,7 +24,9 @@ import { TableSkeleton } from "../../components/ui/Skeleton"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type POStatus = "REGISTERED" | "AWAITING_DELIVERY" | "RECEIVED" | "CLOSED" | "CANCELLED"
+// Re-exported from the API client so the whole UI shares the single
+// backend-contract PurchaseOrderStatus type.
+export type { POStatus }
 
 export interface POItem {
   id: string
@@ -83,7 +85,7 @@ export function toUiPO(dto: PurchaseOrderDto): PurchaseOrder {
     supplierName: dto.supplier?.name ?? "—",
     orderDate: dto.orderDate ?? "",
     expectedDeliveryDate: dto.expectedDeliveryDate ?? "",
-    status: (dto.status as POStatus) ?? "REGISTERED",
+    status: (dto.status as POStatus) ?? "AWAITING_DELIVERY",
     notes: dto.notes ?? "",
     itemsCount: dto._count?.items ?? items.length,
     items,
@@ -92,15 +94,17 @@ export function toUiPO(dto: PurchaseOrderDto): PurchaseOrder {
 }
 
 const STATUS_CFG: Record<POStatus, { label: string; cls: string }> = {
-  REGISTERED:       { label: "Registered",       cls: "bg-blue-100 text-blue-700" },
   AWAITING_DELIVERY:{ label: "Awaiting Delivery", cls: "bg-yellow-100 text-yellow-700" },
+  PARTIALLY_RECEIVED:{ label: "Partially Received", cls: "bg-orange-100 text-orange-700" },
   RECEIVED:         { label: "Received",          cls: "bg-[#E6ECE2] text-[#7A9076] border border-[#C6D4BF]" },
   CLOSED:           { label: "Closed",            cls: "bg-green-100 text-green-700" },
   CANCELLED:        { label: "Cancelled",         cls: "bg-gray-100 text-gray-500" },
 }
 
 export function StatusBadge({ status }: { status: POStatus }) {
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG.REGISTERED
+  // The five backend statuses are exhaustive above; an unexpected value only
+  // gets a neutral badge (never an invented status) so the UI cannot crash.
+  const cfg = STATUS_CFG[status] ?? { label: status.replace(/_/g, " "), cls: "bg-gray-100 text-gray-600" }
   return <span className={`text-xs font-bold rounded-full px-2.5 py-0.5 ${cfg.cls}`}>{cfg.label}</span>
 }
 
@@ -188,7 +192,7 @@ export default function PurchaseOrdersPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [toast, setToast] = useState("")
   const [actionError, setActionError] = useState("")
-  const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "markDelivery" | "close" | "cancel" } | null>(null)
+  const [actionTarget, setActionTarget] = useState<{ po: PurchaseOrder; action: "close" | "cancel" } | null>(null)
 
   const PAGE_SIZE = 20
 
@@ -244,14 +248,11 @@ export default function PurchaseOrdersPage() {
     const { po, action } = actionTarget
     setActionError("")
     try {
-      if (action === "markDelivery") await markPurchaseOrderAwaitingDelivery(po.id)
-      else if (action === "close") await closePurchaseOrder(po.id)
+      if (action === "close") await closePurchaseOrder(po.id)
       else await cancelPurchaseOrder(po.id)
       setActionTarget(null)
       setToast(
-        action === "markDelivery"
-          ? "Purchase order marked as awaiting delivery."
-          : action === "close"
+        action === "close"
           ? "Purchase order closed."
           : "Purchase order cancelled.",
       )
@@ -262,7 +263,6 @@ export default function PurchaseOrdersPage() {
   }
 
   const confirmCfg = actionTarget ? {
-    markDelivery: { title: "Mark as Awaiting Delivery?", message: `Send ${actionTarget.po.reference} to the supplier and mark it as awaiting delivery?`, confirmLabel: "Mark Awaiting Delivery", confirmClass: "bg-yellow-600 hover:bg-yellow-700 text-white", cancelLabel: "Cancel" },
     close:        { title: "Close Purchase Order?", message: `This purchase order has been received. Closing it will mark the purchasing cycle as complete.`, confirmLabel: "Close Purchase Order", confirmClass: "bg-[#B6C8AF] hover:bg-[#A5B89E] text-[#333333]", cancelLabel: "Cancel" },
     cancel:       { title: "Cancel Purchase Order?", message: `Are you sure you want to cancel ${actionTarget.po.reference}? This action will mark the order as cancelled.`, confirmLabel: "Cancel Purchase Order", confirmClass: "bg-red-600 hover:bg-red-700 text-white", cancelLabel: "Keep Order" },
   }[actionTarget.action] : null
@@ -305,8 +305,8 @@ export default function PurchaseOrdersPage() {
             </div>
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
               <option value="">All Statuses</option>
-              <option value="REGISTERED">Registered</option>
               <option value="AWAITING_DELIVERY">Awaiting Delivery</option>
+              <option value="PARTIALLY_RECEIVED">Partially Received</option>
               <option value="RECEIVED">Received</option>
               <option value="CLOSED">Closed</option>
               <option value="CANCELLED">Cancelled</option>
@@ -384,7 +384,7 @@ export default function PurchaseOrdersPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => navigate(`/purchasing/orders/${po.id}`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">View</button>
-                            {po.status === "REGISTERED" && (
+                            {po.status === "AWAITING_DELIVERY" && (
                               <>
                                 <button
                                   onClick={() => navigate(`/purchasing/orders/${po.id}?edit=1`)}
@@ -395,21 +395,12 @@ export default function PurchaseOrdersPage() {
                                   <IconPencil className="w-4 h-4" />
                                 </button>
                                 <button
-                                  onClick={() => { setActionError(""); setActionTarget({ po, action: "markDelivery" }) }}
-                                  className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
-                                  title="Mark as awaiting delivery"
+                                  onClick={() => { setActionError(""); setActionTarget({ po, action: "cancel" }) }}
+                                  className="text-xs font-semibold text-red-600 hover:underline whitespace-nowrap"
                                 >
-                                  Awaiting Delivery
+                                  Cancel
                                 </button>
                               </>
-                            )}
-                            {(po.status === "REGISTERED" || po.status === "AWAITING_DELIVERY") && (
-                              <button
-                                onClick={() => { setActionError(""); setActionTarget({ po, action: "cancel" }) }}
-                                className="text-xs font-semibold text-red-600 hover:underline whitespace-nowrap"
-                              >
-                                Cancel
-                              </button>
                             )}
                             {po.status === "RECEIVED" && (
                               <button

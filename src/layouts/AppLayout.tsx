@@ -163,13 +163,15 @@ const NAV: NavItem[] = [
     ],
   },
   {
+    // Was a "Reports" group whose only child was Narcotics. The group added a
+    // level of nesting around a single link and duplicated the Dashboard tab
+    // bar, which already carries Narcotics, so the child is promoted to a
+    // top-level item here instead of the group being deleted outright (which
+    // would have left Narcotics unreachable from the sidebar entirely).
     to: "/dashboard/narcotics",
-    label: "Reports",
+    label: "Narcotics",
     icon: <IconReport />,
     dividerBefore: true,
-    children: [
-      { to: "/dashboard/narcotics", label: "Narcotics" },
-    ],
   },
   {
     to: "/inventory/groups",

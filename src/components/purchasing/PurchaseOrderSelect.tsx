@@ -25,7 +25,6 @@ import type { POItemDto, PurchaseOrderDto } from "../../features/purchasing/purc
 // ── Shared status presentation (also used by the invoice page's side panel) ──
 
 const PO_STATUS_BADGE: Record<string, string> = {
-  REGISTERED: "bg-blue-100 text-blue-700",
   AWAITING_DELIVERY: "bg-yellow-100 text-yellow-700",
   PARTIALLY_RECEIVED: "bg-orange-100 text-orange-700",
   RECEIVED: "bg-green-100 text-green-700",
