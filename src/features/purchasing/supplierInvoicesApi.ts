@@ -93,11 +93,20 @@ export interface SupplierInvoiceDto {
   items?: SupplierInvoiceItemDto[]
 }
 
-export function invoiceOutstanding(inv: Pick<SupplierInvoiceDto, "totalAmount" | "invoiceAmount" | "outstandingBalance">): number {
+/**
+ * Amount fields shared by full invoice DTOs and the narrower invoice rows
+ * embedded in a purchase-order detail response (`PurchaseOrderDto.supplierInvoices`,
+ * which omit the legacy `invoiceAmount` alias). Lets the PO Payment Summary
+ * reuse the same payment math as the Supplier Invoice pages.
+ */
+export type InvoiceAmountFields = Pick<SupplierInvoiceDto, "totalAmount" | "outstandingBalance"> &
+  Partial<Pick<SupplierInvoiceDto, "invoiceAmount">>
+
+export function invoiceOutstanding(inv: InvoiceAmountFields): number {
   return typeof inv.outstandingBalance === "number" ? inv.outstandingBalance : inv.totalAmount ?? inv.invoiceAmount
 }
 
-export function invoicePaid(inv: Pick<SupplierInvoiceDto, "totalAmount" | "invoiceAmount" | "outstandingBalance">): number {
+export function invoicePaid(inv: InvoiceAmountFields): number {
   const total = inv.totalAmount ?? inv.invoiceAmount
   return Math.max(0, total - invoiceOutstanding(inv))
 }

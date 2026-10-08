@@ -22,6 +22,7 @@ import {
   type UpdatePurchaseOrderItemInput,
 } from "../../features/purchasing/purchaseOrdersApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
+import { invoicePaid, invoiceOutstanding } from "../../features/purchasing/supplierInvoicesApi"
 import AddSupplier from "./AddSupplier"
 import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
 import { listProductBatches } from "../../features/inventory/batchesApi"
@@ -1235,6 +1236,23 @@ export default function CreatePurchaseOrderPage() {
   const receivingSummary = poState?.receivingSummary ?? null
   const goodsReceipts = poState?.goodsReceipts ?? []
 
+  // Paid/outstanding must reflect the backend's authoritative payment data.
+  // The Supplier Invoice pages derive these from each invoice's `totalAmount`
+  // and `outstandingBalance` via invoicePaid/invoiceOutstanding; the PO detail
+  // embeds the same invoice rows in `supplierInvoices`, so those exact helpers
+  // are reused here. The backend leaves `paymentSummary.paidAmount`/
+  // `outstandingAmount` at 0 even when invoices and payments exist, so the
+  // embedded rows take precedence whenever any invoice is present;
+  // `paymentSummary` remains the fallback when none are embedded — with zero
+  // invoices both sources agree: nothing paid, nothing owed yet.
+  const invoiceRows = poState?.supplierInvoices ?? []
+  const paidAmount = invoiceRows.length
+    ? invoiceRows.reduce((sum, inv) => sum + invoicePaid(inv), 0)
+    : paymentSummary?.paidAmount ?? 0
+  const outstandingAmount = invoiceRows.length
+    ? invoiceRows.reduce((sum, inv) => sum + invoiceOutstanding(inv), 0)
+    : paymentSummary?.outstandingAmount ?? 0
+
   /** Per-product rows for the "Receiving Details" boxes under the Order Items
    *  table. Only meaningful once the real PO response is loaded. */
   const receivingDetails = useMemo<ReceivingDetailsRow[]>(() => {
@@ -1956,8 +1974,14 @@ export default function CreatePurchaseOrderPage() {
 
           {/* ── RIGHT COLUMN ── */}
           <div className="flex flex-col gap-5">
+            {/* Sticky summary block: Order/Goods/Payment Summary stay pinned
+                as ONE unit while the page scrolls, so no card can slide
+                under or overlap another. self-start: the parent is a flex
+                container; w-full keeps the cards full column width
+                (self-start alone would shrink them to fit-content). */}
+            <div className="self-start w-full sticky top-4 space-y-4">
             {/* Order summary */}
-            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5 sticky top-0">
+            <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
               <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">
                 Order Summary
               </p>
@@ -2100,8 +2124,11 @@ export default function CreatePurchaseOrderPage() {
               </div>
             </div>
 
-            {/* Goods summary (detail only) */}
-            {!isNew && goodsSummary && (
+            {/* Goods summary (detail only). Always rendered as a static
+                section like Order Summary — the DTO fields are optional, so
+                absent data falls back to the same `?? 0` defaults the rows
+                already use instead of hiding the whole section. */}
+            {!isNew && (
               <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                 <p className="text-xs font-bold text-[#666666] uppercase tracking-wide mb-4">
                   Goods Summary
@@ -2110,13 +2137,13 @@ export default function CreatePurchaseOrderPage() {
                   <div className="flex justify-between">
                     <span className="text-[#666666]">Ordered Goods Value</span>
                     <span className="text-[#333333] font-medium">
-                      {fmtMoney(goodsSummary.orderedGoodsValue ?? 0)}
+                      {fmtMoney(goodsSummary?.orderedGoodsValue ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#666666]">Received Goods Value</span>
                     <span className="text-[#333333] font-medium">
-                      {fmtMoney(goodsSummary.receivedGoodsValue ?? 0)}
+                      {fmtMoney(goodsSummary?.receivedGoodsValue ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -2125,8 +2152,8 @@ export default function CreatePurchaseOrderPage() {
                       {fmtMoney(
                         Math.max(
                           0,
-                          (goodsSummary.orderedGoodsValue ?? 0) -
-                            (goodsSummary.receivedGoodsValue ?? 0),
+                          (goodsSummary?.orderedGoodsValue ?? 0) -
+                            (goodsSummary?.receivedGoodsValue ?? 0),
                         ),
                       )}
                     </span>
@@ -2134,62 +2161,71 @@ export default function CreatePurchaseOrderPage() {
                   <div className="flex justify-between border-t border-[#E6ECE2] pt-2.5">
                     <span className="text-[#666666]">Invoiced Amount</span>
                     <span className="text-[#333333] font-medium">
-                      {fmtMoney(goodsSummary.goodsInvoicedAmount ?? 0)}
+                      {fmtMoney(goodsSummary?.goodsInvoicedAmount ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#666666]">Remaining to Invoice</span>
                     <span className="text-[#333333] font-medium">
-                      {fmtMoney(goodsSummary.remainingGoodsToInvoice ?? 0)}
+                      {fmtMoney(goodsSummary?.remainingGoodsToInvoice ?? 0)}
                     </span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Payment summary (detail only) */}
-            {!isNew && paymentSummary && (
+            {/* Payment summary (detail only). Always rendered as a static
+                section like Order Summary. Paid/Outstanding are derived from
+                the embedded invoice rows with the Supplier Invoice pages'
+                shared helpers (see the derivation near paymentSummary);
+                Invoice Count/Invoiced Amount stay bound to paymentSummary.
+                The status badge only renders when a real payment status
+                exists (never invent one). */}
+            {!isNew && (
               <div className="bg-white rounded-xl border border-[#E6ECE2] p-5">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs font-bold text-[#666666] uppercase tracking-wide">
                     Payment Summary
                   </p>
-                  <PaymentBadge status={paymentSummary.status} />
+                  {paymentSummary && (
+                    <PaymentBadge status={paymentSummary.status} />
+                  )}
                 </div>
                 <div className="space-y-2.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[#666666]">Invoice Count</span>
                     <span className="text-[#333333] font-medium">
-                      {paymentSummary.invoiceCount ?? 0}
+                      {paymentSummary?.invoiceCount ?? 0}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#666666]">Invoiced Amount</span>
                     <span className="text-[#333333] font-medium">
-                      {fmtMoney(paymentSummary.invoicedAmount ?? 0)}
+                      {fmtMoney(paymentSummary?.invoicedAmount ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#666666]">Paid Amount</span>
                     <span className="text-[#333333] font-medium">
-                      {fmtMoney(paymentSummary.paidAmount ?? 0)}
+                      {fmtMoney(paidAmount)}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-[#E6ECE2] pt-2.5">
                     <span className="text-[#666666]">Outstanding Amount</span>
                     <span
                       className={
-                        (paymentSummary.outstandingAmount ?? 0) > 0
+                        outstandingAmount > 0
                           ? "font-bold text-[#333333]"
                           : "font-medium text-[#333333]"
                       }
                     >
-                      {fmtMoney(paymentSummary.outstandingAmount ?? 0)}
+                      {fmtMoney(outstandingAmount)}
                     </span>
                   </div>
                 </div>
               </div>
             )}
+            </div>
 
             {/* Supplier payables link (detail) */}
             {!isNew && (status === "CLOSED" || status === "RECEIVED") && (
