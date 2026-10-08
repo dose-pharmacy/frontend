@@ -181,11 +181,6 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
   // Unit cost prefers the returnable endpoint's own figure and falls back to the
   // purchase-order item's published `unitCost`. Both are backend values; the
   // field is never typed by the user.
-  const unitCostSource: "returnable endpoint" | "purchase-order item" | null = returnable?.unitCost
-    ? "returnable endpoint"
-    : selectedItem
-      ? "purchase-order item"
-      : null
   const unitCost = returnable?.unitCost ?? selectedItem?.unitCost ?? null
   const maxQuantity = returnable?.quantityReturnable ?? null
   const parsedQuantity = Number(quantityInput)
@@ -567,62 +562,9 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
           )}
         </div>
 
-        {/* Returnable quantity — read-only, straight from the backend endpoint */}
-        <div className="sm:col-span-2">
-          <label className="block text-sm text-[#666666] mb-1">
-            Returnable Quantity
-            <span className="text-xs font-normal"> (from the backend)</span>
-          </label>
-          {!selectedItem ? (
-            <p className="rounded-lg bg-[#E6ECE2]/40 border border-[#E6ECE2] px-3 py-2 text-sm text-[#999999]">
-              Select a purchase-order item to load its returnable quantity.
-            </p>
-          ) : returnableLoading ? (
-            <p className="rounded-lg bg-[#E6ECE2]/40 border border-[#E6ECE2] px-3 py-2 text-sm text-[#666666]">
-              Loading returnable quantity…
-            </p>
-          ) : returnableError ? (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
-              <p className="text-sm text-red-700">{returnableError}</p>
-            </div>
-          ) : returnable?.quantityReturnable != null ? (
-            <div className="rounded-lg bg-[#E6ECE2]/50 border border-[#E6ECE2] px-3 py-2">
-              <p className="text-sm text-[#333333]">
-                <strong>{quantityWithUnit(returnable.quantityReturnable, baseUnit)}</strong> still
-                returnable for this purchase-order item.
-              </p>
-              {returnable.quantityReturnable <= 0 && (
-                <p className="mt-1 text-sm text-red-600">
-                  No quantity remains available for return for this purchase-order item.
-                </p>
-              )}
-              <details className="mt-2">
-                <summary className="text-xs text-[#666666] cursor-pointer">
-                  Backend response
-                </summary>
-                <pre className="mt-1 overflow-x-auto rounded bg-white border border-[#E6ECE2] p-2 text-[11px] text-[#333333]">
-                  {JSON.stringify(returnable.raw, null, 2)}
-                </pre>
-              </details>
-            </div>
-          ) : (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-              <p className="text-sm text-amber-800">
-                The backend returned no recognisable returnable-quantity field for this
-                purchase-order item, so no maximum is shown here. The backend still validates the
-                quantity on submit — it stays the authority.
-              </p>
-              <details className="mt-2">
-                <summary className="text-xs text-amber-800 cursor-pointer">
-                  Raw backend response
-                </summary>
-                <pre className="mt-1 overflow-x-auto rounded bg-white border border-amber-200 p-2 text-[11px] text-[#333333]">
-                  {JSON.stringify(returnable?.raw ?? null, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
-        </div>
+        {/* The returnable-quantity endpoint is still fetched — it feeds the
+            maximum-returnable validation, submit gating and Unit Cost below —
+            but it is no longer rendered as its own section (debug UI). */}
 
         {/* Quantity */}
         <div>
@@ -740,18 +682,12 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
           )}
         </div>
 
-        {/* Unit cost — read-only, backend-sourced */}
+        {/* Unit cost — read-only, sourced from the returnable endpoint / PO item */}
         <div>
-          <label className="block text-sm text-[#666666] mb-1">
-            Unit Cost
-            <span className="text-xs font-normal"> (from the backend)</span>
-          </label>
+          <label className="block text-sm text-[#666666] mb-1">Unit Cost</label>
           <div className="rounded-lg bg-[#E6ECE2]/40 border border-[#E6ECE2] px-3 py-2 text-sm text-[#333333]">
             {unitCost != null ? fmtMoney(unitCost) : "—"}
           </div>
-          {unitCostSource && (
-            <p className="mt-1 text-xs text-[#666666]">Source: {unitCostSource}. Not editable.</p>
-          )}
         </div>
 
         {/* Debit note — indicative only */}
@@ -763,10 +699,6 @@ export default function NewPurchaseReturnForm({ onCancel, onCreated }: Props) {
           <div className="rounded-lg bg-[#E6ECE2]/40 border border-[#E6ECE2] px-3 py-2 text-sm text-[#333333]">
             {indicativeDebitNote != null ? fmtMoney(indicativeDebitNote) : "—"}
           </div>
-          <p className="mt-1 text-xs text-[#666666]">
-            Quantity × unit cost, for reference only. The backend derives the return value and
-            applies it against outstanding payables, so no amount is sent from here.
-          </p>
         </div>
 
         {/* Notes */}
