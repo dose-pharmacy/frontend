@@ -1882,7 +1882,9 @@ function AddProductModal({
           {
             value: unitProducts.product.id,
             label: unitProducts.product.name,
-            sub: unitProducts.product.sku,
+            sub: unitProducts.product.brand
+              ? `${unitProducts.product.sku} · ${unitProducts.product.brand}`
+              : unitProducts.product.sku,
           },
         ]
       : []

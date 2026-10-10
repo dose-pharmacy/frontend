@@ -86,7 +86,13 @@ export default function BinCardPage() {
 
   const selectedProductOption = productSearch.options.find((o) => o.value === productId)
     ?? (unitsProd.product && productId === unitsProd.product?.id
-      ? { value: unitsProd.product.id, label: unitsProd.product.name }
+      ? {
+          value: unitsProd.product.id,
+          label: unitsProd.product.name,
+          sub: unitsProd.product.brand
+            ? `${unitsProd.product.sku} · ${unitsProd.product.brand}`
+            : unitsProd.product.sku,
+        }
       : null)
   const productOptions: SearchableOption[] = selectedProductOption
     ? [selectedProductOption, ...productSearch.options.filter((o) => o.value !== productId)]
