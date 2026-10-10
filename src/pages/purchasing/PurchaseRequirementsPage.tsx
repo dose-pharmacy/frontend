@@ -1203,8 +1203,66 @@ interface NewLine {
   productId: string
   product: ProductDto | null
   quantity: string
+  /** Unit the requested quantity is expressed in; null = product's base unit. */
+  unitId: string | null
+  /** Resolved display name of the selected unit (for the review screen). */
+  unitName: string
   reason: LineReason
   notes: string
+}
+
+/**
+ * Compact per-line unit picker for the New Requirement form. Loads the
+ * product's configured units from its own backend endpoint
+ * (`useProductUnits` → GET /inventory/products/{id} → `units`) and reports the
+ * chosen unit back to the row. A null unitId means "use the product's base
+ * unit" — the payload omits it and the backend defaults to that base unit.
+ */
+function NewRequirementUnitSelect({
+  productId,
+  value,
+  onUnitChange,
+}: {
+  productId: string
+  value: string | null
+  onUnitChange: (unitId: string | null, unitName: string) => void
+}) {
+  const { units, baseUnit, options, loading, error } = useProductUnits(productId)
+
+  // Base unit is the default until the admin picks another unit.
+  const selectedId = value ?? baseUnit?.id ?? ""
+
+  if (!productId) {
+    return (
+      <div
+        className={`${SC} w-40 text-[#999] bg-[#F3F6F1] whitespace-nowrap`}
+        aria-disabled
+      >
+        Select a product first
+      </div>
+    )
+  }
+
+  return (
+    <select
+      value={selectedId}
+      onChange={(e) => {
+        const v = e.target.value || null
+        const u = units.find((x) => x.unitId === v)
+        onUnitChange(v, u?.unit?.name || u?.unit?.symbol || "")
+      }}
+      className={`${SC} w-40`}
+      disabled={loading || !!error}
+    >
+      {loading && <option value="">Loading units…</option>}
+      {error && <option value="">Error loading units</option>}
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
 }
 
 function NewRequirementModal({
@@ -1224,6 +1282,8 @@ function NewRequirementModal({
       productId: "",
       product: null,
       quantity: "",
+      unitId: null,
+      unitName: "",
       reason: "Low Stock",
       notes: "",
     },
@@ -1252,6 +1312,8 @@ function NewRequirementModal({
         productId: "",
         product: null,
         quantity: "",
+        unitId: null,
+        unitName: "",
         reason: "Low Stock",
         notes: "",
       },
@@ -1282,6 +1344,8 @@ function NewRequirementModal({
       lines: lines.map((l) => ({
         productId: l.productId,
         quantityNeeded: parseInt(l.quantity),
+        // Omitted for the base unit — the backend defaults to it server-side.
+        ...(l.unitId ? { unitId: l.unitId } : {}),
         ...(reasonCode(l.reason) ? { reasonCode: reasonCode(l.reason)! } : {}),
         ...(l.notes.trim() ? { notes: l.notes.trim() } : {}),
       })),
@@ -1302,9 +1366,19 @@ function NewRequirementModal({
         return "Quantity must be greater than zero."
       }
     }
-    const ids = lines.map((l) => l.productId)
-    if (new Set(ids).size !== ids.length) {
-      return "Duplicate products are not allowed — each product can appear once. Please edit the existing row instead of adding it again."
+    // A duplicate is the same product AND the same unit twice in one form. The
+    // same product on a different unit is a distinct requirement line, so it is
+    // allowed through to the preview (the backend treats each line as its own
+    // product+unit pair).
+    const seen = new Set<string>()
+    for (const l of lines) {
+      const key = `${l.productId}::${l.unitId ?? ""}`
+      if (seen.has(key)) {
+        const dupName = l.product?.name || "This product"
+        const dupUnit = l.unitName ? ` with unit ${l.unitName}` : ""
+        return `${dupName}${dupUnit} has already been added. Please edit the existing row instead of adding it again.`
+      }
+      seen.add(key)
     }
     return null
   }
@@ -1369,6 +1443,8 @@ function NewRequirementModal({
           productId: "",
           product: null,
           quantity: "",
+          unitId: null,
+          unitName: "",
           reason: "Low Stock",
           notes: "",
         },
@@ -1386,11 +1462,17 @@ function NewRequirementModal({
     }
   }
 
-  /** Match a preview action to a form line (per the backend contract's
-   * productId + unitId pair), falling back to productId alone. */
+  /** Match a preview action to a form line (the backend contract pairs each
+   * action with productId + unitId), falling back to productId alone. */
   function actionForLine(l: NewLine): RequirementActionDto | undefined {
     if (!preview) return undefined
-    return preview.actions.find((a) => a.productId === l.productId)
+    return (
+      preview.actions.find(
+        (a) =>
+          a.productId === l.productId &&
+          (a.unitId ?? null) === (l.unitId ?? null),
+      ) ?? preview.actions.find((a) => a.productId === l.productId)
+    )
   }
 
   return (
@@ -1460,6 +1542,7 @@ function NewRequirementModal({
                   key={i}
                   productLabel={l.product?.name ?? ""}
                   quantity={parseInt(l.quantity) || 0}
+                  unitLabel={l.unitName || undefined}
                   action={actionForLine(l)}
                 />
               ))}
@@ -1525,7 +1608,7 @@ function NewRequirementModal({
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-[#E6ECE2]">
-                        {["Product", "Qty Needed", "Reason", "Notes", ""].map(
+                        {["Product", "Unit", "Qty Needed", "Reason", "Notes", ""].map(
                           (h) => (
                             <th
                               key={h}
@@ -1553,6 +1636,10 @@ function NewRequirementModal({
                                   products.find((x) => x.id === v) ?? null
                                 updateLine(i, "productId", v)
                                 updateLine(i, "product", p)
+                                // A new product gets a fresh unit choice
+                                // (defaults to its base unit).
+                                updateLine(i, "unitId", null)
+                                updateLine(i, "unitName", "")
                               }}
                               options={products.map((p) => ({
                                 value: p.id,
@@ -1564,6 +1651,16 @@ function NewRequirementModal({
                               searchPlaceholder="Search products..."
                               emptyMessage="No products found"
                               noResultsMessage="No products matching your search"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <NewRequirementUnitSelect
+                              productId={line.productId}
+                              value={line.unitId}
+                              onUnitChange={(unitId, unitName) => {
+                                updateLine(i, "unitId", unitId)
+                                updateLine(i, "unitName", unitName)
+                              }}
                             />
                           </td>
                           <td className="px-3 py-2">
