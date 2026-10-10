@@ -471,6 +471,11 @@ export default function CreateRequirementPage() {
                         className="w-full text-left px-3 py-2 text-sm text-[#333333] hover:bg-[#E6ECE2] transition-colors"
                       >
                         <span className="font-medium">{s.name}</span>
+                        {s.brand && (
+                          <span className="text-xs text-[#666666]">
+                            · {s.brand}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>

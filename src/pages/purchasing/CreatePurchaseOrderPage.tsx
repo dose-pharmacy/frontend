@@ -441,6 +441,7 @@ function AddProductModal({ open, products, existingProductIds, onClose, onAdd }:
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
+                {p.brand ? ` — ${p.brand}` : ""}
                 {batchSuffix(p.id)}
               </option>
             ))}

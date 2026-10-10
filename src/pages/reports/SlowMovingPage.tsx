@@ -38,6 +38,17 @@ function definitionLabel(def: SlowMovingConfigDto | SlowMovingDto): string {
   return DEFINITION_OPTIONS.find((o) => o.value === def.definitionType)?.label ?? def.definitionType;
 }
 
+/** Single product <option> in the config form, labeled with brand + SKU. */
+function productOption(p: ProductDto) {
+  return (
+    <option key={p.id} value={p.id}>
+      {p.name}
+      {p.brand ? ` — ${p.brand}` : ""}
+      {p.sku ? ` · ${p.sku}` : ""}
+    </option>
+  );
+}
+
 function StatusBadge({ flagged }: { flagged: boolean }) {
   return flagged ? (
     <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold bg-red-100 text-red-700">Flagged</span>
@@ -484,13 +495,13 @@ export default function SlowMovingPage() {
                   <option value="">Select a product</option>
                   {productSearch
                     ? products
-                        .filter((p) => `${p.name} ${p.sku ?? ""}`.toLowerCase().includes(productSearch.toLowerCase()))
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}{p.sku ? ` — ${p.sku}` : ""}</option>
-                        ))
-                    : products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}{p.sku ? ` — ${p.sku}` : ""}</option>
-                      ))}
+                        .filter((p) =>
+                          `${p.name} ${p.sku ?? ""} ${p.brand ?? ""}`
+                            .toLowerCase()
+                            .includes(productSearch.toLowerCase()),
+                        )
+                        .map((p) => productOption(p))
+                    : products.map((p) => productOption(p))}
                 </select>
               </>
             )}
