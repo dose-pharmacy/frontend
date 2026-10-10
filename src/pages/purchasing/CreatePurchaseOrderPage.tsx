@@ -8,7 +8,6 @@ import { StatusBadge, PaymentBadge, Toast, fmtDate } from "./PurchaseOrdersPage"
 import {
   getPurchaseOrder,
   createPurchaseOrder,
-  createPurchaseOrderFromRequirement,
   updatePurchaseOrder,
   updatePurchaseOrderItem,
   deletePurchaseOrderItem,
@@ -24,15 +23,26 @@ import {
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { invoicePaid, invoiceOutstanding } from "../../features/purchasing/supplierInvoicesApi"
 import AddSupplier from "./AddSupplier"
-import { listProducts, type ProductDto } from "../../features/inventory/productsApi"
+import {
+  listProducts,
+  listProductUnits,
+  type ProductDto,
+  type ProductUnitConfigDto,
+} from "../../features/inventory/productsApi"
 import { listProductBatches } from "../../features/inventory/batchesApi"
+import { listUnits } from "../../features/inventory/unitsApi"
 import { listRequirementLinesByProduct } from "../../features/purchasing/requirementsApi"
 import type { POItem, POStatus } from "./PurchaseOrdersPage"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
 import { searchProducts } from "../../features/inventory/searchSelectors"
 import { useProductUnits } from "../../features/inventory/useProductUnits"
 import { SkeletonBar, SkeletonStatus, TableSkeleton } from "../../components/ui/Skeleton"
-import { toBaseQuantity, formatFactor } from "../../features/inventory/unitOptions"
+import { toBaseQuantity, formatFactor, unitRefLabel } from "../../features/inventory/unitOptions"
+import {
+  lineTotal,
+  roundMoney,
+  toBaseQuantity as toBaseUnits,
+} from "../../features/inventory/unitConversion"
 import OrderItemReceivingDetails, {
   type ReceivingDetailsRow,
 } from "./OrderItemReceivingDetails"
@@ -50,7 +60,7 @@ function fmtMoney(n: number) {
 }
 
 function itemTotal(item: POItem) {
-  return item.quantity * item.unitCost
+  return lineTotal(item.quantity, item.unitCost)
 }
 function orderTotal(items: POItem[]) {
   return items.reduce((s, i) => s + itemTotal(i), 0)
@@ -214,6 +224,142 @@ function StatusTimeline({
 }
 
 // ─── Add Product Modal ────────────────────────────────────────────────────────
+
+// ─── Inline unit picker (editable order lines) ──────────────────────────────
+
+/**
+ * Load a product's orderable unit configurations from
+ * GET /inventory/products/{id}/units, resolving each `unitId` to its display
+ * name via the shared /inventory/units catalogue. Errors (incl. 403 for
+ * non-admin sessions) surface as `error` so the caller can fall back to the
+ * product's single currently-selected unit instead of breaking the row.
+ */
+function useProductUnitConfig(productId: string) {
+  const [configs, setConfigs] = useState<ProductUnitConfigDto[]>([])
+  const [unitNames, setUnitNames] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    setConfigs([])
+    setUnitNames({})
+    setError(null)
+    if (!productId) return
+    setLoading(true)
+    Promise.all([
+      listProductUnits(productId),
+      listUnits({ limit: 200, isActive: true }),
+    ])
+      .then(([configs, unitsRes]) => {
+        if (!active) return
+        const names: Record<string, string> = {}
+        for (const u of unitsRes.data ?? []) names[u.id] = unitRefLabel(u)
+        setConfigs(configs)
+        setUnitNames(names)
+      })
+      .catch((e: unknown) => {
+        if (!active) return
+        setError(
+          e instanceof Error ? e.message : "Failed to load this product's units.",
+        )
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [productId])
+
+  return { configs, unitNames, loading, error }
+}
+
+/**
+ * Per-line unit dropdown for editable purchase-order lines. Defaults to the
+ * line's current unit (or the product's base unit when none is selected);
+ * switching units reprices the line with the unit's configured `purchasePrice`
+ * and shows the base-unit equivalent while keeping the entered quantity.
+ */
+function InlineProductUnitSelect({
+  item,
+  onUnitChange,
+}: {
+  item: POItem
+  onUnitChange: (patch: Pick<POItem, "unitId" | "unitLabel" | "unitCost">) => void
+}) {
+  const { configs, unitNames, loading, error } = useProductUnitConfig(item.productId)
+  const baseConfig = configs.find((c) => c.isBaseUnit)
+  const effectiveUnitId = item.unitId ?? baseConfig?.unitId ?? ""
+  const selected = configs.find((c) => c.unitId === effectiveUnitId)
+
+  const resolveName = (unitId: string) => unitNames[unitId] ?? unitId
+
+  // Loading — keep the current label so the row never blanks out.
+  if (loading) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-[#999]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#C6D4BF] animate-pulse" />
+        {item.unitLabel || "Loading units…"}
+      </div>
+    )
+  }
+
+  // Error (e.g. 403) — clear message + fall back to the current single-unit label.
+  if (error) {
+    return (
+      <div className="text-xs">
+        <p className="text-[#666666]">{item.unitLabel || "Base unit"}</p>
+        <p className="text-red-500 mt-0.5 max-w-44" title={error}>
+          {error}
+        </p>
+      </div>
+    )
+  }
+
+  // Empty — no units configured for this product.
+  if (configs.length === 0) {
+    return <span className="text-xs text-[#999]">{item.unitLabel || "—"}</span>
+  }
+
+  const isNonBase = !!selected && !selected.isBaseUnit
+  const baseName = baseConfig ? resolveName(baseConfig.unitId) : ""
+  const baseQty = isNonBase
+    ? toBaseUnits(item.quantity, selected.conversionFactor)
+    : null
+
+  return (
+    <div className="flex flex-col gap-1">
+      <select
+        value={effectiveUnitId}
+        onChange={(e) => {
+          const cfg = configs.find((c) => c.unitId === e.target.value)
+          if (!cfg) return
+          onUnitChange({
+            // null = the product's base unit (backend defaults to it).
+            unitId: cfg.isBaseUnit ? null : cfg.unitId,
+            unitLabel: resolveName(cfg.unitId),
+            unitCost: roundMoney(cfg.purchasePrice),
+          })
+        }}
+        className="max-w-44 rounded-lg border border-[#C6D4BF] bg-white px-2.5 py-1.5 text-xs text-[#333333] focus:border-[#B6C8AF] focus:outline-none"
+      >
+        {configs.map((c) => (
+          <option key={c.unitId} value={c.unitId}>
+            {resolveName(c.unitId)}
+            {c.isBaseUnit ? " (base)" : ""}
+          </option>
+        ))}
+      </select>
+      {isNonBase && baseName && (
+        <span className="text-[10px] text-[#999] whitespace-nowrap">
+          {item.quantity} {resolveName(effectiveUnitId)} ={" "}
+          {Number.isInteger(baseQty) ? baseQty : baseQty?.toFixed(3)} {baseName}
+        </span>
+      )}
+    </div>
+  )
+}
 
 function AddProductModal({ open, products, existingProductIds, onClose, onAdd }: {
   open: boolean
@@ -859,6 +1005,7 @@ export default function CreatePurchaseOrderPage() {
     const costs = searchParams.getAll("unitCost")
     const names = searchParams.getAll("productName")
     const units = searchParams.getAll("unitName")
+    const unitIds = searchParams.getAll("unitId")
     return ids
       .map((id, i) => ({
         requirementLineId: id,
@@ -866,6 +1013,7 @@ export default function CreatePurchaseOrderPage() {
         unitCost: costs[i] ?? "",
         productName: names[i] ?? "",
         unitName: units[i] ?? "",
+        unitId: unitIds[i] ?? "",
       }))
       .filter((l) => l.requirementLineId && l.quantity && l.unitCost !== "")
   }, [searchParams])
@@ -929,7 +1077,7 @@ export default function CreatePurchaseOrderPage() {
           id: `draft-${pl.requirementLineId}`,
           productId: product?.id ?? "",
           product: pl.productName ?? "",
-          unitId: null,
+          unitId: pl.unitId || null,
           unitLabel: pl.unitName ?? "",
           requirementLineId: pl.requirementLineId,
           quantity: parseFloat(pl.quantity),
@@ -1020,6 +1168,9 @@ export default function CreatePurchaseOrderPage() {
       productId: it.productId,
       quantityOrdered: it.quantity,
       unitCost: it.unitCost,
+      // The endpoint accepts quantity in the selected unit; omit unitId to
+      // order in the product's base unit.
+      ...(it.unitId ? { unitId: it.unitId } : {}),
       ...(it.requirementLineId
         ? { requirementLineId: it.requirementLineId }
         : {}),
@@ -1031,39 +1182,16 @@ export default function CreatePurchaseOrderPage() {
     setSaving(true)
     setSaveError("")
     try {
-      if (isFromRequirement) {
-        // Use from-requirement endpoint for requirement-linked items
-        const requirementItems = items
-          .filter((it) => it.requirementLineId)
-          .map((it) => ({
-            requirementLineId: it.requirementLineId!,
-            quantityOrdered: it.quantity,
-            unitCost: it.unitCost,
-          }))
-        if (requirementItems.length > 0) {
-          await createPurchaseOrderFromRequirement({
-            supplierId: suppId,
-            expectedDeliveryDate: delivDate || null,
-            notes: notes || null,
-            items: requirementItems,
-          })
-        } else {
-          // Fallback to regular create if no requirement-linked items
-          await createPurchaseOrder({
-            supplierId: suppId,
-            expectedDeliveryDate: delivDate || null,
-            notes: notes || null,
-            items: itemsToDto(),
-          })
-        }
-      } else {
-        await createPurchaseOrder({
-          supplierId: suppId,
-          expectedDeliveryDate: delivDate || null,
-          notes: notes || null,
-          items: itemsToDto(),
-        })
-      }
+      // Requirement-linked items keep their requirementLineId (the backend
+      // links allocations). The standard endpoint is used for both flows so
+      // the selected unitId reaches the API — from-requirement has no unitId
+      // field and therefore cannot express a non-base ordering unit.
+      await createPurchaseOrder({
+        supplierId: suppId,
+        expectedDeliveryDate: delivDate || null,
+        notes: notes || null,
+        items: itemsToDto(),
+      })
       setToast("Purchase order created successfully.")
       setTimeout(() => navigate("/purchasing/orders"), 1200)
     } catch (err) {
@@ -1723,6 +1851,9 @@ export default function CreatePurchaseOrderPage() {
                             <th className="px-4 py-3 font-semibold text-[#333333] hidden sm:table-cell">
                               Requirement
                             </th>
+                            <th className="px-4 py-3 font-semibold text-[#333333]">
+                              Unit
+                            </th>
                             <th className="px-4 py-3 font-semibold text-[#333333] text-right">
                               Quantity
                             </th>
@@ -1753,6 +1884,26 @@ export default function CreatePurchaseOrderPage() {
                                     item.requirementLineId.slice(0, 8)
                                   ) : (
                                     <span className="text-[#999]">—</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {item.id.startsWith("draft-") ? (
+                                    <InlineProductUnitSelect
+                                      item={item}
+                                      onUnitChange={(patch) =>
+                                        setItems((prev) =>
+                                          prev.map((x) =>
+                                            x.id === item.id
+                                              ? { ...x, ...patch }
+                                              : x,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-[#666666]">
+                                      {item.unitLabel || "—"}
+                                    </span>
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-right text-[#333333]">

@@ -43,6 +43,21 @@ export interface ProductUnitDto {
   unit: UnitRefDto;
 }
 
+/**
+ * One row of GET /inventory/products/{id}/units — a product's orderable unit
+ * configuration. `unitId` references the global /inventory/units catalogue
+ * (resolve its display name via `listUnits`); `conversionFactor` is how many
+ * base units one of this unit contains (the base unit itself has factor 1).
+ */
+export interface ProductUnitConfigDto {
+  id: string;
+  unitId: string;
+  conversionFactor: number;
+  sellPrice: number;
+  purchasePrice: number;
+  isBaseUnit: boolean;
+}
+
 /** Row of GET /inventory/products. */
 export interface ProductDto {
   id: string;
@@ -455,6 +470,7 @@ export async function createProduct(input: CreateProductInput): Promise<ProductD
     }),
   });
   invalidateCachePrefix("inventory-products:");
+  invalidateCachePrefix("product-units:");
   if (result?.data) invalidateCache(`product:${result.data.id}`);
   return result.data;
 }
@@ -470,6 +486,23 @@ export async function getProduct(id: string): Promise<ProductDetailDto> {
     );
     if (!result?.data) throw new ProductsApiError("Product not found.");
     return result.data;
+  });
+}
+
+/**
+ * GET /inventory/products/{id}/units — the product's orderable unit
+ * configurations. Used by the purchase-order line unit picker so orders can be
+ * placed in any configured unit (with per-unit purchase pricing). Cached
+ * briefly and invalidated by product mutations.
+ */
+export async function listProductUnits(
+  productId: string,
+): Promise<ProductUnitConfigDto[]> {
+  return cacheRead(`product-units:${productId}`, async () => {
+    const result = await productsRequest<{ data: ProductUnitConfigDto[] | null }>(
+      `/${encodeURIComponent(productId)}/units`,
+    );
+    return result?.data ?? [];
   });
 }
 
@@ -503,6 +536,7 @@ export async function updateProduct(
   );
   invalidateCache(`product:${id}`);
   invalidateCachePrefix("inventory-products:");
+  invalidateCachePrefix("product-units:");
   return result.data;
 }
 
@@ -515,4 +549,5 @@ export async function deactivateProduct(id: string): Promise<void> {
   });
   invalidateCache(`product:${id}`);
   invalidateCachePrefix("inventory-products:");
+  invalidateCachePrefix("product-units:");
 }

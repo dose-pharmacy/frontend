@@ -766,6 +766,7 @@ function RequirementDetailScreen({
     params.set("productName", line.product)
     params.set("productSku", line.sku)
     if (line.unitName) params.set("unitName", line.unitName)
+    if (line.unitId) params.set("unitId", line.unitId)
     window.location.href = `/purchasing/orders/new?${params.toString()}`
   }
 
@@ -2629,7 +2630,10 @@ function RequirementOrderModal({
       params.append("requirementReference", reference)
       params.append("productName", d.line.product)
       params.append("productSku", d.line.sku)
-      if (d.line.unitName) params.append("unitName", d.line.unitName)
+      // Always append so the zipped query params stay aligned per selected line
+      // (base-unit lines carry an empty placeholder).
+      params.append("unitName", d.line.unitName ?? "")
+      params.append("unitId", d.line.unitId ?? "")
     }
     window.location.href = `/purchasing/orders/new?${params.toString()}`
   }
