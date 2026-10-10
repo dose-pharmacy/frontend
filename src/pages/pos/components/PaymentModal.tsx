@@ -165,9 +165,10 @@ export default function PaymentModal({
       aria-modal
       aria-labelledby="pay-title"
     >
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95vh]">
-        {/* Header */}
-        <div className="bg-[#E6ECE2] px-6 py-4 flex items-center justify-between gap-4 border-b border-[#C6D4BF]">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[calc(100dvh-2rem)]">
+        {/* Header — shrink-0 keeps it pinned at the dialog top while the
+            middle content scrolls. */}
+        <div className="bg-[#E6ECE2] px-6 py-4 flex items-center justify-between gap-4 border-b border-[#C6D4BF] shrink-0">
           <h2 id="pay-title" className="text-base font-bold text-[#333333]">
             Payment
           </h2>
@@ -179,8 +180,10 @@ export default function PaymentModal({
           </button>
         </div>
 
-        {/* min-h-0 lets this flex child shrink below its content height so
-            overflow-y-auto actually scrolls instead of being clipped. */}
+        {/* Scroll contract: the dialog is a capped flex column (max-h-[calc(100dvh-2rem)])
+            with a shrink-0 header and footer, so adding payment rows can only make THIS
+            middle area taller — it scrolls (flex-1 + min-h-0 + overflow-y-auto) and the
+            dialog itself never exceeds the viewport. */}
         <div className="overflow-y-auto flex-1 min-h-0 p-4 flex flex-col gap-4">
           {/* Sale summary */}
           <div className="rounded-xl border border-[#E6ECE2] overflow-hidden">
@@ -389,8 +392,9 @@ export default function PaymentModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="bg-white border-t border-[#E6ECE2] px-4 py-3 flex gap-3 justify-end">
+        {/* Footer — shrink-0 keeps Back / Complete Sale pinned at the dialog
+            bottom, outside the scroll area. */}
+        <div className="bg-white border-t border-[#E6ECE2] px-4 py-3 flex gap-3 justify-end shrink-0">
           <button
             onClick={onBack}
             className="rounded-lg px-5 py-2.5 text-sm font-semibold text-[#333333] bg-[#C6D4BF] hover:bg-[#B5C6AE] transition-colors"

@@ -20,6 +20,7 @@ import EmptyState from "../../components/ui/EmptyState"
 import Button from "../../components/ui/Button"
 import PageHeader from "../../components/ui/PageHeader"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
+import PricingStatusBadge from "../../components/ui/PricingStatusBadge"
 import ProductFormModal from "../../components/ui/ProductFormModal"
 
 const PAGE_SIZE = 20
@@ -276,6 +277,9 @@ export default function ProductsPage() {
                         Status
                       </th>
                       <th className="px-4 py-3 font-semibold text-[#333333]">
+                        Price Status
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-[#333333]">
                         Actions
                       </th>
                     </tr>
@@ -322,6 +326,15 @@ export default function ProductsPage() {
                           <StatusBadge
                             status={mapStockStatus(product.stockStatus)}
                           />
+                        </td>
+                        <td className="px-4 py-3">
+                          {product.pricing?.pricingStatus ? (
+                            <PricingStatusBadge
+                              status={product.pricing.pricingStatus}
+                            />
+                          ) : (
+                            <span className="text-[#999999]">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <button
