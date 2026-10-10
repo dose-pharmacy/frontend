@@ -41,6 +41,11 @@ import {
   Fw,
   reasonCode,
   type LineReason,
+  ConfirmModal,
+  EditRequirementModal,
+  AddProductModal,
+  EditLineModal,
+  OrderPreviewModal,
 } from "./requirementShared"
 
 import RequirementLineDetailScreen from "./RequirementLineDetailScreen"
@@ -63,12 +68,13 @@ import {
   type RequirementActionDto,
 } from "../../features/purchasing/requirementsApi"
 
-import {
-  listProducts,
+import { listProducts,
   type ProductDto,
 } from "../../features/inventory/productsApi"
 
 import { getReorderSuggestions } from "../../features/inventory/reorderApi"
+
+import { useProductUnits } from "../../features/inventory/useProductUnits"
 
 import GenerateRequirementsModal, {
   type ReorderSuggestion,
@@ -124,7 +130,13 @@ function useDebounced<T>(value: T, delay = 300): T {
 // ─── Orderable line handed to the (reused) Order modal ───────────────────────
 
 interface OrderableLine {
+  lineId: string
+
   id: string
+
+  lineName: string
+
+  lineSku: string
 
   productName: string
 
@@ -143,7 +155,13 @@ interface OrderableLine {
 
 function toOrderable(line: RequirementLineRow): OrderableLine {
   return {
+    lineId: line.id,
+
     id: line.id,
+
+    lineName: line.productName,
+
+    lineSku: line.productSku,
 
     productName: line.productName,
 
@@ -767,16 +785,14 @@ interface OrderDraftLine {
 
 function RequirementOrderModal({
   lines,
-
   onClose,
 }: {
   lines: OrderableLine[] | null
-
   onClose: () => void
 }) {
   const [drafts, setDrafts] = useState<OrderDraftLine[]>([])
-
   const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!lines) return
@@ -784,11 +800,8 @@ function RequirementOrderModal({
     setDrafts(
       lines.map((l) => ({
         line: l,
-
         selected: true,
-
         quantity: String(l.remainingToOrder),
-
         unitCost: "",
       })),
     )
@@ -798,64 +811,44 @@ function RequirementOrderModal({
 
   if (!lines) return null
 
-  const picked = drafts.filter((d) => d.selected)
-
-  const distinctRequirements = new Set(
-    picked.map((d) => d.line.requirementReference),
-  ).size
-
   function update(index: number, patch: Partial<OrderDraftLine>) {
     setDrafts((prev) =>
       prev.map((d, i) => (i === index ? { ...d, ...patch } : d)),
     )
-
     setError("")
   }
 
+  const picked = drafts.filter((d) => d.selected)
+
   function handleCreate() {
     if (drafts.length === 0) {
-      setError("There are no orderable lines in the selection.")
-
+      setError("This requirement has no products remaining to order.")
       return
     }
-
     if (picked.length === 0) {
       setError("Select at least one product to order.")
-
       return
     }
-
     for (const d of picked) {
       const qty = parseFloat(d.quantity)
-
       if (!Number.isFinite(qty) || qty <= 0) {
-        setError(
-          `Quantity must be greater than zero for ${d.line.productName}.`,
-        )
-
+        setError(`Quantity must be greater than zero for ${d.line.productName}.`)
         return
       }
-
       if (qty > d.line.remainingToOrder) {
         setError(
-          `Cannot order more than the remaining quantity (${d.line.remainingToOrder}) for ${d.line.productName}.`,
+          `Cannot order more than the remaining quantity for ${d.line.productName}.`,
         )
-
         return
       }
-
-      const cost = parseFloat(d.unitCost)
-
-      if (d.unitCost === "" || !Number.isFinite(cost) || cost <= 0) {
+      if (d.unitCost === "" || !Number.isFinite(parseFloat(d.unitCost)) || parseFloat(d.unitCost) < 0) {
         setError(`Enter a valid unit cost for ${d.line.productName}.`)
-
         return
       }
     }
-
     setError("")
-
     const params = new URLSearchParams()
+<<<<<<< HEAD
 <<<<<<< HEAD
     params.set("requirementLineId", line.id)
     params.set("quantity", quantity.toString())
@@ -870,186 +863,94 @@ function RequirementOrderModal({
     if (line.unitId) params.set("unitId", line.unitId)
 =======
 
+=======
+>>>>>>> 5fc4482b4582925d0c2cecb3621bfa29c1a80fab
     for (const d of picked) {
       params.append("requirementLineId", d.line.id)
-
       params.append("quantity", d.quantity)
-
       params.append("unitCost", d.unitCost)
-
       params.append("requirementReference", d.line.requirementReference)
-
       params.append("productName", d.line.productName)
-
       params.append("productSku", d.line.productSku)
-
       if (d.line.unitName) params.append("unitName", d.line.unitName)
     }
+<<<<<<< HEAD
 
 >>>>>>> d7a7db5c6c763ba5a7a07a6045b1b739072c39dc
+=======
+>>>>>>> 5fc4482b4582925d0c2cecb3621bfa29c1a80fab
     window.location.href = `/purchasing/orders/new?${params.toString()}`
   }
 
   return (
     <Modal
       open
-      title={
-        picked.length > 1
-          ? "Create Purchase Order — Multiple Products"
-          : "Create Purchase Order"
-      }
+      title="Create Purchase Order"
       onClose={onClose}
       size="xl"
     >
-      {error && (
-        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
       <p className="mb-4 text-sm text-[#666666]">
-        Set the quantity and unit cost for each product. Quantities are
-        pre-filled with the remaining amount to order. All selected products are
-        placed on a single purchase order — you choose its supplier on the next
-        step.
+        Select the products under each requirement to order and enter a unit cost
+        for each. Quantities are pre-filled with the remaining amount to order.
       </p>
 
-      {distinctRequirements > 1 && (
-        <p className="mb-4 rounded-xl border border-[#C6D4BF] bg-[#E6ECE2]/50 px-4 py-3 text-xs text-[#333333]">
-          This selection spans {distinctRequirements} different requirements.
-          They will all be added to one purchase order. Create separate orders
-          if they need different suppliers.
+      {drafts.map((d, i) => (
+        <div key={d.line.lineId} className="mb-4 rounded-xl border border-[#E6ECE2]">
+          <div className="flex items-center justify-between px-4 py-2 bg-[#E6ECE2]/50">
+            <span className="font-medium text-[#333333]">{d.line.lineName}</span>
+            <span className="text-xs text-[#999]">{d.line.lineSku}</span>
+          </div>
+          <div className="p-4">
+            <div className="mb-2">
+              <label className="mb-1 block text-xs font-medium text-[#666666]">
+                Quantity to order
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={0.001}
+                value={d.quantity}
+                onChange={(e) =>
+                  update(i, { quantity: e.target.value })}
+                className="w-32 rounded-lg border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+              />
+            </div>
+            <div className="mb-2">
+              <label className="mb-1 block text-xs font-medium text-[#666666]">
+                Unit cost (ETB)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={d.unitCost}
+                onChange={(e) =>
+                  update(i, { unitCost: e.target.value })}
+                className="w-32 rounded-lg border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {drafts.length === 0 ? (
+        <p className="rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-4 py-6 text-center text-sm text-[#666666]">
+          No products to order.
         </p>
-      )}
+      ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-[#E6ECE2]">
-        <table className="w-full min-w-[820px] text-sm">
-          <thead>
-            <tr className="bg-[#E6ECE2]/50 text-left text-xs font-semibold text-[#666666] uppercase">
-              <th className="px-4 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={drafts.every((d) => d.selected)}
-                  onChange={(e) => {
-                    const on = e.target.checked
-
-                    setDrafts((prev) =>
-                      prev.map((d) => ({ ...d, selected: on })),
-                    )
-
-                    setError("")
-                  }}
-                  className="accent-[#4F6B4A] w-4 h-4"
-                  aria-label="Select all products"
-                />
-              </th>
-              <th className="px-4 py-3 font-semibold text-[#333333]">
-                Product
-              </th>
-              <th className="px-4 py-3 font-semibold text-[#333333]">
-                Reference
-              </th>
-              <th className="px-4 py-3 font-semibold text-[#333333] text-right">
-                Required
-              </th>
-              <th className="px-4 py-3 font-semibold text-[#333333] text-right">
-                Ordered
-              </th>
-              <th className="px-4 py-3 font-semibold text-[#333333] text-right">
-                Remaining
-              </th>
-              <th className="px-4 py-3 font-semibold text-[#333333]">
-                Qty to Order
-              </th>
-              <th className="px-4 py-3 font-semibold text-[#333333]">
-                Unit Cost (ETB)
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {drafts.map((d, i) => (
-              <tr
-                key={d.line.id}
-                className={`border-t border-[#E6ECE2] ${
-                  i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"
-                } ${d.selected ? "" : "opacity-50"}`}
-              >
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={d.selected}
-                    onChange={(e) => update(i, { selected: e.target.checked })}
-                    className="accent-[#4F6B4A] w-4 h-4"
-                    aria-label={`Select ${d.line.productName}`}
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-medium text-[#333333]">
-                    {d.line.productName}
-                  </div>
-                  {d.line.productSku && (
-                    <div className="text-xs text-[#999] font-mono">
-                      {d.line.productSku}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-[#7A9076] font-semibold whitespace-nowrap">
-                  {d.line.requirementReference || "—"}
-                </td>
-                <td className="px-4 py-3 text-right text-[#333333]">
-                  {d.line.requiredQuantity}
-                  {d.line.unitName && (
-                    <span className="ml-1 text-xs text-[#999]">
-                      {d.line.unitName}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right text-[#666666]">
-                  {d.line.orderedQuantity}
-                </td>
-                <td className="px-4 py-3 text-right font-semibold text-[#4F6B4A]">
-                  {d.line.remainingToOrder}
-                </td>
-                <td className="px-4 py-3">
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={d.quantity}
-                    onChange={(e) => update(i, { quantity: e.target.value })}
-                    disabled={!d.selected}
-                    className="w-24 rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none disabled:opacity-50"
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={d.unitCost}
-                    onChange={(e) => update(i, { unitCost: e.target.value })}
-                    disabled={!d.selected}
-                    placeholder="0.00"
-                    className="w-28 rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm focus:border-[#B6C8AF] focus:outline-none disabled:opacity-50"
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4 mt-5">
+      <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={handleCreate}>
-          Create Purchase Order ({picked.length})
+        <Button onClick={handleCreate} loading={loading}>
+          Create Purchase Order
         </Button>
       </div>
     </Modal>
   )
 }
+
 
 // ─── New Requirement Modal ───────────────────────────────────────────────────
 
@@ -1745,23 +1646,9 @@ function GenerateFromReorderModal({
   )
 }
 
-// ─── Edit Requirement Modal ──────────────────────────────────────────────────
 
-function EditRequirementModal({
-  open,
-  req,
-  onClose,
-  onSave,
-}: {
-  open: boolean
-  req: Requirement
-  onClose: () => void
-  onSave: (updates: { requiredBy: string; notes: string | null }) => void
-}) {
-  const [requiredBy, setRequiredBy] = useState(req.requiredBy)
-  const [notes, setNotes] = useState(req.notes)
-  const [loading, setLoading] = useState(false)
 
+<<<<<<< HEAD
   useEffect(() => {
     if (open) {
       setRequiredBy(req.requiredBy)
@@ -2682,3 +2569,5 @@ function Fw({ label, children }: { label: string; children: React.ReactNode }) {
     </div>
   )
 }
+=======
+>>>>>>> 5fc4482b4582925d0c2cecb3621bfa29c1a80fab
