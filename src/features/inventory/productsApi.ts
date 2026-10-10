@@ -4,6 +4,7 @@
 //   GET    /api/v1/inventory/inventory-products    (list + stock/expiry info)
 //   POST   /api/v1/inventory/products              (create, with units)
 //   GET    /api/v1/inventory/products/{id}         (detail)
+//   GET    /api/v1/inventory/products/{id}/units   (unit config for a product)
 //   PATCH  /api/v1/inventory/products/{id}         (update, units optional)
 //   DELETE /api/v1/inventory/products/{id}         (soft delete → deactivate)
 //
@@ -455,6 +456,7 @@ export async function createProduct(input: CreateProductInput): Promise<ProductD
     }),
   });
   invalidateCachePrefix("inventory-products:");
+  invalidateCachePrefix("product-units:");
   if (result?.data) invalidateCache(`product:${result.data.id}`);
   return result.data;
 }
@@ -470,6 +472,22 @@ export async function getProduct(id: string): Promise<ProductDetailDto> {
     );
     if (!result?.data) throw new ProductsApiError("Product not found.");
     return result.data;
+  });
+}
+
+/**
+ * GET /inventory/products/{id}/units — unit configuration for one product
+ * (base unit + conversion factors), without the full product detail.
+ * Used by the Purchase Requirements order popup to convert an entered
+ * quantity into base units. Cached briefly like the product detail;
+ * invalidated alongside it by product mutations.
+ */
+export async function getProductUnits(id: string): Promise<ProductUnitDto[]> {
+  return cacheRead(`product-units:${id}`, async () => {
+    const result = await productsRequest<{ data: ProductUnitDto[] }>(
+      `/${encodeURIComponent(id)}/units`,
+    );
+    return result?.data ?? [];
   });
 }
 
@@ -503,6 +521,7 @@ export async function updateProduct(
   );
   invalidateCache(`product:${id}`);
   invalidateCachePrefix("inventory-products:");
+  invalidateCachePrefix("product-units:");
   return result.data;
 }
 
@@ -515,4 +534,5 @@ export async function deactivateProduct(id: string): Promise<void> {
   });
   invalidateCache(`product:${id}`);
   invalidateCachePrefix("inventory-products:");
+  invalidateCachePrefix("product-units:");
 }

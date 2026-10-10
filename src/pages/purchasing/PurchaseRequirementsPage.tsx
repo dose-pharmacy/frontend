@@ -66,10 +66,13 @@ import {
   type CreateRequirementInput,
   type RequirementPreviewResult,
   type RequirementActionDto,
-} from "../../features/purchasing/requirementsApi"
+} from "../../features/purchasing/requirementsApi";
 
-import { listProducts,
+import {
+  listProducts,
+  getProductUnits,
   type ProductDto,
+  type ProductUnitDto,
 } from "../../features/inventory/productsApi"
 
 import { getReorderSuggestions } from "../../features/inventory/reorderApi"
@@ -132,15 +135,15 @@ function useDebounced<T>(value: T, delay = 300): T {
 interface OrderableLine {
   lineId: string
 
-  id: string
-
-  lineName: string
-
-  lineSku: string
+  productId: string
 
   productName: string
 
+  productBrand: string
+
   productSku: string
+
+  unitId: string | null
 
   unitName: string
 
@@ -157,15 +160,15 @@ function toOrderable(line: RequirementLineRow): OrderableLine {
   return {
     lineId: line.id,
 
-    id: line.id,
-
-    lineName: line.productName,
-
-    lineSku: line.productSku,
+    productId: line.productId,
 
     productName: line.productName,
 
+    productBrand: line.productBrand,
+
     productSku: line.productSku,
+
+    unitId: line.unitId,
 
     unitName: line.unitName,
 
@@ -437,7 +440,7 @@ export default function PurchaseRequirementsPage() {
                 <SearchInput
                   value={search}
                   onChange={setSearch}
-                  placeholder="Search by product, SKU or requirement reference..."
+                  placeholder="Search by product, brand or requirement reference..."
                 />
               </div>
               {(search || tab !== "active") && (
@@ -606,11 +609,9 @@ export default function PurchaseRequirementsPage() {
                               <div className="font-medium text-[#333333]">
                                 {line.productName}
                               </div>
-                              {line.productSku && (
-                                <div className="text-xs text-[#999] font-mono">
-                                  {line.productSku}
-                                </div>
-                              )}
+                              <div className="text-xs text-[#999]">
+                                {line.productBrand || "—"}
+                              </div>
                             </td>
                             <td className="px-4 py-3">
                               <button
@@ -763,24 +764,67 @@ function reasonText(code: string | null): string {
 
 // ─── Order modal (bulk + single) ─────────────────────────────────────────────
 
-// Reuses the original per-requirement Order modal: quantity + unit cost per
-
-// selected line, then hand-off to the existing Create Purchase Order page via
-
-// repeated `requirementLineId` query params — the same multi-line prefill the
-
-// page already parses. All selected lines are placed on ONE purchase order; the
-
-// supplier is chosen on the next step.
+// Opens from the per-row "Order" action or "Order Selected" — one table row
+// per selected line with quantity, unit cost and the product's unit
+// configuration (GET /inventory/products/{id}/units). On confirm the quantity
+// is converted to the product's BASE unit and the flow hands off to the
+// existing Create Purchase Order page via repeated `requirementLineId` query
+// params — the same multi-line prefill that page already parses. All selected
+// lines are placed on ONE purchase order; the supplier is chosen next.
 
 interface OrderDraftLine {
   line: OrderableLine
-
   selected: boolean
-
   quantity: string
-
   unitCost: string
+  /** Explicitly chosen order unit; null = follow the requirement line's unit. */
+  unitId: string | null
+}
+
+function unitLabel(u: ProductUnitDto | null): string {
+  if (!u) return ""
+  return u.unit.symbol ? `${u.unit.name} (${u.unit.symbol})` : u.unit.name
+}
+
+/** Find the line's unit in the product's unit configuration (by id, then name). */
+function findUnitForLine(
+  list: ProductUnitDto[] | undefined,
+  line: OrderableLine,
+): ProductUnitDto | undefined {
+  if (!list || list.length === 0) return undefined
+  if (line.unitId) {
+    const byId = list.find((u) => u.unitId === line.unitId)
+    if (byId) return byId
+  }
+  if (line.unitName) {
+    const byName = list.find(
+      (u) => u.unit.name.toLowerCase() === line.unitName.toLowerCase(),
+    )
+    if (byName) return byName
+  }
+  return undefined
+}
+
+/**
+ * Resolve the unit a draft row works in: an explicitly chosen unit wins,
+ * otherwise the requirement line's unit, otherwise the product's base unit.
+ * `factor` converts one selected unit into base units (base factor = 1).
+ */
+function resolveUnitChoice(
+  list: ProductUnitDto[] | undefined,
+  draft: OrderDraftLine,
+): {
+  selected: ProductUnitDto | null
+  base: ProductUnitDto | null
+  factor: number
+} {
+  const units = list ?? []
+  const base = units.find((u) => u.isBaseUnit) ?? units[0] ?? null
+  const explicit = draft.unitId
+    ? units.find((u) => u.unitId === draft.unitId)
+    : undefined
+  const selected = explicit ?? findUnitForLine(units, draft.line) ?? base
+  return { selected, base, factor: selected?.conversionFactor ?? 1 }
 }
 
 function RequirementOrderModal({
@@ -792,21 +836,61 @@ function RequirementOrderModal({
 }) {
   const [drafts, setDrafts] = useState<OrderDraftLine[]>([])
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [unitsByProduct, setUnitsByProduct] = useState<
+    Record<string, ProductUnitDto[]>
+  >({})
+  const [unitsLoading, setUnitsLoading] = useState(false)
+  const [unitsError, setUnitsError] = useState("")
 
   useEffect(() => {
     if (!lines) return
-
     setDrafts(
       lines.map((l) => ({
         line: l,
         selected: true,
         quantity: String(l.remainingToOrder),
         unitCost: "",
+        unitId: null,
       })),
     )
-
     setError("")
+  }, [lines])
+
+  // Load each product's unit configuration (base unit + conversion factors)
+  // so quantities can be converted to base units before creating the PO.
+  useEffect(() => {
+    if (!lines) return
+    const ids = Array.from(
+      new Set(lines.map((l) => l.productId).filter(Boolean)),
+    )
+    if (ids.length === 0) return
+    let cancelled = false
+    setUnitsLoading(true)
+    setUnitsError("")
+    Promise.all(
+      ids.map((id) =>
+        getProductUnits(id).then(
+          (units) => ({ id, units, ok: true as const }),
+          () => ({ id, units: [] as ProductUnitDto[], ok: false as const }),
+        ),
+      ),
+    ).then((results) => {
+      if (cancelled) return
+      setUnitsByProduct((prev) => {
+        const next = { ...prev }
+        for (const r of results) next[r.id] = r.units
+        return next
+      })
+      if (results.some((r) => !r.ok)) {
+        setUnitsError(
+          "Unit conversion info could not be loaded for some products — their quantities will be sent as entered.",
+        )
+      }
+      setUnitsLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [lines])
 
   if (!lines) return null
@@ -829,106 +913,282 @@ function RequirementOrderModal({
       setError("Select at least one product to order.")
       return
     }
+    const params = new URLSearchParams()
     for (const d of picked) {
       const qty = parseFloat(d.quantity)
       if (!Number.isFinite(qty) || qty <= 0) {
-        setError(`Quantity must be greater than zero for ${d.line.productName}.`)
+        setError(
+          `Quantity must be greater than zero for ${d.line.productName}.`,
+        )
         return
       }
-      if (qty > d.line.remainingToOrder) {
+      const unitCost = parseFloat(d.unitCost)
+      if (d.unitCost === "" || !Number.isFinite(unitCost) || unitCost < 0) {
+        setError(`Enter a valid unit cost for ${d.line.productName}.`)
+        return
+      }
+
+      const list = unitsByProduct[d.line.productId]
+      const { base, factor } = resolveUnitChoice(list, d)
+      // Remaining allowance in base units: the line's remaining quantity is
+      // in the requirement's unit, converted with its factor (unknown unit
+      // → treated as base, factor 1). The entered quantity is converted with
+      // the selected unit's factor.
+      const lineFactor = findUnitForLine(list, d.line)?.conversionFactor ?? 1
+      const remainingBase = d.line.remainingToOrder * lineFactor
+      const baseQty = qty * factor
+      if (baseQty > remainingBase + 1e-9) {
         setError(
           `Cannot order more than the remaining quantity for ${d.line.productName}.`,
         )
         return
       }
-      if (d.unitCost === "" || !Number.isFinite(parseFloat(d.unitCost)) || parseFloat(d.unitCost) < 0) {
-        setError(`Enter a valid unit cost for ${d.line.productName}.`)
-        return
-      }
-    }
-    setError("")
-    const params = new URLSearchParams()
-    for (const d of picked) {
-      params.append("requirementLineId", d.line.id)
-      params.append("quantity", d.quantity)
+
+      params.append("requirementLineId", d.line.lineId)
+      params.append("quantity", String(Math.round(baseQty * 1000) / 1000))
       params.append("unitCost", d.unitCost)
       params.append("requirementReference", d.line.requirementReference)
       params.append("productName", d.line.productName)
       params.append("productSku", d.line.productSku)
-      if (d.line.unitName) params.append("unitName", d.line.unitName)
+      const unitName = base?.unit.name || d.line.unitName
+      if (unitName) params.append("unitName", unitName)
     }
+    setError("")
     window.location.href = `/purchasing/orders/new?${params.toString()}`
   }
 
   return (
-    <Modal
-      open
-      title="Create Purchase Order"
-      onClose={onClose}
-      size="xl"
-    >
+    <Modal open title="Create Purchase Order" onClose={onClose} size="2xl">
       <p className="mb-4 text-sm text-[#666666]">
-        Select the products under each requirement to order and enter a unit cost
-        for each. Quantities are pre-filled with the remaining amount to order.
+        Review the products to order. Select which ones to include, enter quantities and unit costs, then click{" "}
+        <strong>Proceed to Purchase Order</strong> to go directly to the order form.
       </p>
 
-      {drafts.map((d, i) => (
-        <div key={d.line.lineId} className="mb-4 rounded-xl border border-[#E6ECE2]">
-          <div className="flex items-center justify-between px-4 py-2 bg-[#E6ECE2]/50">
-            <span className="font-medium text-[#333333]">{d.line.lineName}</span>
-            <span className="text-xs text-[#999]">{d.line.lineSku}</span>
-          </div>
-          <div className="p-4">
-            <div className="mb-2">
-              <label className="mb-1 block text-xs font-medium text-[#666666]">
-                Quantity to order
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={0.001}
-                value={d.quantity}
-                onChange={(e) =>
-                  update(i, { quantity: e.target.value })}
-                className="w-32 rounded-lg border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
-              />
-            </div>
-            <div className="mb-2">
-              <label className="mb-1 block text-xs font-medium text-[#666666]">
-                Unit cost (ETB)
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={d.unitCost}
-                onChange={(e) =>
-                  update(i, { unitCost: e.target.value })}
-                className="w-32 rounded-lg border border-[#C6D4BF] px-3 py-2 text-sm focus:border-[#B6C8AF] focus:outline-none"
-              />
-            </div>
-          </div>
+      {unitsError && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          {unitsError}
         </div>
-      ))}
+      )}
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {drafts.length === 0 ? (
         <p className="rounded-xl border border-[#E6ECE2] bg-[#E6ECE2]/40 px-4 py-6 text-center text-sm text-[#666666]">
           No products to order.
         </p>
-      ) : null}
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-[#E6ECE2]">
+          <table className="w-full min-w-[960px] text-sm">
+            <thead>
+              <tr className="bg-[#E6ECE2]/60 text-left text-xs font-semibold text-[#555] uppercase tracking-wide">
+                <th className="px-3 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={picked.length === drafts.length && drafts.length > 0}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setDrafts((prev) =>
+                        prev.map((d) => ({ ...d, selected: on })),
+                      )
+                      setError("")
+                    }}
+                    className="accent-[#4F6B4A] w-4 h-4"
+                    aria-label="Select all products"
+                  />
+                </th>
+                <th className="px-3 py-3">Product &amp; Brand</th>
+                <th className="px-3 py-3">Qty to Order</th>
+                <th className="px-3 py-3">Unit Cost (ETB)</th>
+                <th className="px-3 py-3">Current Unit</th>
+                <th className="px-3 py-3">Unit Conversion</th>
+                <th className="px-3 py-3">Cost / Base Unit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((d, i) => {
+                const list = unitsByProduct[d.line.productId]
+                const { selected: selUnit, base } = resolveUnitChoice(list, d)
+                const hasUnits = !!list && list.length > 0
+                // Compute cost per base unit: enteredCost / conversionFactor gives
+                // cost per base unit when the user orders in a larger unit.
+                const enteredCost = parseFloat(d.unitCost)
+                const factor = selUnit?.conversionFactor ?? 1
+                const costPerBase =
+                  Number.isFinite(enteredCost) && enteredCost > 0 && factor > 0
+                    ? enteredCost / factor
+                    : null
+                return (
+                  <tr
+                    key={d.line.lineId}
+                    className={`border-t border-[#E6ECE2] transition-colors ${
+                      i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"
+                    } ${d.selected ? "" : "opacity-40"}`}
+                  >
+                    {/* Checkbox */}
+                    <td className="px-3 py-3 align-middle">
+                      <input
+                        type="checkbox"
+                        checked={d.selected}
+                        onChange={(e) =>
+                          update(i, { selected: e.target.checked })
+                        }
+                        className="accent-[#4F6B4A] w-4 h-4"
+                        aria-label={`Select ${d.line.productName}`}
+                      />
+                    </td>
 
-      <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4">
+                    {/* Product name + brand */}
+                    <td className="px-3 py-3 align-middle min-w-[180px]">
+                      <div className="font-semibold text-[#222]">
+                        {d.line.productName}
+                      </div>
+                      <div className="text-xs text-[#888] mt-0.5">
+                        {d.line.productBrand || "—"}
+                      </div>
+                    </td>
+
+                    {/* Quantity to order */}
+                    <td className="px-3 py-3 align-middle">
+                      <input
+                        id={`order-qty-${i}`}
+                        type="number"
+                        min={0}
+                        step={0.001}
+                        value={d.quantity}
+                        onChange={(e) => update(i, { quantity: e.target.value })}
+                        disabled={!d.selected}
+                        className="w-24 rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm focus:border-[#7A9076] focus:ring-1 focus:ring-[#7A9076]/30 focus:outline-none disabled:bg-[#F3F6F1] disabled:cursor-not-allowed"
+                      />
+                    </td>
+
+                    {/* Unit cost (per chosen order unit) */}
+                    <td className="px-3 py-3 align-middle">
+                      <input
+                        id={`order-cost-${i}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={d.unitCost}
+                        onChange={(e) => update(i, { unitCost: e.target.value })}
+                        disabled={!d.selected}
+                        placeholder="0.00"
+                        className="w-24 rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm focus:border-[#7A9076] focus:ring-1 focus:ring-[#7A9076]/30 focus:outline-none disabled:bg-[#F3F6F1] disabled:cursor-not-allowed"
+                      />
+                    </td>
+
+                    {/* Current unit — always the BASE unit */}
+                    <td className="px-3 py-3 align-middle whitespace-nowrap">
+                      {unitsLoading && !hasUnits ? (
+                        <span className="text-[#bbb] text-xs">Loading…</span>
+                      ) : hasUnits && base ? (
+                        <span className="inline-flex flex-col">
+                          <span className="font-medium text-[#333]">{unitLabel(base)}</span>
+                          <span className="text-[10px] text-[#7A9076] font-semibold uppercase tracking-wide">base</span>
+                        </span>
+                      ) : (
+                        <span className="text-[#999]">—</span>
+                      )}
+                    </td>
+
+                    {/* Unit conversion — dropdown of all available units */}
+                    <td className="px-3 py-3 align-middle min-w-[200px]">
+                      {hasUnits && base ? (
+                        <div className="flex flex-col gap-1">
+                          <select
+                            value={selUnit?.unitId ?? base.unitId}
+                            onChange={(e) => {
+                              const newUnitId = e.target.value
+                              const newUnit = list.find((u) => u.unitId === newUnitId)
+                              const currentFactor = selUnit?.conversionFactor ?? 1
+                              const newFactor = newUnit?.conversionFactor ?? 1
+                              const currentQty = parseFloat(d.quantity)
+                              if (
+                                Number.isFinite(currentQty) &&
+                                currentFactor > 0 &&
+                                newFactor > 0
+                              ) {
+                                // Convert: base qty = currentQty × currentFactor
+                                // New qty in new unit = base qty / newFactor
+                                const baseQty = currentQty * currentFactor
+                                const newQty = baseQty / newFactor
+                                const rounded =
+                                  Math.round(newQty * 1000) / 1000
+                                update(i, {
+                                  unitId: newUnitId,
+                                  quantity: String(rounded),
+                                })
+                              } else {
+                                update(i, { unitId: newUnitId })
+                              }
+                            }}
+                            disabled={!d.selected}
+                            className="rounded-lg border border-[#C6D4BF] px-2.5 py-1.5 text-sm bg-white focus:border-[#7A9076] focus:outline-none disabled:bg-[#F3F6F1] disabled:cursor-not-allowed"
+                          >
+                            {list.map((u) => (
+                              <option key={u.id} value={u.unitId}>
+                                {unitLabel(u)}
+                                {u.isBaseUnit ? " (base)" : ` (×${u.conversionFactor})`}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-[11px] text-[#888]">
+                            {selUnit?.isBaseUnit
+                              ? "Base unit — no conversion"
+                              : `1 ${selUnit?.unit.symbol || selUnit?.unit.name} = ${selUnit?.conversionFactor} ${base.unit.symbol || base.unit.name}`}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[#999] text-xs">
+                          {d.line.unitName || "—"}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Cost per base unit (computed) */}
+                    <td className="px-3 py-3 align-middle whitespace-nowrap">
+                      {costPerBase !== null ? (
+                        <span className="font-semibold text-[#4F6B4A]">
+                          {costPerBase.toLocaleString("en-ET", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" ETB"}
+                        </span>
+                      ) : (
+                        <span className="text-[#bbb]">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Summary row */}
+      {picked.length > 0 && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-[#666]">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#E6ECE2] px-2.5 py-1 font-semibold text-[#4F6B4A]">
+            {picked.length} product{picked.length !== 1 ? "s" : ""} selected
+          </span>
+          <span>will be added to the purchase order.</span>
+        </div>
+      )}
+
+      <div className="flex gap-3 justify-end border-t border-[#E6ECE2] pt-4 mt-4">
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={handleCreate} loading={loading}>
-          Create Purchase Order
+        <Button onClick={handleCreate} loading={unitsLoading} disabled={picked.length === 0}>
+          Proceed to Purchase Order →
         </Button>
       </div>
     </Modal>
   )
 }
-
 
 // ─── New Requirement Modal ───────────────────────────────────────────────────
 
