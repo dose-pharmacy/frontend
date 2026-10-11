@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import PageHeader from "../../components/ui/PageHeader";
 import AddSupplier from "./AddSupplier";
 import Pagination from "../../components/ui/Pagination";
+import ListPageFilter from "../../components/ui/ListPageFilter";
 import SearchableSelect from "../../components/ui/SearchableSelect";
 import {
   IconBanknotes,
@@ -216,12 +217,17 @@ export default function SupplierPayablesPage() {
   // Pagination
   // ---------------------------------------------------------------------------
 
+  const filteredSuppliers =
+    suppFilter !== "all"
+      ? suppliers.filter((s) => s.id === suppFilter)
+      : suppliers;
+
   const totalPages = Math.max(
     1,
-    Math.ceil(suppliers.length / PAGE_SIZE),
+    Math.ceil(filteredSuppliers.length / PAGE_SIZE),
   );
 
-  const pagedSuppliers = suppliers.slice(
+  const pagedSuppliers = filteredSuppliers.slice(
     (page - 1) * PAGE_SIZE,
     page * PAGE_SIZE,
   );
@@ -524,55 +530,58 @@ export default function SupplierPayablesPage() {
         {/* Filters                                                          */}
         {/* ---------------------------------------------------------------- */}
 
-        <div className="bg-[#E6ECE2] px-4 sm:px-6 py-3 flex flex-wrap items-end gap-3 border-b border-[#C6D4BF]">
-          <div className="flex flex-col gap-1 w-56">
-            <span className="text-[10px] text-[#7A7A7A] uppercase tracking-wide">
-              Supplier
-            </span>
-
-            <SearchableSelect
-              value={suppFilter}
-              onChange={(v) => {
-                setSuppFilter(v || "all");
-                setPage(1);
-              }}
-              options={supplierFilterOptions}
-              placeholder="All Suppliers"
-              searchPlaceholder="Search suppliers..."
-              emptyMessage="No suppliers found"
-              noResultsMessage="No suppliers matching your search"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1 flex-1 min-w-[160px] max-w-xs">
-            <span className="text-[10px] text-[#7A7A7A] uppercase tracking-wide">
-              Search
-            </span>
-
-            <div className="relative">
-              <svg
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8A8A8A]"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-
-              <input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
+        <div className="px-4 sm:px-6 pt-4">
+          <ListPageFilter
+            search={search}
+            onSearchChange={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            searchPlaceholder="Search suppliers..."
+            activeFilterCount={suppFilter !== "all" ? 1 : 0}
+            onClearSecondary={() => {
+              setSuppFilter("all");
+              setPage(1);
+            }}
+            secondaryChips={
+              suppFilter !== "all"
+                ? [
+                    {
+                      id: "supplier",
+                      label: "Supplier",
+                      value:
+                        suppliers.find((s) => s.id === suppFilter)?.name ??
+                        "Selected Supplier",
+                      onRemove: () => {
+                        setSuppFilter("all");
+                        setPage(1);
+                      },
+                    },
+                  ]
+                : []
+            }
+            resultsCount={filteredSuppliers.length}
+            resultsLabel="suppliers"
+          >
+            <div>
+              <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+                Supplier
+              </label>
+              <SearchableSelect
+                value={suppFilter === "all" ? null : suppFilter}
+                onChange={(v) => {
+                  setSuppFilter(v || "all");
                   setPage(1);
                 }}
-                placeholder="Search suppliers..."
-                className="w-full rounded-md border border-[#C6D4BF] bg-white pl-8 pr-3 py-1.5 text-sm text-[#4A4A4A] placeholder:text-[#9A9A9A] focus:border-[#B6C8AF] focus:outline-none"
+                options={supplierFilterOptions.filter((o) => o.value !== "all")}
+                allowClear
+                placeholder="All Suppliers"
+                searchPlaceholder="Search suppliers..."
+                emptyMessage="No suppliers found"
+                noResultsMessage="No suppliers matching your search"
               />
             </div>
-          </div>
+          </ListPageFilter>
         </div>
 
         {/* ---------------------------------------------------------------- */}

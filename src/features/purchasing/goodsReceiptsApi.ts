@@ -79,6 +79,12 @@ export interface GoodsReceiptDto {
   items: GRItemDto[]
   /** Item count as reported by the backend `_count.items` on list rows. */
   _count?: { items: number }
+  /**
+   * Compact medicine preview on list rows: the first distinct product name plus
+   * how many additional distinct products the receipt contains. `null` when the
+   * receipt has no resolvable product names.
+   */
+  itemPreview?: { first: string; additionalCount: number } | null
   /** Confirmation flag — null / absent until the receipt is confirmed. */
   confirmedBy?: { id: string; name: string } | null
   /** Backward-compatible alias used by detail/reconcile pages. */
@@ -202,12 +208,24 @@ export async function listGoodsReceipts(params: {
   limit?: number
   purchaseOrderId?: string
   status?: GoodsReceiptStatus
+  /** Free-text search: receipt #, supplier name, or any received medicine. */
+  search?: string
+  /** Named preset window; mutually exclusive with dateFrom/dateTo. */
+  datePreset?: "today" | "this_week" | "this_month"
+  /** Inclusive `YYYY-MM-DD` lower bound (receivedDate). */
+  dateFrom?: string
+  /** Inclusive `YYYY-MM-DD` upper bound (receivedDate). */
+  dateTo?: string
 } = {}): Promise<PaginatedResponse<GoodsReceiptDto>> {
   const q = new URLSearchParams()
   if (params.page) q.set("page", params.page.toString())
   if (params.limit) q.set("limit", params.limit.toString())
   if (params.purchaseOrderId) q.set("purchaseOrderId", params.purchaseOrderId)
   if (params.status) q.set("status", params.status)
+  if (params.search) q.set("search", params.search)
+  if (params.datePreset) q.set("datePreset", params.datePreset)
+  if (params.dateFrom) q.set("dateFrom", params.dateFrom)
+  if (params.dateTo) q.set("dateTo", params.dateTo)
 
   const qs = q.toString()
   return await grRequest<PaginatedResponse<GoodsReceiptDto>>(qs ? `?${qs}` : "")

@@ -164,6 +164,12 @@ export async function listSupplierInvoices(params: {
   supplierId?: string
   status?: SupplierInvoiceStatus
   search?: string
+  /** Named preset window; mutually exclusive with dateFrom/dateTo. */
+  datePreset?: "today" | "this_week" | "this_month"
+  /** Inclusive `YYYY-MM-DD` lower bound (invoiceDate). */
+  dateFrom?: string
+  /** Inclusive `YYYY-MM-DD` upper bound (invoiceDate). */
+  dateTo?: string
 } = {}): Promise<PaginatedResponse<SupplierInvoiceDto>> {
   const q = new URLSearchParams()
   if (params.page) q.set("page", params.page.toString())
@@ -171,6 +177,9 @@ export async function listSupplierInvoices(params: {
   if (params.supplierId) q.set("supplierId", params.supplierId)
   if (params.status) q.set("status", params.status)
   if (params.search) q.set("search", params.search)
+  if (params.datePreset) q.set("datePreset", params.datePreset)
+  if (params.dateFrom) q.set("dateFrom", params.dateFrom)
+  if (params.dateTo) q.set("dateTo", params.dateTo)
 
   const qs = q.toString()
   return await invoiceRequest<PaginatedResponse<SupplierInvoiceDto>>(qs ? `?${qs}` : "")

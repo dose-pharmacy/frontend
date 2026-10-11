@@ -16,6 +16,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import PageHeader from "../../components/ui/PageHeader"
 
+import ListPageFilter from "../../components/ui/ListPageFilter"
+
 import Modal from "../../components/ui/Modal"
 
 import SearchInput from "../../components/ui/SearchInput"
@@ -386,77 +388,23 @@ export default function PurchaseRequirementsPage() {
           }
         />
 
-        {/* Status tabs — existing underline tab convention */}
-        <nav
-          className="bg-white border-b border-[#E6ECE2] px-4 sm:px-6 flex items-center gap-1 overflow-x-auto"
-          aria-label="Requirement status"
-        >
-          {TABS.map(({ key, label }) => {
-            // Only the active tab's count is known: `meta.total` is the server's
-
-            // authoritative total for the CURRENT filter. Other tabs would need
-
-            // per-status counts, which the response may not provide reliably, so
-
-            // none are invented from the current page.
-
-            const count =
-              key === tab && !loading && !loadError ? meta.total : null
-
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                aria-current={key === tab ? "page" : undefined}
-                className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A9076]/40 ${
-                  key === tab
-                    ? "border-[#7A9076] text-[#4F6B4A]"
-                    : "border-transparent text-[#666666] hover:text-[#333333] hover:border-[#C6D4BF]"
-                }`}
-              >
-                {label}
-                {count !== null && (
-                  <span
-                    className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                      key === tab
-                        ? "bg-[#E6ECE2] text-[#4F6B4A]"
-                        : "bg-[#F1F0EA] text-[#666666]"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
-
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
           {/* Filters */}
-          <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-            <div className="flex flex-col sm:flex-row gap-3 items-center">
-              <div className="flex-1 w-full">
-                <SearchInput
-                  value={search}
-                  onChange={setSearch}
-                  placeholder="Search by product, brand or requirement reference..."
-                />
-              </div>
-              {(search || tab !== "active") && (
-                <button
-                  onClick={() => {
-                    setSearch("")
-
-                    setTab("active")
-                  }}
-                  className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
-                >
-                  Reset filters
-                </button>
-              )}
-            </div>
-          </div>
+          <ListPageFilter
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search by product, brand or requirement reference..."
+            tabs={TABS.map(({ key, label }) => ({
+              key,
+              label,
+              count: key === tab && !loading && !loadError ? meta.total : null,
+            }))}
+            activeTab={tab}
+            onTabChange={(k) => setTab(k as TabKey)}
+            tabsAriaLabel="Requirement status"
+            resultsCount={!loading && !loadError ? meta.total : null}
+            resultsLabel="requirement lines"
+          />
 
           {/* Selection toolbar */}
           {selected.size > 0 && (

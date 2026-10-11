@@ -17,7 +17,7 @@ import { API_BASE_URL } from "../auth/authApi";
 
 // ─── Types (mirror the Swagger request/response shapes) ──────────────────────
 
-export type TransferStatusDto = "DRAFT" | "COMPLETED" | "CANCELLED";
+export type TransferStatusDto = "DRAFT" | "PENDING" | "COMPLETED" | "CANCELLED";
 
 export interface TransferItemDto {
   id: string;
@@ -29,7 +29,7 @@ export interface TransferItemDto {
 
 /** Item embedded in a transfer response. */
 export interface TransferItemFullDto extends TransferItemDto {
-  product?: { id: string; name?: string; sku?: string } | Record<string, never>;
+  product?: { id: string; name?: string; sku?: string; brand?: string | null } | Record<string, never>;
   batch?: { id: string; batchNumber?: string } | Record<string, never>;
   unit?: { id: string; name?: string } | Record<string, never>;
 }

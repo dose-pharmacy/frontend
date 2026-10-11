@@ -67,7 +67,7 @@ export interface POItemDto {
   unitCost: number;
   requirementLineId: string | null;
   /** Embedded on detail responses (and from-requirement creates). */
-  product?: { id: string; name: string; sku: string } | null;
+  product?: { id: string; name: string; sku: string; brand?: string | null } | null;
   /** Embedded on PO detail and returned by item update endpoints. */
   requirementLine?: POItemRequirementRefDto | null;
   allocations?: { id: string; requirementLineId: string; quantityAllocated: number }[];
@@ -125,6 +125,12 @@ export interface PurchaseOrderDto {
   createdBy?: { id: string; name: string } | null;
   /** List rows carry `_count.items` instead of a full items array. */
   _count?: { items?: number };
+  /**
+   * Compact medicine preview on list rows: the first distinct product name plus
+   * how many additional distinct products the order contains. `null` when the
+   * order has no resolvable product names.
+   */
+  itemPreview?: { first: string; additionalCount: number } | null;
   items?: POItemDto[];
   /** Present on every list row and detail response. */
   paymentSummary?: POPaymentSummaryDto;
@@ -184,6 +190,12 @@ export interface PurchaseOrdersQuery {
   includeItems?: boolean;
   paymentStatus?: POPaymentStatus;
   search?: string;
+  /** Named preset window; mutually exclusive with dateFrom/dateTo. */
+  datePreset?: "today" | "this_week" | "this_month";
+  /** Inclusive `YYYY-MM-DD` lower bound (orderDate). */
+  dateFrom?: string;
+  /** Inclusive `YYYY-MM-DD` upper bound (orderDate). */
+  dateTo?: string;
 }
 
 /** Body for POST /purchase-orders. */
@@ -365,6 +377,9 @@ export async function listPurchaseOrders(
     includeItems: query.includeItems ? "true" : undefined,
     paymentStatus: query.paymentStatus,
     search: query.search,
+    datePreset: query.datePreset,
+    dateFrom: query.dateFrom,
+    dateTo: query.dateTo,
   })) {
     if (value !== undefined && value !== "") params.set(key, String(value));
   }

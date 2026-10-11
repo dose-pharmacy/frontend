@@ -204,6 +204,7 @@ export default function SearchableSelect({
           ref={buttonRef}
           disabled={disabled}
           onClick={toggle}
+          title={selected ? (selected.sub ? `${selected.label} (${selected.sub})` : selected.label) : undefined}
           className={`w-full rounded-lg border bg-white px-3.5 py-2.5 text-left text-sm transition-all flex items-center justify-between gap-2 ${
             disabled
               ? "bg-[#F5F4EE] text-[#999] cursor-not-allowed"
@@ -219,9 +220,9 @@ export default function SearchableSelect({
           <span className="flex items-center gap-1.5 min-w-0">
             {selected ? (
               <>
-                <span className="text-[#333333] truncate">{selected.label}</span>
+                <span className="text-[#333333] truncate" title={selected.label}>{selected.label}</span>
                 {selected.sub && (
-                  <span className="text-xs text-[#999] truncate">
+                  <span className="text-xs text-[#999] truncate" title={selected.sub}>
                     · {selected.sub}
                   </span>
                 )}
@@ -345,11 +346,11 @@ export default function SearchableSelect({
                       }`}
                     >
                       <span className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-sm text-[#333333] truncate">
+                        <span className="text-sm text-[#333333] truncate" title={option.label}>
                           {option.label}
                         </span>
                         {option.sub && (
-                          <span className="text-xs text-[#999] truncate">
+                          <span className="text-xs text-[#999] truncate" title={option.sub}>
                             · {option.sub}
                           </span>
                         )}

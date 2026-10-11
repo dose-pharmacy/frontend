@@ -1,19 +1,29 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
-import SearchInput from "../../components/ui/SearchInput"
+import ListPageFilter from "../../components/ui/ListPageFilter"
+import SearchableSelect from "../../components/ui/SearchableSelect"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import {
   listGoodsReceipts,
   deleteGoodsReceipt,
+  confirmGoodsReceipt,
   type GoodsReceiptDto,
   type GoodsReceiptStatus,
   GoodsReceiptsApiError,
 } from "../../features/purchasing/goodsReceiptsApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { TableSkeleton } from "../../components/ui/Skeleton"
+import DateRangeFilter, {
+  EMPTY_DATE_RANGE,
+  dateRangeLabel,
+  dateRangeQuery,
+  isDateRangeActive,
+  type DateRangeValue,
+} from "../../components/ui/DateRangeFilter"
+import ItemPreview from "../../components/ui/ItemPreview"
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
@@ -52,9 +62,13 @@ export default function GoodsReceiptsPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<GoodsReceiptStatus | "">("")
+  const [supplierFilter, setSupplierFilter] = useState("")
+  const [dateRange, setDateRange] = useState<DateRangeValue>(EMPTY_DATE_RANGE)
   const [toast, setToast] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptDto | null>(null)
+  const [confirmTarget, setConfirmTarget] = useState<GoodsReceiptDto | null>(null)
+  const [confirming, setConfirming] = useState(false)
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
 
   const PAGE_SIZE = 20
@@ -81,6 +95,8 @@ export default function GoodsReceiptsPage() {
         page,
         limit: PAGE_SIZE,
         status: statusFilter || undefined,
+        search: search.trim() || undefined,
+        ...dateRangeQuery(dateRange),
       })
       setReceipts(res.data)
       setTotalPages(res.meta.totalPages)
@@ -90,7 +106,7 @@ export default function GoodsReceiptsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, statusFilter])
+  }, [page, statusFilter, search, dateRange])
 
   useEffect(() => {
     loadReceipts()
@@ -117,15 +133,31 @@ export default function GoodsReceiptsPage() {
     }
   }
 
+  async function handleConfirm() {
+    if (!confirmTarget) return
+    setConfirming(true)
+    try {
+      await confirmGoodsReceipt(confirmTarget.id)
+      setConfirmTarget(null)
+      showToast("Goods receipt confirmed successfully.")
+      loadReceipts()
+    } catch (e) {
+      setConfirmTarget(null)
+      showToast(e instanceof GoodsReceiptsApiError ? e.message : "Failed to confirm goods receipt.")
+    } finally {
+      setConfirming(false)
+    }
+  }
+
   const visibleReceipts = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return receipts
-    return receipts.filter((r) =>
-      r.receiptNumber.toLowerCase().includes(q) ||
-      (r.purchaseOrder?.poNumber ?? "").toLowerCase().includes(q) ||
-      supplierName(r.supplierId).toLowerCase().includes(q),
-    )
-  }, [receipts, search, supplierName])
+    if (!supplierFilter) return receipts
+    return receipts.filter((r) => r.supplierId === supplierFilter)
+  }, [receipts, supplierFilter])
+
+  const supplierOptions = useMemo(
+    () => suppliers.map((s) => ({ value: s.id, label: s.name })),
+    [suppliers],
+  )
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -142,22 +174,84 @@ export default function GoodsReceiptsPage() {
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <div className="flex-1">
-              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search receipts..." />
-            </div>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as GoodsReceiptStatus | ""); setPage(1) }} className="sm:w-48 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
-              <option value="">All Statuses</option>
-              <option value="MATCHED">Matched</option>
-              <option value="DISCREPANCY">Discrepancy</option>
-              <option value="RESOLVED">Resolved</option>
-            </select>
-            {(search || statusFilter) && (
-              <button onClick={() => { setSearch(""); setStatusFilter(""); setPage(1) }} className="text-xs font-semibold text-[#7A9076] hover:underline">Reset</button>
-            )}
+        <ListPageFilter
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          searchPlaceholder="Search by receipt #, supplier or medicine..."
+          tabs={[
+            { key: "", label: "All Receipts" },
+            { key: "MATCHED", label: "Matched" },
+            { key: "DISCREPANCY", label: "Discrepancy" },
+            { key: "RESOLVED", label: "Resolved" },
+          ]}
+          activeTab={statusFilter}
+          onTabChange={(tabKey) => {
+            setStatusFilter(tabKey as GoodsReceiptStatus | "")
+            setPage(1)
+          }}
+          tabsAriaLabel="Goods receipt status"
+          activeFilterCount={(supplierFilter ? 1 : 0) + (isDateRangeActive(dateRange) ? 1 : 0)}
+          onClearSecondary={() => {
+            setSupplierFilter("")
+            setDateRange(EMPTY_DATE_RANGE)
+            setPage(1)
+          }}
+          secondaryChips={[
+            ...(supplierFilter
+              ? [
+                  {
+                    id: "supplier",
+                    label: "Supplier",
+                    value:
+                      suppliers.find((s) => s.id === supplierFilter)?.name ??
+                      "Selected Supplier",
+                    onRemove: () => {
+                      setSupplierFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+            ...(isDateRangeActive(dateRange)
+              ? [
+                  {
+                    id: "date",
+                    label: "Date",
+                    value: dateRangeLabel(dateRange),
+                    onRemove: () => {
+                      setDateRange(EMPTY_DATE_RANGE)
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          resultsCount={visibleReceipts.length}
+          resultsLabel="receipts"
+        >
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              Supplier
+            </label>
+            <SearchableSelect
+              value={supplierFilter || null}
+              onChange={(v) => {
+                setSupplierFilter(v)
+                setPage(1)
+              }}
+              options={supplierOptions}
+              allowClear
+              placeholder="All Suppliers"
+              searchPlaceholder="Search suppliers..."
+              emptyMessage="No suppliers found"
+              noResultsMessage="No suppliers matching your search"
+            />
           </div>
-        </div>
+          <DateRangeFilter value={dateRange} onChange={(v) => { setDateRange(v); setPage(1) }} label="Received Date" />
+        </ListPageFilter>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
@@ -180,13 +274,13 @@ export default function GoodsReceiptsPage() {
               <div className="text-center">
                 <p className="font-semibold text-[#333333]">No goods receipts found</p>
                 <p className="text-sm text-[#666666] mt-1">
-                  {(search || statusFilter)
+                  {(search || statusFilter || supplierFilter || isDateRangeActive(dateRange))
                     ? "No goods receipts match your filters."
                     : "Goods receipts will appear here once they are created."}
                 </p>
               </div>
-              {(search || statusFilter) ? (
-                <button onClick={() => { setSearch(""); setStatusFilter(""); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
+              {(search || statusFilter || supplierFilter || isDateRangeActive(dateRange)) ? (
+                <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setDateRange(EMPTY_DATE_RANGE); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
               ) : (
                 <Button onClick={() => navigate("/purchasing/deliveries/new")}>+ Register Receipt</Button>
               )}
@@ -211,6 +305,7 @@ export default function GoodsReceiptsPage() {
                       visibleReceipts.map((r, i) => {
                         const itemCount = r._count?.items ?? r.items?.length ?? 0
                         const confirmed = !!r.confirmedBy || !!r.confirmedById || !!r.confirmedAt
+                        const canConfirm = !confirmed && (r.status === "MATCHED" || r.status === "RESOLVED")
                         return (
                           <tr key={r.id} className={`hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`}>
                             <td className="px-4 py-3">
@@ -224,8 +319,19 @@ export default function GoodsReceiptsPage() {
                                 {r.status}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-[#666666]">
-                              {itemCount} item{itemCount !== 1 ? "s" : ""}
+                            <td className="px-4 py-3">
+                              {r.itemPreview ? (
+                                <div className="min-w-[160px]">
+                                  <ItemPreview preview={r.itemPreview} />
+                                  <div className="text-xs text-[#999999] mt-0.5">
+                                    {itemCount} item{itemCount !== 1 ? "s" : ""}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[#666666]">
+                                  {itemCount} item{itemCount !== 1 ? "s" : ""}
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-[#666666]">{r.createdBy?.name ?? "—"}</td>
                             <td className="px-4 py-3 text-[#666666]">
@@ -238,6 +344,15 @@ export default function GoodsReceiptsPage() {
                                 <button onClick={() => navigate(`/purchasing/deliveries/${r.id}/reconcile`)} className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap">
                                   View
                                 </button>
+                                {canConfirm && (
+                                  <button
+                                    onClick={() => setConfirmTarget(r)}
+                                    disabled={confirming}
+                                    className="text-xs font-semibold text-[#5C7A55] hover:underline whitespace-nowrap disabled:opacity-60"
+                                  >
+                                    Confirm
+                                  </button>
+                                )}
                                 {!confirmed && (
                                   <button onClick={() => setDeleteTarget(r)} className="text-xs text-red-500 hover:underline whitespace-nowrap">
                                     Delete
@@ -276,6 +391,20 @@ export default function GoodsReceiptsPage() {
           <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
           <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
             {deleting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Confirm receipt modal */}
+      <Modal open={!!confirmTarget} title="Confirm Goods Receipt?" onClose={() => setConfirmTarget(null)} size="sm">
+        <p className="text-sm text-[#666666]">
+          Confirm {confirmTarget?.receiptNumber}? This finalises the receipt and locks it against further edits.
+        </p>
+        <p className="mt-2 text-xs text-[#999]">Stock is already updated when the receipt was registered; confirming records the sign-off.</p>
+        <div className="flex gap-3 justify-end mt-6">
+          <Button variant="secondary" onClick={() => setConfirmTarget(null)}>Cancel</Button>
+          <button onClick={handleConfirm} disabled={confirming} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-[#B6C8AF] hover:bg-[#A5B89E] text-[#333333]`}>
+            {confirming ? "Confirming..." : "Confirm Receipt"}
           </button>
         </div>
       </Modal>

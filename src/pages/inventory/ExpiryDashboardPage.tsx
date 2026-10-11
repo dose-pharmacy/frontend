@@ -13,6 +13,7 @@ import Input from "../../components/ui/Input";
 import FormError from "../../components/ui/FormError";
 import ExpiryActionHistory from "../../components/ui/ExpiryActionHistory";
 import { IconWarningTriangle } from "../../components/ui/icons";
+import ProductCell from "../../components/ui/ProductCell";
 
 interface Thresholds { t30: number; t60: number; t90: number; }
 type ExpiryAction = "return" | "clearance" | "dispose";
@@ -283,7 +284,9 @@ function ExpirySection({ title, batches, urgency, onAction }: {
                   const key = `${b.id}-${i}`;
                   return (
                     <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"}>
-                      <td className="px-4 py-3 text-[#333333]">{b.product.name}</td>
+                      <td className="px-4 py-3">
+                        <ProductCell name={b.product.name} brand={b.product.brand} />
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
                       <td className="px-4 py-3 font-semibold">{b.stock.quantity}</td>
                       <td className="px-4 py-3">

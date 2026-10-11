@@ -22,6 +22,10 @@ import PageHeader from "../../components/ui/PageHeader"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
 import PricingStatusBadge from "../../components/ui/PricingStatusBadge"
 import ProductFormModal from "../../components/ui/ProductFormModal"
+import ListPageFilter, {
+  type FilterTab,
+  type SecondaryFilterChip,
+} from "../../components/ui/ListPageFilter"
 
 const PAGE_SIZE = 20
 
@@ -180,57 +184,101 @@ export default function ProductsPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <SearchInput
-                value={search}
-                onChange={handleSearch}
-                placeholder="Search by name, SKU, generic name, brand..."
-              />
-            </div>
-            <Select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value)
+        <ListPageFilter
+          search={search}
+          onSearchChange={handleSearch}
+          searchPlaceholder="Search by name, SKU, generic name, brand..."
+          tabs={[
+            { key: "", label: "All Products" },
+            { key: "IN_STOCK", label: "In Stock" },
+            { key: "LOW_STOCK", label: "Low Stock" },
+            { key: "OUT_OF_STOCK", label: "Out of Stock" },
+          ]}
+          activeTab={statusFilter}
+          onTabChange={(tabKey) => {
+            setStatusFilter(tabKey)
+            setPage(1)
+          }}
+          tabsAriaLabel="Product stock status"
+          activeFilterCount={(groupFilter ? 1 : 0) + (pricingStatusFilter ? 1 : 0)}
+          onClearSecondary={() => {
+            setGroupFilter("")
+            setPricingStatusFilter("")
+            setPage(1)
+          }}
+          secondaryChips={[
+            ...(groupFilter
+              ? [
+                  {
+                    id: "group",
+                    label: "Group",
+                    value: selectedFilterGroup?.label ?? "Selected Group",
+                    onRemove: () => {
+                      setGroupFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+            ...(pricingStatusFilter
+              ? [
+                  {
+                    id: "pricing",
+                    label: "Pricing",
+                    value:
+                      {
+                        OK: "OK",
+                        BELOW_TARGET: "Below Target",
+                        BELOW_COST: "Below Cost",
+                        NO_MARGIN_CONFIG: "No Margin Config",
+                        NO_PURCHASE_COST: "No Purchase Cost",
+                      }[pricingStatusFilter] ?? pricingStatusFilter,
+                    onRemove: () => {
+                      setPricingStatusFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          resultsCount={meta?.total ?? products.length}
+          resultsLabel="products"
+        >
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              Product Group
+            </label>
+            <SearchableSelect
+              value={groupFilter || null}
+              onChange={(v) => {
+                setGroupFilter(v)
                 setPage(1)
               }}
-              className="sm:w-44"
-            >
-              <option value="">All Statuses</option>
-              <option value="IN_STOCK">In Stock</option>
-              <option value="LOW_STOCK">Low Stock</option>
-              <option value="OUT_OF_STOCK">Out of Stock</option>
-            </Select>
-            <div className="sm:w-48">
-              <SearchableSelect
-                value={groupFilter || null}
-                onChange={(v) => {
-                  setGroupFilter(v)
-                  setPage(1)
-                }}
-                options={groupFilterOptions}
-                onSearch={groupFilterSearch.setTerm}
-                loading={groupFilterSearch.loading}
-                error={groupFilterSearch.error}
-                onRetry={groupFilterSearch.retry}
-                allowClear
-                placeholder="All Groups"
-                searchPlaceholder="Search groups..."
-                emptyMessage="No groups found"
-                noResultsMessage="No groups matching your search"
-              />
-            </div>
+              options={groupFilterOptions}
+              onSearch={groupFilterSearch.setTerm}
+              loading={groupFilterSearch.loading}
+              error={groupFilterSearch.error}
+              onRetry={groupFilterSearch.retry}
+              allowClear
+              placeholder="All Groups"
+              searchPlaceholder="Search groups..."
+              emptyMessage="No groups found"
+              noResultsMessage="No groups matching your search"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              Pricing Status
+            </label>
             <Select
               value={pricingStatusFilter}
               onChange={(e) => {
                 setPricingStatusFilter(e.target.value)
                 setPage(1)
               }}
-              className="sm:w-48"
               aria-label="Pricing Status"
             >
-              <option value="">All</option>
+              <option value="">All Pricing</option>
               <option value="OK">OK</option>
               <option value="BELOW_TARGET">Below Target</option>
               <option value="BELOW_COST">Below Cost</option>
@@ -238,7 +286,7 @@ export default function ProductsPage() {
               <option value="NO_PURCHASE_COST">No Purchase Cost</option>
             </Select>
           </div>
-        </div>
+        </ListPageFilter>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">

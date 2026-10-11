@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
+import ListPageFilter from "../../components/ui/ListPageFilter"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import {
@@ -21,6 +22,14 @@ import Pagination from "../../components/ui/Pagination"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import { IconPencil } from "../../components/ui/icons"
 import { TableSkeleton } from "../../components/ui/Skeleton"
+import DateRangeFilter, {
+  EMPTY_DATE_RANGE,
+  dateRangeLabel,
+  dateRangeQuery,
+  isDateRangeActive,
+  type DateRangeValue,
+} from "../../components/ui/DateRangeFilter"
+import ItemPreview from "../../components/ui/ItemPreview"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +66,8 @@ export interface PurchaseOrder {
   notes: string
   /** Payment phase derived per-order by the backend's `paymentSummary`. */
   paymentStatus: POPaymentStatus
+  /** Compact medicine preview supplied by the backend list response. */
+  itemPreview?: { first: string; additionalCount: number } | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -90,9 +101,9 @@ export function toUiPO(dto: PurchaseOrderDto): PurchaseOrder {
     itemsCount: dto._count?.items ?? items.length,
     items,
     paymentStatus: dto.paymentSummary?.status ?? "NOT_INVOICED",
+    itemPreview: dto.itemPreview ?? null,
   }
 }
-
 const STATUS_CFG: Record<POStatus, { label: string; cls: string }> = {
   AWAITING_DELIVERY:{ label: "Awaiting Delivery", cls: "bg-yellow-100 text-yellow-700" },
   PARTIALLY_RECEIVED:{ label: "Partially Received", cls: "bg-orange-100 text-orange-700" },
@@ -187,6 +198,7 @@ export default function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("")
   const [paymentFilter, setPaymentFilter] = useState("")
   const [search, setSearch] = useState("")
+  const [dateRange, setDateRange] = useState<DateRangeValue>(EMPTY_DATE_RANGE)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
@@ -221,6 +233,7 @@ export default function PurchaseOrdersPage() {
     if (suppFilter) params.supplierId = suppFilter
     if (statusFilter) params.status = statusFilter
     if (paymentFilter) params.paymentStatus = paymentFilter
+    Object.assign(params, dateRangeQuery(dateRange))
     listPurchaseOrders(params)
       .then((res) => {
         if (!active) return
@@ -234,7 +247,7 @@ export default function PurchaseOrdersPage() {
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [reloadTick, page, search, suppFilter, statusFilter, paymentFilter])
+  }, [reloadTick, page, search, suppFilter, statusFilter, paymentFilter, dateRange])
 
   function refresh() { setReloadTick((t) => t + 1) }
 
@@ -282,49 +295,129 @@ export default function PurchaseOrdersPage() {
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col lg:flex-row gap-3 items-center">
-            <div className="flex-1">
-              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search purchase orders..." />
-            </div>
-            <div className="lg:w-44">
-              <SearchableSelect
-                value={suppFilter || null}
-                onChange={(v) => { setSuppFilter(v); setPage(1) }}
-                options={supplierFilterOptions}
-                onSearch={supplierSearch.setTerm}
-                loading={supplierSearch.loading}
-                error={supplierSearch.error}
-                onRetry={supplierSearch.retry}
-                allowClear
-                placeholder="All Suppliers"
-                searchPlaceholder="Search by name, contact or email..."
-                emptyMessage="No suppliers available"
-                noResultsMessage="No suppliers matching your search"
-              />
-            </div>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
-              <option value="">All Statuses</option>
-              <option value="AWAITING_DELIVERY">Awaiting Delivery</option>
-              <option value="PARTIALLY_RECEIVED">Partially Received</option>
-              <option value="RECEIVED">Received</option>
-              <option value="CLOSED">Closed</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-            <select value={paymentFilter} onChange={(e) => { setPaymentFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
+        <ListPageFilter
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          searchPlaceholder="Search purchase orders..."
+          tabs={[
+            { key: "", label: "All Orders" },
+            { key: "AWAITING_DELIVERY", label: "Awaiting Delivery" },
+            { key: "PARTIALLY_RECEIVED", label: "Partially Received" },
+            { key: "RECEIVED", label: "Received" },
+            { key: "CLOSED", label: "Closed" },
+            { key: "CANCELLED", label: "Cancelled" },
+          ]}
+          activeTab={statusFilter}
+          onTabChange={(tabKey) => {
+            setStatusFilter(tabKey)
+            setPage(1)
+          }}
+          tabsAriaLabel="Purchase order status"
+          activeFilterCount={(suppFilter ? 1 : 0) + (paymentFilter ? 1 : 0) + (isDateRangeActive(dateRange) ? 1 : 0)}
+          onClearSecondary={() => {
+            setSuppFilter("")
+            setPaymentFilter("")
+            setDateRange(EMPTY_DATE_RANGE)
+            setPage(1)
+          }}
+          secondaryChips={[
+            ...(suppFilter
+              ? [
+                  {
+                    id: "supplier",
+                    label: "Supplier",
+                    value:
+                      supplierFilterOptions.find((o) => o.value === suppFilter)?.label ??
+                      "Selected Supplier",
+                    onRemove: () => {
+                      setSuppFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+            ...(paymentFilter
+              ? [
+                  {
+                    id: "payment",
+                    label: "Payment",
+                    value:
+                      {
+                        NOT_INVOICED: "Not Invoiced",
+                        UNPAID: "Unpaid",
+                        PARTIALLY_PAID: "Partially Paid",
+                        PAID: "Paid",
+                      }[paymentFilter] ?? paymentFilter,
+                    onRemove: () => {
+                      setPaymentFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+            ...(isDateRangeActive(dateRange)
+              ? [
+                  {
+                    id: "date",
+                    label: "Date",
+                    value: dateRangeLabel(dateRange),
+                    onRemove: () => {
+                      setDateRange(EMPTY_DATE_RANGE)
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          resultsCount={totalCount}
+          resultsLabel="purchase orders"
+        >
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              Supplier
+            </label>
+            <SearchableSelect
+              value={suppFilter || null}
+              onChange={(v) => {
+                setSuppFilter(v)
+                setPage(1)
+              }}
+              options={supplierFilterOptions}
+              onSearch={supplierSearch.setTerm}
+              loading={supplierSearch.loading}
+              error={supplierSearch.error}
+              onRetry={supplierSearch.retry}
+              allowClear
+              placeholder="All Suppliers"
+              searchPlaceholder="Search by name, contact or email..."
+              emptyMessage="No suppliers available"
+              noResultsMessage="No suppliers matching your search"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              Payment Status
+            </label>
+            <select
+              value={paymentFilter}
+              onChange={(e) => {
+                setPaymentFilter(e.target.value)
+                setPage(1)
+              }}
+              className="w-full rounded-lg border border-[#C6D4BF] bg-white px-3.5 py-2.5 text-sm text-[#333333] focus:border-[#B6C8AF] focus:outline-none"
+            >
               <option value="">All Payment Statuses</option>
               <option value="NOT_INVOICED">Not Invoiced</option>
               <option value="UNPAID">Unpaid</option>
               <option value="PARTIALLY_PAID">Partially Paid</option>
               <option value="PAID">Paid</option>
             </select>
-            {(search || suppFilter || statusFilter || paymentFilter) && (
-              <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-xs font-semibold text-[#7A9076] hover:underline">
-                Clear Filters
-              </button>
-            )}
           </div>
-        </div>
+          <DateRangeFilter value={dateRange} onChange={(v) => { setDateRange(v); setPage(1) }} label="Order Date" />
+        </ListPageFilter>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
@@ -353,7 +446,7 @@ export default function PurchaseOrdersPage() {
                 </p>
               </div>
               {(search || suppFilter || statusFilter || paymentFilter) ? (
-                <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
+                <button onClick={() => { setSearch(""); setSuppFilter(""); setStatusFilter(""); setPaymentFilter(""); setDateRange(EMPTY_DATE_RANGE); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
               ) : (
                 <Button onClick={() => navigate("/purchasing/orders/new")}>+ Create Purchase Order</Button>
               )}
@@ -378,7 +471,18 @@ export default function PurchaseOrdersPage() {
                         <td className="px-4 py-3 text-[#333333]">{po.supplierName}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.orderDate)}</td>
                         <td className="px-4 py-3 text-[#666666] whitespace-nowrap">{fmtDate(po.expectedDeliveryDate)}</td>
-                        <td className="px-4 py-3 text-[#666666]">{po.itemsCount} item{po.itemsCount !== 1 ? "s" : ""}</td>
+                        <td className="px-4 py-3">
+                          {po.itemPreview ? (
+                            <div className="min-w-[160px]">
+                              <ItemPreview preview={po.itemPreview} />
+                              <div className="text-xs text-[#999999] mt-0.5">
+                                {po.itemsCount} item{po.itemsCount !== 1 ? "s" : ""}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[#666666]">{po.itemsCount} item{po.itemsCount !== 1 ? "s" : ""}</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
                         <td className="px-4 py-3"><PaymentBadge status={po.paymentStatus} /></td>
                         <td className="px-4 py-3">

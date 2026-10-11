@@ -104,6 +104,7 @@ export interface ProductOption {
   id: string;
   name: string;
   baseUnit: string;
+  brand: string;
 }
 
 /**
@@ -181,6 +182,7 @@ export async function fetchProductOptions(): Promise<ProductOption[]> {
     id: p.id,
     name: p.name,
     baseUnit: p.baseUnit?.name ?? "",
+    brand: p.brand ?? "",
   }));
 }
 

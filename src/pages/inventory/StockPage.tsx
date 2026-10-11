@@ -22,6 +22,7 @@ import { toBaseQuantity } from "../../features/inventory/unitOptions"
 import { formatFactor } from "../../features/inventory/unitOptions"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
+import ListPageFilter from "../../components/ui/ListPageFilter"
 import PageStepper from "../../components/ui/PageStepper"
 import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
@@ -66,6 +67,7 @@ interface StockRow {
   availableQuantity: number
   productName: string
   productSku: string
+  productBrand: string
   batchNumber: string
   expiryDate: string
   locationName: string
@@ -75,7 +77,7 @@ interface StockRow {
 type DerivedStatus = "available" | "depleted"
 
 function adaptStockRow(dto: StockRowDto): StockRow {
-  const product = (dto.product ?? {}) as { name?: string; sku?: string }
+  const product = (dto.product ?? {}) as { name?: string; sku?: string; brand?: string }
   const batch = (dto.batch ?? {}) as {
     batchNumber?: string
     expiryDate?: string
@@ -92,6 +94,7 @@ function adaptStockRow(dto: StockRowDto): StockRow {
     availableQuantity: dto.availableQuantity ?? dto.quantity ?? 0,
     productName: product.name ?? dto.productId,
     productSku: product.sku ?? "",
+    productBrand: product.brand ?? "",
     batchNumber: batch.batchNumber ?? "—",
     expiryDate: batch.expiryDate ?? "",
     locationName: location.name ?? "—",
@@ -238,47 +241,77 @@ export default function StockPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <div className="flex-1">
-              <SearchInput
-                value={search}
-                onChange={(v) => {
-                  setSearch(v)
-                  setPage(1)
-                }}
-                placeholder="Search product, SKU or batch..."
-              />
-            </div>
-            <div className="sm:w-48">
-              <SearchableSelect
-                value={locationFilter || null}
-                onChange={(v) => {
-                  setLocationFilter(v)
-                  setPage(1)
-                }}
-                options={locationFilterOptions}
-                onSearch={locationsSearch.setTerm}
-                loading={locationsSearch.loading}
-                error={locationsSearch.error}
-                onRetry={locationsSearch.retry}
-                allowClear
-                placeholder="All Locations"
-                searchPlaceholder="Search locations..."
-                emptyMessage="No locations available"
-                noResultsMessage="No locations matching your search"
-              />
-            </div>
-            {(search || locationFilter || productIdQuery) && (
-              <button
-                onClick={reset}
-                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
-              >
-                Reset Filters
-              </button>
-            )}
+        {/* Filters */}
+        <ListPageFilter
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          searchPlaceholder="Search product, SKU or batch..."
+          activeFilterCount={locationFilter ? 1 : 0}
+          onClearSecondary={() => {
+            setLocationFilter("")
+            setPage(1)
+          }}
+          secondaryChips={
+            locationFilter
+              ? [
+                  {
+                    id: "location",
+                    label: "Location",
+                    value:
+                      locationFilterOptions.find((o) => o.value === locationFilter)
+                        ?.label ?? "Selected Location",
+                    onRemove: () => {
+                      setLocationFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []
+          }
+          resultsCount={total}
+          resultsLabel="stock records"
+          extraToolbarActions={
+            productIdQuery ? (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#E6ECE2] px-2.5 py-1 text-xs text-[#333333] border border-[#C6D4BF]">
+                <span>Product filter active</span>
+                <button
+                  type="button"
+                  onClick={() => setParams({})}
+                  className="text-[#666666] hover:text-red-600 font-bold"
+                  title="Clear product filter"
+                >
+                  ×
+                </button>
+              </span>
+            ) : null
+          }
+        >
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              Location
+            </label>
+            <SearchableSelect
+              value={locationFilter || null}
+              onChange={(v) => {
+                setLocationFilter(v)
+                setPage(1)
+              }}
+              options={locationFilterOptions}
+              onSearch={locationsSearch.setTerm}
+              loading={locationsSearch.loading}
+              error={locationsSearch.error}
+              onRetry={locationsSearch.retry}
+              allowClear
+              placeholder="All Locations"
+              searchPlaceholder="Search locations..."
+              emptyMessage="No locations available"
+              noResultsMessage="No locations matching your search"
+            />
           </div>
-        </div>
+        </ListPageFilter>
 
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
           {stockError ? (
@@ -348,9 +381,19 @@ export default function StockPage() {
                             <p className="font-medium text-[#333333]">
                               {r.productName}
                             </p>
-                            {r.productSku && (
-                              <p className="text-xs text-[#999] font-mono">
-                                {r.productSku}
+                            {(r.productSku || r.productBrand) && (
+                              <p className="text-xs text-[#999]">
+                                {r.productBrand && (
+                                  <span className="font-medium text-[#7A9076]">
+                                    {r.productBrand}
+                                  </span>
+                                )}
+                                {r.productBrand && r.productSku && (
+                                  <span className="mx-1">·</span>
+                                )}
+                                {r.productSku && (
+                                  <span className="font-mono">{r.productSku}</span>
+                                )}
                               </p>
                             )}
                           </td>
@@ -512,6 +555,7 @@ function BatchDetailView({
       <Section title="Product">
         <Row label="Name" value={row.productName} />
         <Row label="SKU" value={row.productSku || "—"} mono />
+        <Row label="Brand" value={row.productBrand || "—"} />
         <Row label="Base Unit" value={row.unitName || "—"} />
       </Section>
 

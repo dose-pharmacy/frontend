@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
+import ListPageFilter from "../../components/ui/ListPageFilter"
 import Modal from "../../components/ui/Modal"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
@@ -30,6 +31,7 @@ import { toBaseQuantity } from "../../features/inventory/unitOptions"
 import SearchableSelect from "../../components/ui/SearchableSelect"
 import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import { useSearchableResource } from "../../hooks/useSearchableResource"
+import ItemPreview from "../../components/ui/ItemPreview"
 import DatePicker from "../../components/ui/DatePicker"
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -46,6 +48,7 @@ function fmtDate(d: string) {
 function StatusBadge({ status }: { status: TransferStatusDto }) {
   const map: Record<TransferStatusDto, string> = {
     DRAFT: "bg-yellow-100 text-yellow-700",
+    PENDING: "bg-blue-100 text-blue-700",
     COMPLETED: "bg-green-100 text-green-700",
     CANCELLED: "bg-red-100 text-red-700",
   }
@@ -68,6 +71,24 @@ function nameOf(ref: unknown, fallback: string): string {
 
 function itemName(item: TransferItemFullDto): string {
   return nameOf(item.product, item.productId)
+}
+
+/**
+ * Compact medicine preview for a transfer row, computed client-side from the
+ * embedded `items[]` (the transfers list already returns them): first distinct
+ * product name plus how many additional distinct products the transfer holds.
+ */
+function transferPreview(
+  items: TransferItemFullDto[] | undefined,
+): { first: string; additionalCount: number } | null {
+  if (!items || items.length === 0) return null
+  const names: string[] = []
+  for (const it of items) {
+    const name = itemName(it)
+    if (name && !names.includes(name)) names.push(name)
+  }
+  if (names.length === 0) return null
+  return { first: names[0], additionalCount: names.length - 1 }
 }
 
 function itemBatch(item: TransferItemFullDto): string {
@@ -232,79 +253,111 @@ function TransferListScreen({
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <div className="flex-1">
-              <SearchInput
-                value={search}
-                onChange={(v) => {
-                  setSearch(v)
-                  setPage(1)
-                }}
-                placeholder="Search transfers..."
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value)
+        <ListPageFilter
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          searchPlaceholder="Search transfers by product or location..."
+          tabs={[
+            { key: "", label: "All Transfers" },
+            { key: "DRAFT", label: "Draft" },
+            { key: "COMPLETED", label: "Completed" },
+            { key: "CANCELLED", label: "Cancelled" },
+          ]}
+          activeTab={statusFilter}
+          onTabChange={(tabKey) => {
+            setStatusFilter(tabKey)
+            setPage(1)
+          }}
+          tabsAriaLabel="Transfer status"
+          activeFilterCount={(fromFilter ? 1 : 0) + (toFilter ? 1 : 0)}
+          onClearSecondary={() => {
+            setFromFilter("")
+            setToFilter("")
+            setPage(1)
+          }}
+          secondaryChips={[
+            ...(fromFilter
+              ? [
+                  {
+                    id: "fromLoc",
+                    label: "From",
+                    value:
+                      fromFilterOptions.find((o) => o.value === fromFilter)?.label ??
+                      "Source Location",
+                    onRemove: () => {
+                      setFromFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+            ...(toFilter
+              ? [
+                  {
+                    id: "toLoc",
+                    label: "To",
+                    value:
+                      toFilterOptions.find((o) => o.value === toFilter)?.label ??
+                      "Destination Location",
+                    onRemove: () => {
+                      setToFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          resultsCount={total}
+          resultsLabel="transfers"
+        >
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              From Location (Source)
+            </label>
+            <SearchableSelect
+              value={fromFilter || null}
+              onChange={(v) => {
+                setFromFilter(v)
                 setPage(1)
               }}
-              className="sm:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none"
-            >
-              <option value="">All Statuses</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="COMPLETED">COMPLETED</option>
-              <option value="CANCELLED">CANCELLED</option>
-            </select>
-            <div className="sm:w-44">
-              <SearchableSelect
-                value={fromFilter || null}
-                onChange={(v) => {
-                  setFromFilter(v)
-                  setPage(1)
-                }}
-                options={fromFilterOptions}
-                onSearch={fromSearch.setTerm}
-                loading={fromSearch.loading}
-                error={fromSearch.error}
-                onRetry={fromSearch.retry}
-                allowClear
-                placeholder="From Location"
-                searchPlaceholder="Search locations..."
-                emptyMessage="No locations found"
-                noResultsMessage="No locations matching your search"
-              />
-            </div>
-            <div className="sm:w-44">
-              <SearchableSelect
-                value={toFilter || null}
-                onChange={(v) => {
-                  setToFilter(v)
-                  setPage(1)
-                }}
-                options={toFilterOptions}
-                onSearch={toSearch.setTerm}
-                loading={toSearch.loading}
-                error={toSearch.error}
-                onRetry={toSearch.retry}
-                allowClear
-                placeholder="To Location"
-                searchPlaceholder="Search locations..."
-                emptyMessage="No locations found"
-                noResultsMessage="No locations matching your search"
-              />
-            </div>
-            {(search || statusFilter || fromFilter || toFilter) && (
-              <button
-                onClick={reset}
-                className="text-xs font-semibold text-[#7A9076] hover:underline whitespace-nowrap"
-              >
-                Reset
-              </button>
-            )}
+              options={fromFilterOptions}
+              onSearch={fromSearch.setTerm}
+              loading={fromSearch.loading}
+              error={fromSearch.error}
+              onRetry={fromSearch.retry}
+              allowClear
+              placeholder="All Source Locations"
+              searchPlaceholder="Search locations..."
+              emptyMessage="No locations found"
+              noResultsMessage="No locations matching your search"
+            />
           </div>
-        </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              To Location (Destination)
+            </label>
+            <SearchableSelect
+              value={toFilter || null}
+              onChange={(v) => {
+                setToFilter(v)
+                setPage(1)
+              }}
+              options={toFilterOptions}
+              onSearch={toSearch.setTerm}
+              loading={toSearch.loading}
+              error={toSearch.error}
+              onRetry={toSearch.retry}
+              allowClear
+              placeholder="All Destination Locations"
+              searchPlaceholder="Search locations..."
+              emptyMessage="No locations found"
+              noResultsMessage="No locations matching your search"
+            />
+          </div>
+        </ListPageFilter>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
@@ -361,9 +414,23 @@ function TransferListScreen({
                       <td className="px-4 py-3">
                         <StatusBadge status={t.status} />
                       </td>
-                      <td className="px-4 py-3 text-[#666666]">
-                        {t.items?.length ?? 0} item
-                        {(t.items?.length ?? 0) !== 1 ? "s" : ""}
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const preview = transferPreview(t.items)
+                          const count = t.items?.length ?? 0
+                          return preview ? (
+                            <div className="min-w-[160px]">
+                              <ItemPreview preview={preview} />
+                              <div className="text-xs text-[#999999] mt-0.5">
+                                {count} item{count !== 1 ? "s" : ""}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[#666666]">
+                              {count} item{count !== 1 ? "s" : ""}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs font-semibold text-[#7A9076]">

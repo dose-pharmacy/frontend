@@ -26,6 +26,7 @@ import type { SearchableOption } from "../../components/ui/SearchableSelect"
 import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
 import SearchInput from "../../components/ui/SearchInput"
+import ListPageFilter from "../../components/ui/ListPageFilter"
 import Select from "../../components/ui/Select"
 import EmptyState from "../../components/ui/EmptyState"
 import Modal from "../../components/ui/Modal"
@@ -37,6 +38,7 @@ import { rangeLabel } from "../../utils/format"
 import StatusBadge from "../../components/ui/StatusBadge"
 import NarcoticBadge from "../../components/ui/NarcoticBadge"
 import BatchFormModal from "../../components/ui/BatchFormModal"
+import ProductCell from "../../components/ui/ProductCell"
 
 type Tab = "batches" | "expiring" | "expired"
 type ExpiryAction = "return" | "clearance" | "dispose"
@@ -246,6 +248,10 @@ export default function BatchesExpiryPage() {
   function productUnit(productId: string) {
     const unit = products.find((p) => p.id === productId)?.baseUnit ?? ""
     return unit
+  }
+
+  function productBrand(productId: string) {
+    return products.find((p) => p.id === productId)?.brand ?? ""
   }
 
   // Backend list rows carry no location info, so the location filter narrows
@@ -503,32 +509,76 @@ export default function BatchesExpiryPage() {
         {/* ── ALL BATCHES TAB ── */}
         {tab === "batches" && (
           <>
-            <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <SearchInput
-                    value={batchSearch}
-                    onChange={(v) => { setBatchSearch(v); setBatchPage(1) }}
-                    placeholder="Search batch number or product..."
-                  />
-                </div>
-                <div className="sm:w-44">
-                  <SearchableSelect
-                    value={locationFilter || null}
-                    onChange={(v) => { setLocationFilter(v); setBatchPage(1) }}
-                    options={locationFilterOptions}
-                    onSearch={locationSearch.setTerm}
-                    loading={locationSearch.loading}
-                    error={locationSearch.error}
-                    onRetry={locationSearch.retry}
-                    allowClear
-                    placeholder="All Locations"
-                    searchPlaceholder="Search locations..."
-                    emptyMessage="No locations found"
-                    noResultsMessage="No locations matching your search"
-                  />
-                </div>
-                <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setBatchPage(1) }} className="sm:w-44">
+            <ListPageFilter
+              search={batchSearch}
+              onSearchChange={(v) => { setBatchSearch(v); setBatchPage(1) }}
+              searchPlaceholder="Search batch number or product..."
+              activeFilterCount={(locationFilter ? 1 : 0) + (statusFilter ? 1 : 0)}
+              onClearSecondary={() => {
+                setLocationFilter("")
+                setStatusFilter("")
+                setBatchPage(1)
+              }}
+              secondaryChips={[
+                ...(locationFilter
+                  ? [
+                      {
+                        id: "location",
+                        label: "Location",
+                        value:
+                          locationFilterOptions.find((o) => o.value === locationFilter)
+                            ?.label ?? "Selected Location",
+                        onRemove: () => { setLocationFilter(""); setBatchPage(1) },
+                      },
+                    ]
+                  : []),
+                ...(statusFilter
+                  ? [
+                      {
+                        id: "status",
+                        label: "Status",
+                        value:
+                          {
+                            available: "Available",
+                            low_stock: "Low Stock",
+                            depleted: "Depleted",
+                            expired: "Expired",
+                          }[statusFilter] ?? statusFilter,
+                        onRemove: () => { setStatusFilter(""); setBatchPage(1) },
+                      },
+                    ]
+                  : []),
+              ]}
+              resultsCount={filteredBatches.length}
+              resultsLabel="batches"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+                  Location
+                </label>
+                <SearchableSelect
+                  value={locationFilter || null}
+                  onChange={(v) => { setLocationFilter(v); setBatchPage(1) }}
+                  options={locationFilterOptions}
+                  onSearch={locationSearch.setTerm}
+                  loading={locationSearch.loading}
+                  error={locationSearch.error}
+                  onRetry={locationSearch.retry}
+                  allowClear
+                  placeholder="All Locations"
+                  searchPlaceholder="Search locations..."
+                  emptyMessage="No locations found"
+                  noResultsMessage="No locations matching your search"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+                  Status
+                </label>
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => { setStatusFilter(e.target.value); setBatchPage(1) }}
+                >
                   <option value="">All Statuses</option>
                   <option value="available">Available</option>
                   <option value="low_stock">Low Stock</option>
@@ -536,7 +586,7 @@ export default function BatchesExpiryPage() {
                   <option value="expired">Expired</option>
                 </Select>
               </div>
-            </div>
+            </ListPageFilter>
 
             <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
               {loading ? (
@@ -565,7 +615,12 @@ export default function BatchesExpiryPage() {
                           const isExpiring = days >= 0 && days <= 30
                           return (
                             <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
-                              <td className="px-4 py-3 font-medium text-[#333333]">{productName(b.productId)}</td>
+                              <td className="px-4 py-3">
+                                <ProductCell
+                                  name={productName(b.productId)}
+                                  brand={productBrand(b.productId)}
+                                />
+                              </td>
                               <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
                               <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{formatDate(b.receivedDate)}</td>
                               <td className="px-4 py-3">
@@ -653,7 +708,9 @@ export default function BatchesExpiryPage() {
                     <tbody>
                       {expiryPaginated.map((b, i) => (
                         <tr key={b.id} className={i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/20"}>
-                          <td className="px-4 py-3 font-medium text-[#333333]">{b.product.name}</td>
+                          <td className="px-4 py-3">
+                            <ProductCell name={b.product.name} brand={b.product.brand} />
+                          </td>
                           <td className="px-4 py-3 font-mono text-xs text-[#666666]">{b.batchNumber}</td>
                           <td className="px-4 py-3 text-[#666666] hidden sm:table-cell">{b.stock.location.name}</td>
                           <td className="px-4 py-3 text-[#666666]">{formatDate(b.expiryDate)}</td>
@@ -694,33 +751,52 @@ export default function BatchesExpiryPage() {
         {/* ── EXPIRED TAB ── */}
         {tab === "expired" && (
           <>
-            <div className="bg-white rounded-xl border border-[#DBEFF3] p-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <SearchInput
-                    value={expiredSearch}
-                    onChange={setExpiredSearch}
-                    placeholder="Search expired product, brand or SKU..."
-                  />
-                </div>
-                <div className="sm:w-44">
-                  <SearchableSelect
-                    value={locationFilter || null}
-                    onChange={(v) => { setLocationFilter(v); setExpiredPage(1) }}
-                    options={locationFilterOptions}
-                    onSearch={locationSearch.setTerm}
-                    loading={locationSearch.loading}
-                    error={locationSearch.error}
-                    onRetry={locationSearch.retry}
-                    allowClear
-                    placeholder="All Locations"
-                    searchPlaceholder="Search locations..."
-                    emptyMessage="No locations found"
-                    noResultsMessage="No locations matching your search"
-                  />
-                </div>
+            <ListPageFilter
+              search={expiredSearch}
+              onSearchChange={setExpiredSearch}
+              searchPlaceholder="Search expired product, brand or SKU..."
+              activeFilterCount={locationFilter ? 1 : 0}
+              onClearSecondary={() => {
+                setLocationFilter("")
+                setExpiredPage(1)
+              }}
+              secondaryChips={
+                locationFilter
+                  ? [
+                      {
+                        id: "location",
+                        label: "Location",
+                        value:
+                          locationFilterOptions.find((o) => o.value === locationFilter)
+                            ?.label ?? "Selected Location",
+                        onRemove: () => { setLocationFilter(""); setExpiredPage(1) },
+                      },
+                    ]
+                  : []
+              }
+              resultsCount={expiredTotal}
+              resultsLabel="expired products"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+                  Location
+                </label>
+                <SearchableSelect
+                  value={locationFilter || null}
+                  onChange={(v) => { setLocationFilter(v); setExpiredPage(1) }}
+                  options={locationFilterOptions}
+                  onSearch={locationSearch.setTerm}
+                  loading={locationSearch.loading}
+                  error={locationSearch.error}
+                  onRetry={locationSearch.retry}
+                  allowClear
+                  placeholder="All Locations"
+                  searchPlaceholder="Search locations..."
+                  emptyMessage="No locations found"
+                  noResultsMessage="No locations matching your search"
+                />
               </div>
-            </div>
+            </ListPageFilter>
 
             <div className="bg-white rounded-xl border border-[#DBEFF3] overflow-hidden">
               {expiredProductsLoading ? (

@@ -44,6 +44,8 @@ export interface ReorderSuggestion {
    */
   productId: string;
   name: string;
+  /** Optional brand, shown as a muted sub-line under the product name. */
+  brand?: string | null;
   /** Real backend suggestion. Display-only: the pharmacist types the requirement
    *  quantity, so this is shown beside the product as context and is never the
    *  field's starting value and never sent. */
@@ -408,6 +410,11 @@ export default function GenerateRequirementsModal({
                               </td>
                               <td className="px-4 py-2.5">
                                 <div className="text-[#333333]">{suggestion.name}</div>
+                                {suggestion.brand && (
+                                  <div className="text-[11px] text-[#999999]">
+                                    {suggestion.brand}
+                                  </div>
+                                )}
                                 {/* The reorder suggestion is shown as read-only
                                     context only — it is never the starting value
                                     of the field and never sent. */}

@@ -2,12 +2,21 @@ import { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router"
 import PageHeader from "../../components/ui/PageHeader"
 import SearchInput from "../../components/ui/SearchInput"
+import ListPageFilter from "../../components/ui/ListPageFilter"
+import SearchableSelect from "../../components/ui/SearchableSelect"
 import Button from "../../components/ui/Button"
 import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import { listSupplierInvoices, deleteSupplierInvoice, recordInvoicePayment, invoiceOutstanding, type SupplierInvoiceDto, type SupplierInvoiceStatus, SupplierInvoicesApiError } from "../../features/purchasing/supplierInvoicesApi"
 import { listSuppliers, type SupplierDto } from "../../features/purchasing/suppliersApi"
 import { TableSkeleton } from "../../components/ui/Skeleton"
+import DateRangeFilter, {
+  EMPTY_DATE_RANGE,
+  dateRangeLabel,
+  dateRangeQuery,
+  isDateRangeActive,
+  type DateRangeValue,
+} from "../../components/ui/DateRangeFilter"
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—"
@@ -52,6 +61,7 @@ export default function SupplierInvoicesPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<SupplierInvoiceStatus | "">("")
   const [supplierFilter, setSupplierFilter] = useState<string>("")
+  const [dateRange, setDateRange] = useState<DateRangeValue>(EMPTY_DATE_RANGE)
   const [toast, setToast] = useState("")
 
   const PAGE_SIZE = 20
@@ -66,6 +76,7 @@ export default function SupplierInvoicesPage() {
         search: search || undefined,
         status: statusFilter || undefined,
         supplierId: supplierFilter || undefined,
+        ...dateRangeQuery(dateRange),
       })
       setInvoices(res.data)
       setTotalPages(res.meta.totalPages)
@@ -75,7 +86,7 @@ export default function SupplierInvoicesPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, statusFilter, supplierFilter])
+  }, [page, search, statusFilter, supplierFilter, dateRange])
 
   useEffect(() => {
     loadInvoices()
@@ -157,26 +168,84 @@ export default function SupplierInvoicesPage() {
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-[#E6ECE2] p-4">
-          <div className="flex flex-col lg:flex-row gap-3 items-center">
-            <div className="flex-1">
-              <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1) }} placeholder="Search invoices..." />
-            </div>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as SupplierInvoiceStatus | ""); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
-              <option value="">All Statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="PARTIALLY_PAID">Partially Paid</option>
-              <option value="PAID">Paid</option>
-            </select>
-            <select value={supplierFilter} onChange={(e) => { setSupplierFilter(e.target.value); setPage(1) }} className="lg:w-44 rounded-xl border border-[#C6D4BF] px-3.5 py-2.5 text-sm focus:border-[#B6C8AF] focus:outline-none">
-              <option value="">All Suppliers</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            {(search || statusFilter || supplierFilter) && (
-              <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setPage(1) }} className="text-xs font-semibold text-[#7A9076] hover:underline">Reset</button>
-            )}
+        <ListPageFilter
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v)
+            setPage(1)
+          }}
+          searchPlaceholder="Search invoices..."
+          tabs={[
+            { key: "", label: "All Invoices" },
+            { key: "OPEN", label: "Open" },
+            { key: "PARTIALLY_PAID", label: "Partially Paid" },
+            { key: "PAID", label: "Paid" },
+          ]}
+          activeTab={statusFilter}
+          onTabChange={(tabKey) => {
+            setStatusFilter(tabKey as SupplierInvoiceStatus | "")
+            setPage(1)
+          }}
+          tabsAriaLabel="Supplier invoice status"
+          activeFilterCount={(supplierFilter ? 1 : 0) + (isDateRangeActive(dateRange) ? 1 : 0)}
+          onClearSecondary={() => {
+            setSupplierFilter("")
+            setDateRange(EMPTY_DATE_RANGE)
+            setPage(1)
+          }}
+          secondaryChips={[
+            ...(supplierFilter
+              ? [
+                  {
+                    id: "supplier",
+                    label: "Supplier",
+                    value:
+                      suppliers.find((s) => s.id === supplierFilter)?.name ??
+                      "Selected Supplier",
+                    onRemove: () => {
+                      setSupplierFilter("")
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+            ...(isDateRangeActive(dateRange)
+              ? [
+                  {
+                    id: "date",
+                    label: "Date",
+                    value: dateRangeLabel(dateRange),
+                    onRemove: () => {
+                      setDateRange(EMPTY_DATE_RANGE)
+                      setPage(1)
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          resultsCount={totalCount}
+          resultsLabel="invoices"
+        >
+          <div>
+            <label className="block text-xs font-semibold text-[#666666] mb-1.5 truncate">
+              Supplier
+            </label>
+            <SearchableSelect
+              value={supplierFilter || null}
+              onChange={(v) => {
+                setSupplierFilter(v)
+                setPage(1)
+              }}
+              options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+              allowClear
+              placeholder="All Suppliers"
+              searchPlaceholder="Search suppliers..."
+              emptyMessage="No suppliers found"
+              noResultsMessage="No suppliers matching your search"
+            />
           </div>
-        </div>
+          <DateRangeFilter value={dateRange} onChange={(v) => { setDateRange(v); setPage(1) }} label="Invoice Date" />
+        </ListPageFilter>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-[#E6ECE2] overflow-hidden flex-shrink-0">
@@ -199,13 +268,13 @@ export default function SupplierInvoicesPage() {
               <div className="text-center">
                 <p className="font-semibold text-[#333333]">No supplier invoices found</p>
                 <p className="text-sm text-[#666666] mt-1">
-                  {(search || statusFilter || supplierFilter)
+                  {(search || statusFilter || supplierFilter || isDateRangeActive(dateRange))
                     ? "No invoices match your filters."
                     : "Invoices will appear here once they are created."}
                 </p>
               </div>
-              {(search || statusFilter || supplierFilter) ? (
-                <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
+              {(search || statusFilter || supplierFilter || isDateRangeActive(dateRange)) ? (
+                <button onClick={() => { setSearch(""); setStatusFilter(""); setSupplierFilter(""); setDateRange(EMPTY_DATE_RANGE); setPage(1) }} className="text-sm font-semibold text-[#7A9076] hover:underline">Clear Filters</button>
               ) : (
                 <Button onClick={() => navigate("/purchasing/invoices/new")}>+ Create Invoice</Button>
               )}

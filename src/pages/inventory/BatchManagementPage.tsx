@@ -8,6 +8,7 @@ import {
 
 import PageHeader from "../../components/ui/PageHeader";
 import SearchInput from "../../components/ui/SearchInput";
+import ListPageFilter from "../../components/ui/ListPageFilter";
 import Select from "../../components/ui/Select";
 import StatusBadge from "../../components/ui/StatusBadge";
 import MetricCard from "../../components/ui/MetricCard";
@@ -142,27 +143,23 @@ export default function BatchManagementPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-3 rounded-xl border border-[#E6ECE2] bg-white p-4 sm:flex-row">
-          <div className="flex-1">
-            <SearchInput
-              value={search}
-              onChange={handleSearch}
-              placeholder="Search batch number..."
-            />
-          </div>
-
-          <Select
-            value={statusFilter}
-            onChange={(e) => handleStatusChange(e.target.value)}
-            className="sm:w-56"
-          >
-            <option value="">All Statuses</option>
-            <option value="AVAILABLE">Available</option>
-            <option value="LOW_STOCK">Low Stock</option>
-            <option value="DEPLETED">Depleted</option>
-            <option value="EXPIRED">Expired</option>
-          </Select>
-        </div>
+        <ListPageFilter
+          search={search}
+          onSearchChange={handleSearch}
+          searchPlaceholder="Search batch number..."
+          tabs={[
+            { key: "", label: "All Batches" },
+            { key: "AVAILABLE", label: "Available" },
+            { key: "LOW_STOCK", label: "Low Stock" },
+            { key: "DEPLETED", label: "Depleted" },
+            { key: "EXPIRED", label: "Expired" },
+          ]}
+          activeTab={statusFilter}
+          onTabChange={(tabKey) => handleStatusChange(tabKey)}
+          tabsAriaLabel="Batch status tabs"
+          resultsCount={totalBatches}
+          resultsLabel="batches"
+        />
 
         {/* Table */}
         <div className="overflow-hidden rounded-xl border border-[#E6ECE2] bg-white">

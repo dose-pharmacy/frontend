@@ -13,6 +13,7 @@ import PageHeader from "../../components/ui/PageHeader"
 import Button from "../../components/ui/Button"
 import FormError from "../../components/ui/FormError"
 import Pagination from "../../components/ui/Pagination"
+import ProductCell from "../../components/ui/ProductCell"
 import GenerateRequirementsModal from "./ReorderReq"
 
 const PAGE_SIZE = 10
@@ -86,6 +87,7 @@ export default function ReorderManagementPage() {
   const modalSuggestions = suggestions.map((s) => ({
     productId: s.product.id,
     name: s.product.name,
+    brand: s.product.brand,
     baseUnit: s.product.baseUnit ?? null,
     suggestedQuantity: s.suggestedQuantity,
     status: "Draft",
@@ -268,8 +270,11 @@ export default function ReorderManagementPage() {
                               i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/30"
                             }
                           >
-                            <td className="px-4 py-3 font-medium text-[#333333]">
-                              {r.product.name}
+                            <td className="px-4 py-3">
+                              <ProductCell
+                                name={r.product.name}
+                                brand={r.product.brand}
+                              />
                             </td>
                             <td
                               className={`px-4 py-3 font-bold ${
