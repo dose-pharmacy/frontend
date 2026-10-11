@@ -84,7 +84,11 @@ export interface GoodsReceiptDto {
    * how many additional distinct products the receipt contains. `null` when the
    * receipt has no resolvable product names.
    */
-  itemPreview?: { first: string; additionalCount: number } | null
+  itemPreview?: {
+    first: string
+    additionalCount: number
+    products: { name: string; brand: string | null }[]
+  } | null
   /** Confirmation flag — null / absent until the receipt is confirmed. */
   confirmedBy?: { id: string; name: string } | null
   /** Backward-compatible alias used by detail/reconcile pages. */

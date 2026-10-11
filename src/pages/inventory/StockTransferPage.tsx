@@ -73,22 +73,44 @@ function itemName(item: TransferItemFullDto): string {
   return nameOf(item.product, item.productId)
 }
 
+function itemBrand(item: TransferItemFullDto): string | null {
+  const ref = item.product
+  if (ref && typeof ref === "object" && "brand" in ref) {
+    const b = (ref as { brand?: unknown }).brand
+    if (typeof b === "string" && b) return b
+  }
+  return null
+}
+
 /**
  * Compact medicine preview for a transfer row, computed client-side from the
  * embedded `items[]` (the transfers list already returns them): first distinct
- * product name plus how many additional distinct products the transfer holds.
+ * product name plus how many additional distinct products the transfer holds,
+ * and the full ordered list so the `+N more` popup can show every product with
+ * its brand.
  */
 function transferPreview(
   items: TransferItemFullDto[] | undefined,
-): { first: string; additionalCount: number } | null {
+): {
+  first: string
+  additionalCount: number
+  products: { name: string; brand: string | null }[]
+} | null {
   if (!items || items.length === 0) return null
-  const names: string[] = []
+  const seen = new Set<string>()
+  const products: { name: string; brand: string | null }[] = []
   for (const it of items) {
     const name = itemName(it)
-    if (name && !names.includes(name)) names.push(name)
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    products.push({ name, brand: itemBrand(it) })
   }
-  if (names.length === 0) return null
-  return { first: names[0], additionalCount: names.length - 1 }
+  if (products.length === 0) return null
+  return {
+    first: products[0].name,
+    additionalCount: products.length - 1,
+    products,
+  }
 }
 
 function itemBatch(item: TransferItemFullDto): string {
@@ -420,7 +442,7 @@ function TransferListScreen({
                           const count = t.items?.length ?? 0
                           return preview ? (
                             <div className="min-w-[160px]">
-                              <ItemPreview preview={preview} />
+                              <ItemPreview preview={preview} title="Transfer products" />
                               <div className="text-xs text-[#999999] mt-0.5">
                                 {count} item{count !== 1 ? "s" : ""}
                               </div>

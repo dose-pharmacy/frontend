@@ -130,7 +130,11 @@ export interface PurchaseOrderDto {
    * how many additional distinct products the order contains. `null` when the
    * order has no resolvable product names.
    */
-  itemPreview?: { first: string; additionalCount: number } | null;
+  itemPreview?: {
+    first: string
+    additionalCount: number
+    products: { name: string; brand: string | null }[]
+  } | null;
   items?: POItemDto[];
   /** Present on every list row and detail response. */
   paymentSummary?: POPaymentSummaryDto;

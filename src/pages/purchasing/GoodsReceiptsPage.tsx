@@ -322,7 +322,7 @@ export default function GoodsReceiptsPage() {
                             <td className="px-4 py-3">
                               {r.itemPreview ? (
                                 <div className="min-w-[160px]">
-                                  <ItemPreview preview={r.itemPreview} />
+                                  <ItemPreview preview={r.itemPreview} title="Received products" />
                                   <div className="text-xs text-[#999999] mt-0.5">
                                     {itemCount} item{itemCount !== 1 ? "s" : ""}
                                   </div>

@@ -67,7 +67,11 @@ export interface PurchaseOrder {
   /** Payment phase derived per-order by the backend's `paymentSummary`. */
   paymentStatus: POPaymentStatus
   /** Compact medicine preview supplied by the backend list response. */
-  itemPreview?: { first: string; additionalCount: number } | null
+  itemPreview?: {
+    first: string
+    additionalCount: number
+    products?: { name: string; brand: string | null }[]
+  } | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -474,7 +478,7 @@ export default function PurchaseOrdersPage() {
                         <td className="px-4 py-3">
                           {po.itemPreview ? (
                             <div className="min-w-[160px]">
-                              <ItemPreview preview={po.itemPreview} />
+                              <ItemPreview preview={po.itemPreview} title="Order products" />
                               <div className="text-xs text-[#999999] mt-0.5">
                                 {po.itemsCount} item{po.itemsCount !== 1 ? "s" : ""}
                               </div>
