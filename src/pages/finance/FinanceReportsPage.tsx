@@ -38,16 +38,12 @@ import {
   SegmentedControl,
   StatCardSkeleton,
 } from "./components/primitives";
-import { GRID } from "./components/tokens";
 import {
   ReportCollectionsPanel,
   ReportInventoryPanel,
   ReportKpiStrip,
-  ReportProfitabilityPanel,
   ReportPurchasingPanel,
   ReportSalesPanel,
-  ReportScopePanel,
-  ReportTrendsPanel,
 } from "./FinanceReportSections";
 import {
   DEFAULT_REPORT_FILTERS,
@@ -61,6 +57,15 @@ import { useFinanceFetch } from "./financeView";
 import FinanceSectionHeading from "./FinanceSectionHeading";
 
 const GRANULARITY_SEGMENTS = GRANULARITY_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+
+/** The four report tabs. Only the active one renders; the others are pure markup. */
+type ReportTab = "sales" | "purchasing" | "collections" | "inventory";
+const REPORT_TABS: { id: ReportTab; label: string }[] = [
+  { id: "sales", label: "Sales" },
+  { id: "purchasing", label: "Purchasing" },
+  { id: "collections", label: "Collections" },
+  { id: "inventory", label: "Inventory" },
+];
 
 /** Keeps a selected option visible even if it falls outside the latest results. */
 function withSelected(options: SearchableOption[], value: string): SearchableOption[] {
@@ -78,6 +83,8 @@ export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number 
   // Set by a rejected Apply. Cleared as soon as the draft changes again, so the
   // message always describes the fields currently on screen.
   const [validationError, setValidationError] = useState<string | null>(null);
+  // Which report tab is open. Local state only — switching tabs never refetches.
+  const [activeTab, setActiveTab] = useState<ReportTab>("sales");
 
   // Options come from the app's own APIs — ids are never invented, and both are
   // server-searched because either list can run to hundreds of rows.
@@ -138,13 +145,13 @@ export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number 
       <FinanceSectionHeading
         id="finance-reports-heading"
         title="Reports"
-        subtitle="Filter the period, then analyze sales, purchasing, profitability, collections and inventory value."
+        subtitle="Filter the period, then analyze sales, purchasing, collections and inventory value."
       />
 
       {/* ── Filter bar: one compact sticky row ── */}
       <div className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur-sm shadow-xs">
         <div className="flex flex-wrap items-end gap-3 px-4 py-3 sm:px-6">
-          <div className="flex flex-col gap-1.5 w-[150px]">
+          <div className="flex flex-col gap-1.5 flex-1 basis-[150px] min-w-[145px]">
             <span className="text-sm font-medium text-text-primary">From</span>
             {/* aria-label (not htmlFor): the trigger shows the picked date, never
                 the word "From", and exposes no id to point a label at. */}
@@ -156,12 +163,12 @@ export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number 
             />
           </div>
 
-          <div className="flex flex-col gap-1.5 w-[150px]">
+          <div className="flex flex-col gap-1.5 flex-1 basis-[150px] min-w-[145px]">
             <span className="text-sm font-medium text-text-primary">To</span>
             <DatePicker value={draft.to} ariaLabel="To date" onChange={(v) => edit({ to: v })} placeholder="To date" />
           </div>
 
-          <div className="w-[190px]">
+          <div className="flex-1 basis-[190px] min-w-[180px]">
             <SearchableSelect
               label="Location"
               value={draft.locationId || null}
@@ -180,7 +187,7 @@ export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number 
             />
           </div>
 
-          <div className="w-[190px]">
+          <div className="flex-1 basis-[190px] min-w-[180px]">
             {/* Server-side type-ahead: the product-group list runs to hundreds of
                 entries, so listing them all in a native select is unusable. */}
             <SearchableSelect
@@ -201,7 +208,7 @@ export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number 
           </div>
 
           <SegmentedControl
-            label="Granularity"
+            label="Group by"
             value={draft.granularity}
             options={GRANULARITY_SEGMENTS}
             onChange={(v) => edit({ granularity: v as FinanceGranularity })}
@@ -239,7 +246,7 @@ export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number 
               {applied.to && <FilterChip label={`To ${applied.to}`} />}
               {selectedLocation && <FilterChip label={`Location: ${selectedLocation.label}`} />}
               {selectedGroup && <FilterChip label={`Group: ${selectedGroup.label}`} />}
-              <FilterChip label={`Granularity: ${GRANULARITY_SEGMENTS.find((g) => g.value === applied.granularity)?.label ?? applied.granularity}`} />
+              <FilterChip label={`Group by: ${GRANULARITY_SEGMENTS.find((g) => g.value === applied.granularity)?.label ?? applied.granularity}`} />
             </>
           ) : (
             <span className="text-[11px] text-text-muted">
@@ -274,17 +281,53 @@ export function FinanceReportsSection({ reloadTick = 0 }: { reloadTick?: number 
         ) : (
           <>
             <ReportKpiStrip data={data} />
-            <ReportTrendsPanel data={data} />
-            <ReportSalesPanel data={data} />
-            <ReportProfitabilityPanel data={data} />
-            <ReportPurchasingPanel data={data} />
-            <ReportCollectionsPanel data={data} />
-            <ReportInventoryPanel data={data} />
-            <ReportScopePanel data={data} />
+            <ReportTabs active={activeTab} onChange={setActiveTab} />
+            <div
+              role="tabpanel"
+              aria-label={`${REPORT_TABS.find((t) => t.id === activeTab)?.label ?? "Report"} report`}
+            >
+              {activeTab === "sales" && <ReportSalesPanel data={data} />}
+              {activeTab === "purchasing" && <ReportPurchasingPanel data={data} />}
+              {activeTab === "collections" && <ReportCollectionsPanel data={data} />}
+              {activeTab === "inventory" && <ReportInventoryPanel data={data} />}
+            </div>
           </>
         )}
       </div>
     </section>
+  );
+}
+
+/** The one tab that is on screen is the only one that renders. */
+function ReportTabs({
+  active,
+  onChange,
+}: {
+  active: ReportTab;
+  onChange: (tab: ReportTab) => void;
+}) {
+  return (
+    <div role="tablist" aria-label="Report sections" className="flex flex-wrap gap-1 border-b border-gray-200">
+      {REPORT_TABS.map((t) => {
+        const selected = t.id === active;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(t.id)}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-mid ${
+              selected
+                ? "border-accent text-accent"
+                : "border-transparent text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -309,23 +352,17 @@ function FilterHelp() {
   );
 }
 
-/** Loading state shaped like the finished page — cards and chart blocks, not a spinner. */
+/** Loading state shaped like the finished page — summary tiles, a tab bar and one panel block, not a spinner. */
 function ReportsSkeleton() {
   return (
     <div className="flex flex-col gap-5">
-      <div className={GRID}>
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="lg:col-span-2">
-            <StatCardSkeleton />
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <StatCardSkeleton key={i} />
         ))}
       </div>
-      <SectionSkeleton chart />
-      <SectionSkeleton rows={5} />
-      <SectionSkeleton rows={3} />
+      <div className="h-11 w-full rounded-lg bg-gray-100 animate-pulse" aria-hidden />
       <SectionSkeleton rows={4} />
-      <SectionSkeleton rows={2} />
-      <SectionSkeleton chart />
       <p className="sr-only" role="status">
         Loading finance report
       </p>

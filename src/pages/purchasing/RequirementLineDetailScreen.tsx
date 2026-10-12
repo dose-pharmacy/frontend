@@ -144,6 +144,7 @@ export default function RequirementLineDetailScreen({
     unitCost: number,
     expectedDeliveryDate: string,
     notes: string,
+    unitName: string,
   ) {
     if (!line) return
     const params = new URLSearchParams()
@@ -156,7 +157,7 @@ export default function RequirementLineDetailScreen({
     params.set("requirementReference", line.requirementReference)
     params.set("productName", line.productName)
     params.set("productSku", line.productSku)
-    if (line.unitName) params.set("unitName", line.unitName)
+    if (unitName) params.set("unitName", unitName)
     navigate(`/purchasing/orders/new?${params.toString()}`)
   }
 
@@ -606,8 +607,10 @@ export default function RequirementLineDetailScreen({
           orderPreview
             ? {
                 id: orderPreview.line.id,
+                productId: orderPreview.line.productId,
                 productName: orderPreview.line.productName,
                 productSku: orderPreview.line.productSku,
+                unitId: orderPreview.line.unitId,
                 unitName: orderPreview.line.unitName,
                 remainingToOrder: orderPreview.line.remainingToOrder,
               }
@@ -615,9 +618,9 @@ export default function RequirementLineDetailScreen({
         }
         preview={orderPreview?.preview ?? null}
         onClose={() => setOrderPreview(null)}
-        onCreatePO={(quantity, unitCost, expectedDeliveryDate, notes) => {
+        onCreatePO={(quantity, unitCost, expectedDeliveryDate, notes, unitName) => {
           setOrderPreview(null)
-          navigateToCreatePO(quantity, unitCost, expectedDeliveryDate, notes)
+          navigateToCreatePO(quantity, unitCost, expectedDeliveryDate, notes, unitName)
         }}
       />
     </div>

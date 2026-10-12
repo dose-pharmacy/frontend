@@ -87,6 +87,12 @@ import GenerateRequirementsModal, {
 
 import { quantityWithUnit, rangeLabel } from "../../utils/format"
 
+import {
+  unitLabel,
+  findUnitForLine,
+  resolveUnitChoice,
+} from "../../features/inventory/unitOptions"
+
 // ─── Shared constants ────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20
@@ -727,52 +733,6 @@ interface OrderDraftLine {
   unitCost: string
   /** Explicitly chosen order unit; null = follow the requirement line's unit. */
   unitId: string | null
-}
-
-function unitLabel(u: ProductUnitDto | null): string {
-  if (!u) return ""
-  return u.unit.symbol ? `${u.unit.name} (${u.unit.symbol})` : u.unit.name
-}
-
-/** Find the line's unit in the product's unit configuration (by id, then name). */
-function findUnitForLine(
-  list: ProductUnitDto[] | undefined,
-  line: OrderableLine,
-): ProductUnitDto | undefined {
-  if (!list || list.length === 0) return undefined
-  if (line.unitId) {
-    const byId = list.find((u) => u.unitId === line.unitId)
-    if (byId) return byId
-  }
-  if (line.unitName) {
-    const byName = list.find(
-      (u) => u.unit.name.toLowerCase() === line.unitName.toLowerCase(),
-    )
-    if (byName) return byName
-  }
-  return undefined
-}
-
-/**
- * Resolve the unit a draft row works in: an explicitly chosen unit wins,
- * otherwise the requirement line's unit, otherwise the product's base unit.
- * `factor` converts one selected unit into base units (base factor = 1).
- */
-function resolveUnitChoice(
-  list: ProductUnitDto[] | undefined,
-  draft: OrderDraftLine,
-): {
-  selected: ProductUnitDto | null
-  base: ProductUnitDto | null
-  factor: number
-} {
-  const units = list ?? []
-  const base = units.find((u) => u.isBaseUnit) ?? units[0] ?? null
-  const explicit = draft.unitId
-    ? units.find((u) => u.unitId === draft.unitId)
-    : undefined
-  const selected = explicit ?? findUnitForLine(units, draft.line) ?? base
-  return { selected, base, factor: selected?.conversionFactor ?? 1 }
 }
 
 function RequirementOrderModal({

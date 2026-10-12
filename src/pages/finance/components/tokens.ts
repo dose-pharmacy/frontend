@@ -14,14 +14,14 @@
 // theme a one-file change rather than an audit of both pages.
 
 /** Semantic tone. Meaning is identical on both pages. */
-export type Tone = "neutral" | "positive" | "negative" | "warning";
+export type Tone = "neutral" | "positive" | "negative" | "warning" | "info";
 
 /**
  * Finance colour semantics, per the module's rules:
  *   green  = money in / profit
  *   red    = returns / discounts / negative
  *   amber  = outstanding / expiring
- *   blue   = volume (units, quantities)
+ *   blue   = volume (units, quantities) and money in flight (collections)
  *   grey   = counts
  */
 export const TONE_TEXT: Record<Tone, string> = {
@@ -29,6 +29,7 @@ export const TONE_TEXT: Record<Tone, string> = {
   positive: "text-green-700",
   negative: "text-red-700",
   warning: "text-yellow-700",
+  info: "text-blue-700",
 };
 
 export const TONE_SURFACE: Record<Tone, string> = {
@@ -36,6 +37,7 @@ export const TONE_SURFACE: Record<Tone, string> = {
   positive: "bg-green-50",
   negative: "bg-red-50",
   warning: "bg-yellow-50",
+  info: "bg-blue-50",
 };
 
 export const TONE_BORDER: Record<Tone, string> = {
@@ -43,6 +45,7 @@ export const TONE_BORDER: Record<Tone, string> = {
   positive: "border-green-200",
   negative: "border-red-200",
   warning: "border-yellow-200",
+  info: "border-blue-200",
 };
 
 /**
@@ -58,6 +61,22 @@ export const TONE_BAR: Record<Tone, string> = {
   positive: "bg-green-600",
   negative: "bg-red-600",
   warning: "bg-yellow-600",
+  info: "bg-blue-500",
+};
+
+/**
+ * Solid accent fill for KPI tiles — the left edge strip and the icon chip.
+ *
+ * Kept separate from `TONE_BAR` because a tile needs a GREY accent for a neutral
+ * (count) metric, whereas a neutral progress bar deliberately fills with the
+ * brand accent.
+ */
+export const TONE_ACCENT: Record<Tone, string> = {
+  neutral: "bg-gray-400",
+  positive: "bg-green-500",
+  negative: "bg-red-500",
+  warning: "bg-yellow-500",
+  info: "bg-blue-500",
 };
 
 /** Chart series fills. Fixed order so a colour means the same measure everywhere. */

@@ -32,14 +32,13 @@ import {
 } from "recharts";
 import type { FinanceReport, PaymentMethodTotal } from "../../features/finance/financeReportingApi";
 import { fmtCompact, fmtMoneyNumber, ratioPercent } from "../../utils/format";
-import { SalesWaterfallBar } from "./components/OverviewBars";
 import {
+  BreakdownList,
   ChartFrame,
   CountValue,
   EmptyState,
   LegendSwatch,
   MoneyValue,
-  PercentValue,
   ProgressBar,
   ScopeBadge,
   SectionCard,
@@ -143,10 +142,16 @@ const AXIS = { stroke: "#B0B0A8", fontSize: 11 } as const;
 
 // ─── 1 · KPI strip ───────────────────────────────────────────────────────────
 
-/** The six headline figures, all read from `summary` and the purchasing section. */
+/**
+ * The five headline figures, one per report area — one tile each for Sales,
+ * Purchasing, Collections and Inventory, plus Gross Profit as the shared
+ * profitability headline. All read from `summary`, `purchasing` and
+ * `inventoryValue`; none is derived.
+ */
 export function ReportKpiStrip({ data }: { data: FinanceReport }) {
   const s = data.summary;
   const p = data.purchasing;
+  const inv = data.inventoryValue;
   const cards: { label: string; node: React.ReactNode; tone?: "positive" | "negative" | "warning"; hint?: string }[] = [
     {
       label: "Net Sales After Returns",
@@ -154,26 +159,19 @@ export function ReportKpiStrip({ data }: { data: FinanceReport }) {
       tone: "positive",
     },
     { label: "Gross Profit", node: <MoneyValue value={s?.grossProfit} tone="positive" />, tone: "positive" },
-    { label: "Gross Margin", node: <PercentValue value={s?.grossMargin} tone="positive" />, tone: "positive" },
     { label: "Net Purchases", node: <MoneyValue value={p?.netPurchases} /> },
     { label: "Customer Collections", node: <MoneyValue value={s?.customerCollections} tone="positive" />, tone: "positive" },
-    {
-      label: "Supplier Outstanding",
-      node: <MoneyValue value={p?.supplierOutstanding} tone="warning" />,
-      tone: "warning",
-    },
+    { label: "Inventory Value", node: <MoneyValue value={inv?.totalValue} /> },
   ];
 
-  // Six cards × `lg:col-span-2` fills exactly one 12-col row on desktop, two
-  // rows on tablet and one column on mobile — so there is never an orphan cell.
+  // Five tiles: a single row on desktop, three wide on tablet, two up on
+  // phones. An odd count deliberately avoids a centred orphan cell.
   return (
-    <div className={GRID}>
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
       {cards.map((c) => (
-        <div key={c.label} className="lg:col-span-2">
-          <StatCard label={c.label} tone={c.tone} hint={c.hint} className="h-full">
-            {c.node}
-          </StatCard>
-        </div>
+        <StatCard key={c.label} label={c.label} tone={c.tone} hint={c.hint} className="h-full">
+          {c.node}
+        </StatCard>
       ))}
     </div>
   );
@@ -515,14 +513,18 @@ export function ReportSalesPanel({ data }: { data: FinanceReport }) {
         </StatCard>
       </div>
 
-      {/* Funnel */}
+      {/* Gross to net */}
       <div className="flex flex-col gap-3 rounded-xl border border-gray-200/70 bg-canvas/40 p-4 sm:p-5">
         <p className={TEXT.cardLabel}>Gross to net</p>
-        <SalesWaterfallBar
-          grossSales={sp?.grossSales}
-          discounts={sp?.discounts}
-          customerReturns={sp?.customerReturns}
-          netSalesAfterReturns={sp?.netSalesAfterReturns}
+        <BreakdownList
+          rows={[
+            { label: "Gross sales", value: sp?.grossSales, color: SERIES.grossSales },
+            { label: "Less discounts", value: sp?.discounts, color: SERIES.discounts, tone: "negative" },
+            { label: "Less returns", value: sp?.customerReturns, color: SERIES.customerReturns, tone: "negative" },
+          ]}
+          totalLabel="Net sales"
+          totalValue={sp?.netSalesAfterReturns}
+          totalTone="positive"
         />
       </div>
 

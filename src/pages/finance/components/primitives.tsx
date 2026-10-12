@@ -20,6 +20,7 @@ import { ResponsiveContainer } from "recharts";
 import { fmtMoneyNumber } from "../../../utils/format";
 import {
   CARD,
+  TONE_ACCENT,
   TONE_BAR,
   TONE_BORDER,
   TONE_SURFACE,
@@ -44,12 +45,15 @@ export function MoneyValue({
   tone = "neutral",
   size = "md",
   currency = "ETB",
+  muted = false,
 }: {
   value: number | null | undefined;
   tone?: Tone;
   /** `md` for cards, `lg` for hero figures, `sm` for dense inline rows. */
   size?: "sm" | "md" | "lg";
   currency?: string | null;
+  /** Desaturate the figure to grey — used to grey out a real zero. */
+  muted?: boolean;
 }) {
   const text = fmtMoneyNumber(value);
   const valueSize =
@@ -61,7 +65,7 @@ export function MoneyValue({
   }
 
   return (
-    <span className={`inline-flex items-baseline gap-1 whitespace-nowrap ${TONE_TEXT[tone]}`}>
+    <span className={`inline-flex items-baseline gap-1 whitespace-nowrap ${muted ? "text-text-muted" : TONE_TEXT[tone]}`}>
       <span className={valueSize}>{text}</span>
       {currency && <span className={`${suffixSize} font-medium text-text-muted`}>{currency}</span>}
     </span>
@@ -91,17 +95,24 @@ export function CountValue({
   value,
   tone = "neutral",
   size = "md",
+  muted = false,
 }: {
   value: number | null | undefined;
   tone?: Tone;
   size?: "sm" | "md" | "lg";
+  /** Desaturate the figure to grey — used to grey out a real zero. */
+  muted?: boolean;
 }) {
   const valueSize =
     size === "lg" ? TEXT.heroValue : size === "sm" ? "text-base font-semibold tabular-nums" : TEXT.cardValue;
   if (value == null || !Number.isFinite(value)) {
     return <span className={`${valueSize} text-text-muted`}>{EM_DASH}</span>;
   }
-  return <span className={`${valueSize} ${TONE_TEXT[tone]}`}>{value.toLocaleString("en-ET")}</span>;
+  return (
+    <span className={`${valueSize} ${muted ? "text-text-muted" : TONE_TEXT[tone]}`}>
+      {value.toLocaleString("en-ET")}
+    </span>
+  );
 }
 
 // ─── Cards ───────────────────────────────────────────────────────────────────
@@ -117,6 +128,7 @@ export function StatCard({
   tone = "neutral",
   trend,
   className = "",
+  compact = false,
 }: {
   label: string;
   children: ReactNode;
@@ -125,10 +137,14 @@ export function StatCard({
   /** Optional secondary line, e.g. a share or a comparison. */
   trend?: ReactNode;
   className?: string;
+  /** Shrink padding and height for a denser row. */
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`${CARD} ${TONE_SURFACE[tone]} ${TONE_BORDER[tone]} p-4 sm:p-5 min-h-[115px] sm:min-h-[125px] flex flex-col justify-between gap-1.5 ${className}`}
+      className={`${CARD} ${TONE_SURFACE[tone]} ${TONE_BORDER[tone]} ${
+        compact ? "p-3 sm:p-3.5 min-h-[84px]" : "p-4 sm:p-5 min-h-[115px] sm:min-h-[125px]"
+      } flex flex-col justify-between gap-1.5 ${className}`}
     >
       <div>
         <p className={TEXT.cardLabel}>{label}</p>
@@ -144,6 +160,55 @@ export function StatCard({
   );
 }
 
+/** One row of a `BreakdownList`: a swatch, a label and a value. */
+export interface BreakdownRowSpec {
+  label: string;
+  value?: number | null;
+  /** Solid swatch colour for the row, matching the chart series. */
+  color: string;
+  /** Value colour; defaults to neutral. */
+  tone?: Tone;
+}
+
+/**
+ * A label/value breakdown: a stack of swatch rows closed by a tone-tinted total
+ * band. The total is a real field passed in, never summed here.
+ */
+export function BreakdownList({
+  rows,
+  totalLabel,
+  totalValue,
+  totalTone = "neutral",
+}: {
+  rows: BreakdownRowSpec[];
+  totalLabel: string;
+  totalValue?: number | null;
+  totalTone?: Tone;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {rows.map((r) => (
+        <div
+          key={r.label}
+          className="flex items-center justify-between gap-3 rounded-lg border border-gray-200/70 bg-canvas/50 px-3 py-2.5"
+        >
+          <span className="inline-flex min-w-0 items-center gap-2 text-sm text-text-secondary">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: r.color }} aria-hidden />
+            <span className="truncate">{r.label}</span>
+          </span>
+          <MoneyValue value={r.value} tone={r.tone} size="sm" />
+        </div>
+      ))}
+      <div
+        className={`mt-1 flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${TONE_SURFACE[totalTone]} ${TONE_BORDER[totalTone]}`}
+      >
+        <span className="text-sm font-semibold text-text-primary">{totalLabel}</span>
+        <MoneyValue value={totalValue} tone={totalTone} size="sm" />
+      </div>
+    </div>
+  );
+}
+
 /** The oversized variant used for the 3-4 headline figures. */
 export function KpiHero({
   label,
@@ -151,23 +216,47 @@ export function KpiHero({
   hint,
   tone = "neutral",
   className = "",
+  compact = false,
+  icon,
+  accent = false,
 }: {
   label: string;
   children: ReactNode;
   hint?: ReactNode;
   tone?: Tone;
   className?: string;
+  /** Shrink padding and height for a denser grid (e.g. a two-up tile row). */
+  compact?: boolean;
+  /** Glyph for the tone-coloured chip in the top-right corner. */
+  icon?: ReactNode;
+  /** Draw a tone-coloured strip down the left edge. */
+  accent?: boolean;
 }) {
   return (
     <div
-      className={`${CARD} ${TONE_SURFACE[tone]} ${TONE_BORDER[tone]} p-5 sm:p-6 min-h-[135px] sm:min-h-[145px] flex flex-col justify-between gap-2 ${className}`}
+      className={`relative overflow-hidden ${CARD} ${TONE_SURFACE[tone]} ${TONE_BORDER[tone]} ${
+        compact ? "p-3.5 sm:p-4 min-h-[96px]" : "p-5 sm:p-6 min-h-[135px] sm:min-h-[145px]"
+      } flex flex-col justify-between gap-2 ${className}`}
     >
-      <div>
-        <p className={TEXT.cardLabel}>{label}</p>
+      {accent && (
+        <span className={`absolute inset-y-0 left-0 w-1 ${TONE_ACCENT[tone]}`} aria-hidden />
+      )}
+      <div className={accent ? "pl-1.5" : undefined}>
+        <div className="flex items-start justify-between gap-2">
+          <p className={TEXT.cardLabel}>{label}</p>
+          {icon && (
+            <span
+              className={`-mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-xs ${TONE_ACCENT[tone]}`}
+              aria-hidden
+            >
+              {icon}
+            </span>
+          )}
+        </div>
         <div className="min-w-0 mt-1">{children}</div>
       </div>
       {hint && (
-        <div className="mt-auto pt-1">
+        <div className={`mt-auto pt-1 ${accent ? "pl-1.5" : ""}`}>
           <p className={TEXT.hint}>{hint}</p>
         </div>
       )}

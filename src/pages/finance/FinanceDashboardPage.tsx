@@ -1,13 +1,12 @@
 // ── Finance (Dashboard tab) ──────────────────────────────────────────────────
-// The whole Finance module is ONE page with TWO sections:
+// The whole Finance module is ONE page stacked top-to-bottom as:
 //
-//   #finance-overview  GET /finance-reporting/dashboard  (no parameters)
-//   #finance-reports   GET /finance-reporting/report    (filterable, period-based)
+//   "Today"          GET /finance-reporting/dashboard  (no parameters)
+//   "What you owe and are owed"   (same response — receivables vs payables)
+//   "Reports"        GET /finance-reporting/report    (filterable, period-based)
 //
-// They used to be two routes with an Overview | Reports tab bar, which meant
-// opening Finance always dropped you on Overview and the other half was one click
-// away but never visible. They are now stacked on one page: opening Finance shows
-// both, and the bar underneath the title scrolls between them.
+// The "Today" and "What you owe and are owed" halves are the same dashboard
+// fetch read two ways; "Reports" is the separate filterable endpoint.
 //
 // WHAT DID NOT CHANGE
 //   • Both sections fetch independently, exactly as before — separate endpoints,
@@ -19,16 +18,24 @@
 //   • The Reports filter state (draft vs applied), validation, Reset and sticky
 //     filter bar are untouched.
 //
-// The two ids below are also the URL fragments, so `/dashboard/finance#finance-reports`
-// (and every legacy alias that redirects here) lands on the Reports section.
+// The old in-page "Overview | Reports" nav bar is gone: the sections are short
+// enough that one page reads as one document, and the Reports half still keeps
+// `id="finance-reports"` so `/dashboard/finance#finance-reports` (and every
+// legacy alias that redirects here) lands on it.
+//
+// The header's "Updated <time>" pill is fed UP from the Overview section, which
+// owns the dashboard fetch: the section reports the response's own `asOf` (an
+// instant, so it renders in the reader's local time) as soon as a snapshot
+// arrives. The page never reads the browser clock pretending to be the
+// server's, and no fetch moves house.
 //
 // WHERE THIS SITS IN THE DASHBOARD
 //   This is a sibling route of `/dashboard`, not a section of it. The router
 //   mounts exactly one of them, so Dashboard Overview content is never on screen
 //   alongside Finance, and no Overview component is imported here.
 //
-//   The SHELL is the part that matters visually, and it is byte-for-byte the
-//   shape Overview, Sales, Credit and Narcotics use:
+//   The SHELL is byte-for-byte the shape Overview, Sales, Credit and Narcotics
+//   use:
 //
 //     <div className="flex-1 flex flex-col min-h-0">
 //       <div className="border-b … bg-white"><PageHeader …/></div>
@@ -36,113 +43,37 @@
 //       <div className="flex-1 overflow-y-auto …">…content…</div>
 //     </div>
 //
-//   i.e. the header, its Refresh button and the tab bar sit OUTSIDE the scroll
-//   container and stay pinned while the content scrolls beneath them. Finance
-//   previously put them INSIDE the scroller, which made the whole thing behave
-//   like a detached standalone page — the tabs scrolled away and disappeared.
-//   `FinanceSectionNav` is the one extra bar, and it is pinned too.
+//   i.e. the header and its Refresh button sit OUTSIDE the scroll container and
+//   stay pinned while the content scrolls beneath them.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import PageHeader from "../../components/ui/PageHeader";
 import Button from "../../components/ui/Button";
 import DashboardSubNav from "../dashboard/DashboardSubNav";
-import FinanceSectionNav, { type FinanceSectionLink } from "./FinanceSectionNav";
 import { FinanceOverviewSection } from "./FinanceOverviewPage";
 import { FinanceReportsSection } from "./FinanceReportsPage";
-
-const SECTION_LINKS: FinanceSectionLink[] = [
-  { id: "finance-overview", label: "Overview" },
-  { id: "finance-reports", label: "Reports" },
-];
-
-/**
- * How far down the container a section's top must be before it counts as the
- * current one. Large enough that a short section still becomes active, small
- * enough that the nav does not flip while the heading is still on screen.
- */
-const ACTIVE_THRESHOLD_PX = 120;
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
+import { fmtDateTime } from "../../utils/format";
 
 export default function FinanceDashboardPage() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [activeId, setActiveId] = useState(SECTION_LINKS[0].id);
   /** Bumped by the header Refresh; re-runs both sections' fetches. */
   const [reloadTick, setReloadTick] = useState(0);
+  /** The dashboard snapshot's own `asOf`, reported up by the Overview section. */
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const location = useLocation();
-  const navigate = useNavigate();
 
-  /** Scroll a section to the top of the container (the container, not the window). */
-  const scrollToSection = useCallback((id: string, smooth: boolean) => {
-    const container = containerRef.current;
-    const target = document.getElementById(id);
-    if (!container || !target) return;
-    const top =
-      container.scrollTop +
-      target.getBoundingClientRect().top -
-      container.getBoundingClientRect().top;
-    container.scrollTo({ top: Math.max(0, top), behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto" });
+  const handleSnapshot = useCallback((asOf: string | null) => {
+    setUpdatedAt(asOf);
   }, []);
 
-  // A shared link (`/dashboard/finance#reports`) or a restored history entry
-  // must open on its section, not at the top of the document.
-  const hash = location.hash.replace(/^#/, "");
-  useLayoutEffect(() => {
-    if (!hash) return;
-    scrollToSection(hash, false);
-    setActiveId(hash);
-  }, [hash, scrollToSection]);
-
-  const handleNavigate = useCallback(
-    (id: string) => {
-      scrollToSection(id, true);
-      setActiveId(id);
-      // `replace` so Back returns to wherever the reader came from instead of
-      // walking back through every section they jumped to.
-      navigate(`${location.pathname}#${id}`, { replace: true });
-    },
-    [location.pathname, navigate, scrollToSection],
-  );
-
-  // Track the section under the top of the container. rAF-throttled so a fast
-  // scroll cannot queue a handler per event.
+  // Legacy aliases redirect to `/dashboard/finance#finance-reports`; without the
+  // old section nav there is no click target to scroll for it, so honour a
+  // restored-history entry or a shared link by scrolling the Reports section
+  // into view once.
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      const containerTop = container.getBoundingClientRect().top;
-      let current = SECTION_LINKS[0].id;
-      for (const { id } of SECTION_LINKS) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        if (el.getBoundingClientRect().top - containerTop <= ACTIVE_THRESHOLD_PX) current = id;
-      }
-      setActiveId((prev) => (prev === current ? prev : current));
-    };
-
-    const schedule = () => {
-      if (!frame) frame = window.requestAnimationFrame(update);
-    };
-
-    update();
-    container.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      container.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-    };
-  }, []);
+    if (location.hash !== "#finance-reports") return;
+    document.getElementById("finance-reports")?.scrollIntoView({ block: "start" });
+  }, [location.hash]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -153,17 +84,26 @@ export default function FinanceDashboardPage() {
           title="Finance"
           subtitle="Current position and filtered reports, on one page."
           actions={
-            /* One Refresh for the page, as on every other tab. It re-runs both
-               sections — the snapshot and the report under whatever filters are
-               currently applied — by bumping `reloadTick`, which each section
-               includes in its own fetch dependencies. */
-            <Button
-              variant="secondary"
-              onClick={() => setReloadTick((t) => t + 1)}
-              className="!bg-[#7A9076] !text-white hover:!bg-[#4F6B4A] focus-visible:!ring-[#7A9076]"
-            >
-              Refresh
-            </Button>
+            <>
+              {/* Fed up from the Overview section — the server's `asOf`, never
+                  the browser clock. Hidden until the first snapshot arrives. */}
+              {updatedAt && (
+                <span className="rounded-full border border-gray-200 bg-canvas px-3 py-1.5 text-xs text-text-secondary whitespace-nowrap">
+                  Updated {fmtDateTime(updatedAt)}
+                </span>
+              )}
+              {/* One Refresh for the page, as on every other tab. It re-runs both
+                 sections — the snapshot and the report under whatever filters are
+                 currently applied — by bumping `reloadTick`, which each section
+                 includes in its own fetch dependencies. */}
+              <Button
+                variant="secondary"
+                onClick={() => setReloadTick((t) => t + 1)}
+                className="!bg-[#7A9076] !text-white hover:!bg-[#4F6B4A] focus-visible:!ring-[#7A9076]"
+              >
+                Refresh
+              </Button>
+            </>
           }
         />
       </div>
@@ -176,13 +116,9 @@ export default function FinanceDashboardPage() {
           `/dashboard`. */}
       <DashboardSubNav />
 
-      {/* Finance's own Overview / Reports bar — separate from the Dashboard one
-          above, which moves between modules; this one moves within Finance. */}
-      <FinanceSectionNav links={SECTION_LINKS} activeId={activeId} onNavigate={handleNavigate} />
-
-      {/* Only the content scrolls, so the header and both navs stay put. */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto min-h-0 flex flex-col">
-        <FinanceOverviewSection reloadTick={reloadTick} />
+      {/* Only the content scrolls, so the header and the dashboard bar stay put. */}
+      <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
+        <FinanceOverviewSection reloadTick={reloadTick} onSnapshot={handleSnapshot} />
         <FinanceReportsSection reloadTick={reloadTick} />
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { DayPicker } from "react-day-picker"
 import "react-day-picker/dist/style.css"
 
@@ -59,6 +60,7 @@ export default function DatePicker({
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<Date | undefined>(fromISO(value))
   const wrapRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
   const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(
     null,
   )
@@ -76,20 +78,29 @@ export default function DatePicker({
     setSelected(fromISO(value))
   }, [value])
 
-  // Close on outside click
+  // Close on outside click. The calendar is portaled out of `wrapRef`, so a
+  // click inside it is also "outside" the trigger — both must be cleared before
+  // the popup closes, or picking a day would dismiss the calendar before the
+  // click lands.
   useEffect(() => {
     if (!open) return
     function onDoc(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (!wrapRef.current?.contains(t) && !popupRef.current?.contains(t)) {
+        setOpen(false)
+      }
     }
     document.addEventListener("mousedown", onDoc)
     return () => document.removeEventListener("mousedown", onDoc)
   }, [open])
 
-  // Anchor the calendar to the field with position:fixed so it is never
-  // clipped by an overflow container (e.g. a scrolling modal body). It opens
-  // below the field when there is room, flips above when there isn't, and is
-  // clamped to stay inside the viewport. The calendar itself is unchanged.
+  // Anchor the calendar to the field with position:fixed. The popup is portaled
+  // to document.body (see below), so it is never clipped by an overflow
+  // container and never repositioned by an ancestor that establishes a
+  // containing block (a transformed or backdrop-filtered bar, a scrolling modal
+  // body). It opens below the field when there is room, flips above when there
+  // isn't, and is clamped to stay inside the viewport. The calendar itself is
+  // unchanged.
   useEffect(() => {
     if (!open) {
       setPopupPos(null)
@@ -151,61 +162,66 @@ export default function DatePicker({
         </svg>
       </button>
 
-      {/* Popup calendar — fixed-positioned so it is never clipped by the
-          modal's overflow container; stays anchored to the field. */}
-      {open && popupPos && (
-        <div
-          style={{
-            position: "fixed",
-            top: popupPos.top,
-            left: popupPos.left,
-            zIndex: 50,
-          }}
-          className="rounded-xl border border-[#E6ECE2] bg-white shadow-lg p-3"
-        >
-          <DayPicker
-            mode="single"
-            selected={selected}
-            onSelect={(d) => {
-              setSelected(d)
-              onChange(d ? toISO(d) : "")
-              setOpen(false)
+      {/* Popup calendar — portaled to document.body and fixed-positioned so no
+          ancestor's overflow, transform or backdrop-filter can clip it or move
+          it. Stays anchored to the field via the coordinates computed above. */}
+      {open &&
+        popupPos &&
+        createPortal(
+          <div
+            ref={popupRef}
+            style={{
+              position: "fixed",
+              top: popupPos.top,
+              left: popupPos.left,
+              zIndex: 60,
             }}
-            captionLayout="dropdown"
-            startMonth={new Date(startYear, 0, 1)}
-            endMonth={new Date(endYear, 11, 31)}
-            showOutsideDays
-            classNames={{
-              months: "flex flex-col",
-              month: "space-y-3",
-              month_caption: "flex justify-center pt-1 relative items-center",
-              caption_label:
-                "text-sm font-bold text-[#4A4A4A] inline-flex items-center whitespace-nowrap",
-              nav: "flex items-center gap-1",
-              chevron: "fill-[#7A9076]",
-              button_previous:
-                "h-7 w-7 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors",
-              button_next:
-                "h-7 w-7 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors",
-              month_grid: "w-full border-collapse",
-              weekdays: "flex",
-              weekday:
-                "w-9 h-8 text-[0.7rem] uppercase tracking-wide text-[#8A8A8A] font-semibold flex items-center justify-center",
-              week: "flex w-full mt-1",
-              day: "w-9 h-9 p-0 text-center",
-              day_button:
-                "w-9 h-9 rounded-lg text-sm text-[#4A4A4A] hover:bg-[#E6ECE2] transition-colors inline-flex items-center justify-center",
-              selected:
-                "!bg-[#B6C8AF] !text-[#333333] font-bold rounded-lg hover:!bg-[#A5B89E]",
-              today:
-                "ring-1 ring-[#B6C8AF] ring-inset rounded-lg",
-              outside: "text-[#C8C8C8]",
-              disabled: "text-[#C8C8C8] opacity-50 cursor-not-allowed",
-              hidden: "invisible",
-            }}
-          />
-        </div>
-      )}
+            className="rounded-xl border border-[#E6ECE2] bg-white shadow-lg p-3"
+          >
+            <DayPicker
+              mode="single"
+              selected={selected}
+              onSelect={(d) => {
+                setSelected(d)
+                onChange(d ? toISO(d) : "")
+                setOpen(false)
+              }}
+              captionLayout="dropdown"
+              startMonth={new Date(startYear, 0, 1)}
+              endMonth={new Date(endYear, 11, 31)}
+              showOutsideDays
+              classNames={{
+                months: "flex flex-col",
+                month: "space-y-3",
+                month_caption: "flex justify-center pt-1 relative items-center",
+                caption_label:
+                  "text-sm font-bold text-[#4A4A4A] inline-flex items-center whitespace-nowrap",
+                nav: "flex items-center gap-1",
+                chevron: "fill-[#7A9076]",
+                button_previous:
+                  "h-7 w-7 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors",
+                button_next:
+                  "h-7 w-7 rounded-lg text-[#7A9076] hover:bg-[#E6ECE2] inline-flex items-center justify-center transition-colors",
+                month_grid: "w-full border-collapse",
+                weekdays: "flex",
+                weekday:
+                  "w-9 h-8 text-[0.7rem] uppercase tracking-wide text-[#8A8A8A] font-semibold flex items-center justify-center",
+                week: "flex w-full mt-1",
+                day: "w-9 h-9 p-0 text-center",
+                day_button:
+                  "w-9 h-9 rounded-lg text-sm text-[#4A4A4A] hover:bg-[#E6ECE2] transition-colors inline-flex items-center justify-center",
+                selected:
+                  "!bg-[#B6C8AF] !text-[#333333] font-bold rounded-lg hover:!bg-[#A5B89E]",
+                today:
+                  "ring-1 ring-[#B6C8AF] ring-inset rounded-lg",
+                outside: "text-[#C8C8C8]",
+                disabled: "text-[#C8C8C8] opacity-50 cursor-not-allowed",
+                hidden: "invisible",
+              }}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

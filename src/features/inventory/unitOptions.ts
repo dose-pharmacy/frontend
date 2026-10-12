@@ -68,3 +68,59 @@ export function findProductUnit(
   if (!product || !unitId) return undefined;
   return product.units.find((u) => u.unitId === unitId);
 }
+
+/** Display label for a product unit row: "name (symbol)" or just "name". */
+export function unitLabel(u: ProductUnitDto | null): string {
+  if (!u) return "";
+  return u.unit.symbol ? `${u.unit.name} (${u.unit.symbol})` : u.unit.name;
+}
+
+/**
+ * Find the requirement line's unit in the product's unit configuration
+ * (by id first, then by name). Falls back to the base unit when unmatched.
+ */
+export function findUnitForLine(
+  list: ProductUnitDto[] | undefined,
+  line: { unitId?: string | null; unitName?: string },
+): ProductUnitDto | undefined {
+  if (!list || list.length === 0) return undefined;
+  if (line.unitId) {
+    const byId = list.find((u) => u.unitId === line.unitId);
+    if (byId) return byId;
+  }
+  if (line.unitName) {
+    const lineUnitName = line.unitName.toLowerCase();
+    const byName = list.find(
+      (u) => u.unit.name.toLowerCase() === lineUnitName,
+    );
+    if (byName) return byName;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the unit a line works in: an explicitly chosen unit wins, otherwise
+ * the requirement line's unit, otherwise the product's base unit. `factor`
+ * converts one selected unit into base units (base factor = 1).
+ * Shared by the Requirements → Order modal and the Order Remaining modal so
+ * both always apply the same unit selection and conversion rules.
+ */
+export function resolveUnitChoice(
+  list: ProductUnitDto[] | undefined,
+  draft: {
+    unitId: string | null;
+    line: { unitId?: string | null; unitName?: string };
+  },
+): {
+  selected: ProductUnitDto | null;
+  base: ProductUnitDto | null;
+  factor: number;
+} {
+  const units = list ?? [];
+  const base = units.find((u) => u.isBaseUnit) ?? units[0] ?? null;
+  const explicit = draft.unitId
+    ? units.find((u) => u.unitId === draft.unitId)
+    : undefined;
+  const selected = explicit ?? findUnitForLine(units, draft.line) ?? base;
+  return { selected, base, factor: selected?.conversionFactor ?? 1 };
+}

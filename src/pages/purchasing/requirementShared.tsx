@@ -22,7 +22,15 @@ import { useProductUnits } from "../../features/inventory/useProductUnits"
 import {
   toBaseQuantity,
   formatFactor,
+  unitLabel,
+  findUnitForLine,
+  resolveUnitChoice,
+  baseQuantityLabel,
 } from "../../features/inventory/unitOptions"
+import {
+  getProductUnits,
+  type ProductUnitDto,
+} from "../../features/inventory/productsApi"
 import type { CreateRequirementLineInput } from "../../features/purchasing/requirementsApi"
 
 // ─── Form atoms ──────────────────────────────────────────────────────────────
@@ -662,8 +670,10 @@ export function EditLineModal({
 
 export interface OrderPreviewLine {
   id: string
+  productId: string
   productName: string
   productSku: string
+  unitId: string | null
   unitName: string
   /** Used only to block ordering when there is nothing left to order. */
   remainingToOrder: number
@@ -674,6 +684,13 @@ export interface OrderPreviewLine {
  * authoritative order-preview numbers (required/ordered/remaining), collects a
  * quantity + unit cost, then hands off to the existing Create Purchase Order
  * page through `onCreatePO`.
+ *
+ * Unit selection + conversion mirrors the Requirements → Order modal exactly
+ * (same `getProductUnits`, same `resolveUnitChoice`/`findUnitForLine` rules,
+ * same unit-change quantity re-conversion): the entered quantity is converted
+ * to the product's base unit and that base quantity + the base unit name are
+ * handed to the order page. When the unit configuration cannot be loaded or
+ * the product has none, the quantity is sent as entered (factor 1).
  */
 export function OrderPreviewModal({
   open,
@@ -691,6 +708,7 @@ export function OrderPreviewModal({
     unitCost: number,
     expectedDeliveryDate: string,
     notes: string,
+    unitName: string,
   ) => void
 }) {
   const [quantity, setQuantity] = useState("")
@@ -700,6 +718,13 @@ export function OrderPreviewModal({
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  // Unit selection + conversion — same as the Requirements → Order modal.
+  // Explicitly chosen order unit; null = follow the requirement line's unit.
+  const [unitId, setUnitId] = useState<string | null>(null)
+  const [units, setUnits] = useState<ProductUnitDto[]>([])
+  const [unitsLoading, setUnitsLoading] = useState(false)
+  const [unitsError, setUnitsError] = useState("")
+
   useEffect(() => {
     if (open && preview) {
       setQuantity(preview.suggestedOrderQuantity.toString())
@@ -707,41 +732,118 @@ export function OrderPreviewModal({
       setExpectedDeliveryDate("")
       setNotes("")
       setError("")
+      setUnitId(null)
     }
   }, [open, preview])
 
+  // Load the product's unit configuration (base unit + conversion factors) so
+  // the entered quantity can be converted to base units before creating the PO.
+  useEffect(() => {
+    if (!open || !line || !line.productId) return
+    let cancelled = false
+    setUnits([])
+    setUnitsError("")
+    setUnitsLoading(true)
+    getProductUnits(line.productId)
+      .then((list) => {
+        if (!cancelled) setUnits(list)
+      })
+      .catch(() => {
+        if (!cancelled)
+          setUnitsError(
+            "Unit conversion info could not be loaded — the quantity will be sent as entered.",
+          )
+      })
+      .finally(() => {
+        if (!cancelled) setUnitsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, line])
+
+  if (!open || !line || !preview) return null
+
+  const { selected: selUnit, base } = resolveUnitChoice(units, {
+    unitId,
+    line: { unitId: line.unitId, unitName: line.unitName },
+  })
+  const hasUnits = units.length > 0
+  const factor = selUnit?.conversionFactor ?? 1
+  const qty = parseFloat(quantity)
+  const baseQty = Number.isFinite(qty) ? qty * factor : null
+
+  /**
+   * Switch the ordering unit. The entered quantity is re-expressed so the
+   * base quantity stays the same: baseQty = currentQty × currentFactor,
+   * then new qty in the new unit = baseQty / newFactor (identical rule to the
+   * Requirements → Order modal).
+   */
+  function changeUnit(newUnitId: string) {
+    const newUnit = units.find((u) => u.unitId === newUnitId)
+    const currentFactor = selUnit?.conversionFactor ?? 1
+    const newFactor = newUnit?.conversionFactor ?? 1
+    const currentQty = parseFloat(quantity)
+    if (Number.isFinite(currentQty) && currentFactor > 0 && newFactor > 0) {
+      const baseUnits = currentQty * currentFactor
+      const newQty = baseUnits / newFactor
+      setUnitId(newUnitId)
+      setQuantity(String(Math.round(newQty * 1000) / 1000))
+    } else {
+      setUnitId(newUnitId)
+    }
+    setError("")
+  }
+
   function handleCreate() {
     if (!line || !preview) return
-    if (!quantity || parseFloat(quantity) <= 0) {
+    if (!Number.isFinite(qty) || qty <= 0) {
       setError("Quantity must be greater than zero.")
       return
     }
-    if (parseFloat(quantity) > preview.remainingQuantity) {
+    const unitCostNum = parseFloat(unitCost)
+    if (unitCost === "" || !Number.isFinite(unitCostNum) || unitCostNum < 0) {
+      setError(`Enter a valid unit cost for ${line.productName}.`)
+      return
+    }
+    // Remaining allowance in base units: the preview's remaining quantity is in
+    // the requirement line's unit, converted with its factor (unknown unit →
+    // treated as base, factor 1). The entered quantity is converted with the
+    // selected unit's factor — same check as the Requirements → Order modal.
+    const lineFactor =
+      findUnitForLine(units, {
+        unitId: line.unitId,
+        unitName: line.unitName,
+      })?.conversionFactor ?? 1
+    const remainingBase = preview.remainingQuantity * lineFactor
+    const baseQtyNum = qty * factor
+    if (baseQtyNum > remainingBase + 1e-9) {
       setError(
-        `Cannot order more than remaining quantity (${preview.remainingQuantity}).`,
+        `Cannot order more than the remaining quantity for ${line.productName}.`,
       )
       return
     }
-    if (!unitCost || parseFloat(unitCost) < 0) {
-      setError("Unit cost must be a valid number.")
-      return
-    }
+    const unitName = base?.unit.name || line.unitName
     setError("")
     setLoading(true)
     onCreatePO(
-      parseFloat(quantity),
-      parseFloat(unitCost),
+      Math.round(baseQtyNum * 1000) / 1000,
+      unitCostNum,
       expectedDeliveryDate,
       notes,
+      unitName,
     )
     setLoading(false)
   }
 
-  if (!open || !line || !preview) return null
-
   return (
     <Modal open={true} title="Order Remaining" onClose={onClose} size="md">
       <div className="flex flex-col gap-4">
+        {unitsError && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            {unitsError}
+          </div>
+        )}
         {error && (
           <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
             {error}
@@ -810,14 +912,55 @@ export function OrderPreviewModal({
             <Fw label="Quantity to Order">
               <input
                 type="number"
-                min={1}
-                max={preview.remainingQuantity}
+                min={0}
                 step="0.001"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 className={SC}
                 placeholder={preview.suggestedOrderQuantity.toString()}
               />
+              {hasUnits && base && baseQty !== null && (
+                <p className="text-xs text-[#666666] mt-1">
+                  ={" "}
+                  <span className="font-semibold text-[#7A9076]">
+                    {baseQuantityLabel(baseQty, base.unit)}
+                  </span>
+                  <span className="text-[10px] text-[#7A9076] font-semibold uppercase tracking-wide ml-1">
+                    base
+                  </span>
+                </p>
+              )}
+            </Fw>
+            <Fw label="Unit">
+              {unitsLoading && !hasUnits ? (
+                <span className="text-sm text-[#999] py-2.5 inline-block">
+                  Loading units…
+                </span>
+              ) : hasUnits && base ? (
+                <div className="flex flex-col gap-1">
+                  <select
+                    value={selUnit?.unitId ?? base.unitId}
+                    onChange={(e) => changeUnit(e.target.value)}
+                    className={SC}
+                  >
+                    {units.map((u) => (
+                      <option key={u.id} value={u.unitId}>
+                        {unitLabel(u)}
+                        {u.isBaseUnit ? " (base)" : ` (×${u.conversionFactor})`}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[11px] text-[#888]">
+                    {selUnit?.isBaseUnit
+                      ? "Base unit — no conversion"
+                      : `1 ${selUnit?.unit.symbol || selUnit?.unit.name} = ${selUnit?.conversionFactor} ${base.unit.symbol || base.unit.name}`}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm text-[#999] py-2.5 inline-block">
+                  {line.unitName || "—"}
+                </span>
+              )}
             </Fw>
             <Fw label="Unit Cost (ETB)">
               <input
@@ -853,7 +996,7 @@ export function OrderPreviewModal({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleCreate} loading={loading}>
+          <Button onClick={handleCreate} loading={loading || unitsLoading}>
             Create Purchase Order
           </Button>
         </div>
