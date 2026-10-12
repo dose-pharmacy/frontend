@@ -108,6 +108,30 @@ export interface GoodsReceiptDto {
   }
 }
 
+/**
+ * A goods receipt is "already confirmed" when any confirmation field is set.
+ * `confirmedAt` is the authoritative signal on the detail endpoint; list rows
+ * may only carry `confirmedById`/`confirmedBy`. Checking all three keeps the
+ * list and detail pages from disagreeing about an already-confirmed receipt.
+ */
+export function goodsReceiptIsConfirmed(
+  r: Pick<GoodsReceiptDto, "confirmedAt" | "confirmedById" | "confirmedBy">,
+): boolean {
+  return Boolean(r.confirmedAt ?? r.confirmedById ?? r.confirmedBy)
+}
+
+/**
+ * A goods receipt can be confirmed only while it is NOT already confirmed and
+ * its status is MATCHED or RESOLVED. Single source of truth for the Confirm
+ * button on the Deliveries list and the detail ("Confirm Receipt") button.
+ */
+export function canConfirmGoodsReceipt(r: GoodsReceiptDto): boolean {
+  return (
+    !goodsReceiptIsConfirmed(r) &&
+    (r.status === "MATCHED" || r.status === "RESOLVED")
+  )
+}
+
 export class GoodsReceiptsApiError extends Error {
   constructor(public message: string, public code?: string, public status?: number) {
     super(message)

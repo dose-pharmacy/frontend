@@ -8,8 +8,11 @@ import Pagination from "../../components/ui/Pagination"
 import Modal from "../../components/ui/Modal"
 import {
   listGoodsReceipts,
+  getGoodsReceipt,
   deleteGoodsReceipt,
   confirmGoodsReceipt,
+  goodsReceiptIsConfirmed,
+  canConfirmGoodsReceipt,
   type GoodsReceiptDto,
   type GoodsReceiptStatus,
   GoodsReceiptsApiError,
@@ -67,8 +70,8 @@ export default function GoodsReceiptsPage() {
   const [toast, setToast] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GoodsReceiptDto | null>(null)
-  const [confirmTarget, setConfirmTarget] = useState<GoodsReceiptDto | null>(null)
-  const [confirming, setConfirming] = useState(false)
+  /** Id of the row currently being confirmed — disables only that row's button. */
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([])
 
   const PAGE_SIZE = 20
@@ -133,19 +136,36 @@ export default function GoodsReceiptsPage() {
     }
   }
 
-  async function handleConfirm() {
-    if (!confirmTarget) return
-    setConfirming(true)
+  /** Confirm a receipt on one click — same API + behaviour as the detail
+   *  page's "Confirm Receipt" button. The confirmed row is refreshed in place
+   *  so the Confirm button hides immediately, without reloading the list. */
+  async function handleConfirm(r: GoodsReceiptDto) {
+    setConfirmingId(r.id)
     try {
-      await confirmGoodsReceipt(confirmTarget.id)
-      setConfirmTarget(null)
+      await confirmGoodsReceipt(r.id)
+      // Re-fetch this row so `confirmedAt`/`confirmedBy` reflect the backend
+      // state and the shared canConfirm guard hides the button immediately.
+      try {
+        const updated = await getGoodsReceipt(r.id)
+        setReceipts((prev) =>
+          prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)),
+        )
+      } catch {
+        // Non-critical refresh failure — keep the row confirmable-marked so the
+        // button hides; the next full list load shows the authoritative state.
+        setReceipts((prev) =>
+          prev.map((x) =>
+            x.id === r.id
+              ? { ...x, confirmedAt: x.confirmedAt ?? new Date().toISOString() }
+              : x,
+          ),
+        )
+      }
       showToast("Goods receipt confirmed successfully.")
-      loadReceipts()
     } catch (e) {
-      setConfirmTarget(null)
       showToast(e instanceof GoodsReceiptsApiError ? e.message : "Failed to confirm goods receipt.")
     } finally {
-      setConfirming(false)
+      setConfirmingId(null)
     }
   }
 
@@ -304,8 +324,8 @@ export default function GoodsReceiptsPage() {
                     ) : (
                       visibleReceipts.map((r, i) => {
                         const itemCount = r._count?.items ?? r.items?.length ?? 0
-                        const confirmed = !!r.confirmedBy || !!r.confirmedById || !!r.confirmedAt
-                        const canConfirm = !confirmed && (r.status === "MATCHED" || r.status === "RESOLVED")
+                        const confirmed = goodsReceiptIsConfirmed(r)
+                        const canConfirm = canConfirmGoodsReceipt(r)
                         return (
                           <tr key={r.id} className={`hover:bg-[#E6ECE2]/30 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#E6ECE2]/15"}`}>
                             <td className="px-4 py-3">
@@ -346,11 +366,11 @@ export default function GoodsReceiptsPage() {
                                 </button>
                                 {canConfirm && (
                                   <button
-                                    onClick={() => setConfirmTarget(r)}
-                                    disabled={confirming}
+                                    onClick={() => handleConfirm(r)}
+                                    disabled={confirmingId === r.id}
                                     className="text-xs font-semibold text-[#5C7A55] hover:underline whitespace-nowrap disabled:opacity-60"
                                   >
-                                    Confirm
+                                    {confirmingId === r.id ? "Confirming…" : "Confirm"}
                                   </button>
                                 )}
                                 {!confirmed && (
@@ -391,20 +411,6 @@ export default function GoodsReceiptsPage() {
           <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
           <button onClick={handleDelete} disabled={deleting} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-red-600 hover:bg-red-700 text-white`}>
             {deleting ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      </Modal>
-
-      {/* Confirm receipt modal */}
-      <Modal open={!!confirmTarget} title="Confirm Goods Receipt?" onClose={() => setConfirmTarget(null)} size="sm">
-        <p className="text-sm text-[#666666]">
-          Confirm {confirmTarget?.receiptNumber}? This finalises the receipt and locks it against further edits.
-        </p>
-        <p className="mt-2 text-xs text-[#999]">Stock is already updated when the receipt was registered; confirming records the sign-off.</p>
-        <div className="flex gap-3 justify-end mt-6">
-          <Button variant="secondary" onClick={() => setConfirmTarget(null)}>Cancel</Button>
-          <button onClick={handleConfirm} disabled={confirming} className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 bg-[#B6C8AF] hover:bg-[#A5B89E] text-[#333333]`}>
-            {confirming ? "Confirming..." : "Confirm Receipt"}
           </button>
         </div>
       </Modal>

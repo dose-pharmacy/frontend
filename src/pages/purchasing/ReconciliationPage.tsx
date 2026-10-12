@@ -10,6 +10,7 @@ import {
   resolveGoodsReceipt,
   confirmGoodsReceipt,
   deleteGoodsReceipt,
+  canConfirmGoodsReceipt,
   type GoodsReceiptDto,
   type GRItemDto,
   GoodsReceiptsApiError,
@@ -359,12 +360,12 @@ export default function ReconciliationPage() {
   }
 
   // A receipt is confirmable only while it is NOT yet finalized. The backend
-  // keeps `status` as MATCHED/RESOLVED after confirmation, so `confirmedAt` is
-  // the authoritative "already confirmed" signal — never assume MATCHED means
-  // unconfirmed.
-  const isConfirmed = Boolean(receipt.confirmedAt);
-  const canConfirm =
-    !isConfirmed && (receipt.status === "MATCHED" || receipt.status === "RESOLVED");
+  // keeps `status` as MATCHED/RESOLVED after confirmation, so the shared
+  // `canConfirmGoodsReceipt` guard uses the confirmation fields as the
+  // authoritative "already confirmed" signal — never assume MATCHED means
+  // unconfirmed. Sharing the helper with the Deliveries list keeps both pages'
+  // Confirm buttons from drifting apart.
+  const canConfirm = canConfirmGoodsReceipt(receipt);
 
   // Backend detail responses embed `items`; guard anyway so the page can never
   // crash (e.g. on a partial response shape) because the array is missing.
